@@ -1,0 +1,17 @@
+# objects
+*.o
+*.so
+*.a
+
+# Ignore all scratch dir.
+scratch/
+
+# Videos dir
+videos/
+
+# Ignore datasets
+datasets/
+
+# Ignore log folders
+log/
+
