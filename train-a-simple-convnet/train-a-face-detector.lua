@@ -52,14 +52,18 @@ torch.setdefaulttensortype('torch.DoubleTensor')
 --
 if not opt.network then
    convnet = nn.Sequential()
-   convnet:add(nn.SpatialNormalization(1, image.gaussian(7)))
-   convnet:add(nn.SpatialConvolution(1, 8, 5, 5))
+   convnet:add(nn.SpatialNormalization(1, image.gaussian(5)))
+   convnet:add(nn.SpatialConvolution(1, 4, 5, 5))
    convnet:add(nn.Tanh())
-   convnet:add(nn.SpatialMaxPooling(4, 4))
+   convnet:add(nn.SpatialMaxPooling(2, 2))
    convnet:add(nn.Tanh())
-   convnet:add(nn.SpatialConvolution(8, 20, 7, 7))
+   convnet:add(nn.SpatialConvolution(4, 8, 5, 5))
    convnet:add(nn.Tanh())
-   convnet:add(nn.SpatialLinear(20,2))
+   convnet:add(nn.SpatialMaxPooling(2, 2))
+   convnet:add(nn.Tanh())
+   convnet:add(nn.SpatialConvolution(8, 16, 5, 5))
+   convnet:add(nn.Tanh())
+   convnet:add(nn.SpatialLinear(16,2))
 else
    print('<trainer> reloading previously trained network')
    convnet = nn.Sequential()
@@ -79,9 +83,9 @@ trainer = nn.StochasticTrainer{module=convnet,
                                criterion=criterion,
                                learningRate = 1e-3,
                                learningRateDecay = 1e-2,
-                               weightDecay = 1e-5,
+                               weightDecay = 1e-6,
                                maxEpoch = 50,
-                               momentum = 0.5,
+                               momentum = 0.8,
                                save = opt.save}
 trainer:setShuffle(false)
 
