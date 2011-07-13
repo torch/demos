@@ -26,9 +26,9 @@ xrequire ('nnx', true)
 --
 op = xlua.OptionParser('%prog [options]')
 op:option{'-s', '--save', action='store', dest='save', 
-          default='scratch/mnist-net',
+          default='digit-net',
           help='file to save network after each epoch'}
-op:option{'-l', '--load', action='store', dest='load',
+op:option{'-l', '--load', action='store', dest='network',
           help='reload pretrained network'}
 op:option{'-d', '--dataset', action='store', dest='dataset', 
           default='../datasets/mnist',
@@ -52,18 +52,24 @@ nbClasses = 10
 connex = {6,16,120}
 fanin = {1,6,16}
 
-convnet = nn.Sequential()
-convnet:add(nn.SpatialConvolution(1,connex[1], 5, 5))
-convnet:add(nn.Tanh())
-convnet:add(nn.SpatialSubSampling(connex[1], 2, 2, 2, 2))
-convnet:add(nn.Tanh())
-convnet:add(nn.SpatialConvolution(connex[1],connex[2], 5, 5))
-convnet:add(nn.Tanh())
-convnet:add(nn.SpatialSubSampling(connex[2], 2, 2, 2, 2))
-convnet:add(nn.Tanh())
-convnet:add(nn.SpatialConvolution(connex[2],connex[3], 5, 5))
-convnet:add(nn.Tanh())
-convnet:add(nn.SpatialLinear(connex[3],nbClasses))
+if not opt.network then
+   convnet = nn.Sequential()
+   convnet:add(nn.SpatialConvolution(1,connex[1], 5, 5))
+   convnet:add(nn.Tanh())
+   convnet:add(nn.SpatialSubSampling(connex[1], 2, 2, 2, 2))
+   convnet:add(nn.Tanh())
+   convnet:add(nn.SpatialConvolution(connex[1],connex[2], 5, 5))
+   convnet:add(nn.Tanh())
+   convnet:add(nn.SpatialSubSampling(connex[2], 2, 2, 2, 2))
+   convnet:add(nn.Tanh())
+   convnet:add(nn.SpatialConvolution(connex[2],connex[3], 5, 5))
+   convnet:add(nn.Tanh())
+   convnet:add(nn.SpatialLinear(connex[3],nbClasses))
+else
+   print('<trainer> reloading previously trained network')
+   convnet = nn.Sequential()
+   convnet:read(torch.DiskFile(opt.network))
+end
 
 ----------------------------------------------------------------------
 -- training criterion: a simple Mean-Square Error
@@ -86,7 +92,10 @@ trainer:setShuffle(false)
 
 classes = {'1','2','3','4','5','6','7','8','9','10'}
 
-confusion = nn.ConfusionMatrix(nbClasses, classes)
+confusion = nn.ConfusionMatrix(classes)
+
+trainLogger = nn.Logger(opt.save .. '/train-log')
+testLogger = nn.Logger(opt.save .. '/test-log')
 
 trainer.hookTrainSample = function(trainer, sample)
    confusion:add(trainer.module.output, sample[2])
@@ -99,6 +108,7 @@ end
 trainer.hookTrainEpoch = function(trainer)
    -- print confusion matrix
    print(confusion)
+   trainLogger:add{['% mean class accuracy (train set)'] = confusion.totalValid * 100}
    confusion:zero()
 
    -- run on test_set
@@ -106,7 +116,14 @@ trainer.hookTrainEpoch = function(trainer)
 
    -- print confusion matrix
    print(confusion)
+   testLogger:add{['% mean class accuracy (test set)'] = confusion.totalValid * 100}
    confusion:zero()
+
+   -- plot errors
+   trainLogger:style{['% mean class accuracy (train set)'] = '-'}
+   testLogger:style{['% mean class accuracy (test set)'] = '-'}
+   trainLogger:plot()
+   testLogger:plot()
 end
 
 ----------------------------------------------------------------------

@@ -26,9 +26,9 @@ xrequire ('nnx', true)
 --
 op = xlua.OptionParser('%prog [options]')
 op:option{'-s', '--save', action='store', dest='save', 
-          default='scratch/face-net',
+          default='face-net',
           help='file to save network after each epoch'}
-op:option{'-l', '--load', action='store', dest='load',
+op:option{'-l', '--load', action='store', dest='network',
           help='reload pretrained network'}
 op:option{'-d', '--dataset', action='store', dest='dataset', 
           default='../datasets/faces_cut_yuv_32x32/',
@@ -61,9 +61,8 @@ if not opt.network then
    convnet:add(nn.SpatialLinear(20,2))
 else
    print('<trainer> reloading previously trained network')
-   file = torch.DiskFile(opt.network)
-   convnet = nn.Sequential():read(file)
-   file:close()
+   convnet = nn.Sequential()
+   convnet:read(torch.DiskFile(opt.network))
 end
 
 ----------------------------------------------------------------------
@@ -85,7 +84,10 @@ trainer = nn.StochasticTrainer{module=convnet,
                                save = opt.save}
 trainer:setShuffle(false)
 
-confusion = nn.ConfusionMatrix(2, {'Faces', 'Background'})
+confusion = nn.ConfusionMatrix{'Faces', 'Background'}
+
+trainLogger = nn.Logger(opt.save .. '/train-log')
+testLogger = nn.Logger(opt.save .. '/test-log')
 
 trainer.hookTrainSample = function(trainer, sample)
    confusion:add(trainer.module.output, sample[2])
@@ -98,6 +100,7 @@ end
 trainer.hookTrainEpoch = function(trainer)
    -- print confusion
    print(confusion)
+   trainLogger:add{['% mean class accuracy (train set)'] = confusion.totalValid * 100}
    confusion:zero()
 
    -- run on test_set
@@ -105,7 +108,14 @@ trainer.hookTrainEpoch = function(trainer)
 
    -- print confusion
    print(confusion)
+   testLogger:add{['% mean class accuracy (test set)'] = confusion.totalValid * 100}
    confusion:zero()
+
+   -- plot errors
+   trainLogger:style{['% mean class accuracy (train set)'] = '-'}
+   testLogger:style{['% mean class accuracy (test set)'] = '-'}
+   trainLogger:plot()
+   testLogger:plot()
 end
 
 ----------------------------------------------------------------------
