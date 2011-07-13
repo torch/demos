@@ -24,9 +24,10 @@ xrequire ('nnx', true)
 ----------------------------------------------------------------------
 -- parse options
 --
+dname,fname = sys.fpath()
 op = xlua.OptionParser('%prog [options]')
 op:option{'-s', '--save', action='store', dest='save', 
-          default='face-net',
+          default=fname:gsub('.lua','') .. '/face.net'
           help='file to save network after each epoch'}
 op:option{'-l', '--load', action='store', dest='network',
           help='reload pretrained network'}
@@ -86,8 +87,8 @@ trainer:setShuffle(false)
 
 confusion = nn.ConfusionMatrix{'Faces', 'Background'}
 
-trainLogger = nn.Logger(opt.save .. '/train-log')
-testLogger = nn.Logger(opt.save .. '/test-log')
+trainLogger = nn.Logger(sys.dirname(opt.save) .. '/train.log')
+testLogger = nn.Logger(sys.dirname(opt.save) .. '/test.log')
 
 trainer.hookTrainSample = function(trainer, sample)
    confusion:add(trainer.module.output, sample[2])
