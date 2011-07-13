@@ -101,7 +101,7 @@ function process()
    pyramid, coordinates = packer:forward(frameY)
 
    -- (4) run pre-trained network on it
-   multiscale = network:forward(frameY)
+   multiscale = network:forward(pyramid)
 
    -- (5) unpack pyramid
    distributions = unpacker:forward(multiscale, coordinates)
@@ -130,7 +130,7 @@ end
 function display()
    win:gbegin()
    win:showpage()
-   -- (1) display input image
+   -- (1) display input image + pyramid
    image.display{image=frame, win=win}
 
    -- (2) overlay bounding boxes for each detection
