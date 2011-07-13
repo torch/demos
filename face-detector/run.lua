@@ -7,12 +7,12 @@
 
 require 'xlua'
 require 'torch'
-require 'nnx'
-require 'inline'
 require 'qt'
 require 'qtwidget'
 require 'qtuiloader'
+xrequire('inline',true)
 xrequire('camera',true)
+xrequire('nnx',true)
 
 -- parse args
 op = xlua.OptionParser('%prog [options]')
