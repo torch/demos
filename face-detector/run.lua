@@ -87,7 +87,7 @@ widget = qtuiloader.load('g.ui')
 win = qt.QtLuaPainter(widget.frame)
 
 -- a gaussian for smoothing the distributions
-gaussian = image.gaussian(3)
+gaussian = image.gaussian(3,0.15)
 
 -- process function
 function process()

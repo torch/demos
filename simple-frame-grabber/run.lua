@@ -40,7 +40,7 @@ end
 
 -- display function
 function display()
-   zoom = widget.verticalSlider.value/1000
+   zoom = 1
    win:gbegin()
    win:showpage()
    image.display{image=frame, win=win, zoom=zoom}
