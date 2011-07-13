@@ -27,7 +27,7 @@ xrequire ('nnx', true)
 dname,fname = sys.fpath()
 op = xlua.OptionParser('%prog [options]')
 op:option{'-s', '--save', action='store', dest='save', 
-          default=fname:gsub('.lua','') .. '/face.net'
+          default=fname:gsub('.lua','') .. '/face.net',
           help='file to save network after each epoch'}
 op:option{'-l', '--load', action='store', dest='network',
           help='reload pretrained network'}
