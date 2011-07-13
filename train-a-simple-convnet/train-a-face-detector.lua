@@ -112,7 +112,7 @@ end
 -- create dataset
 --
 if not sys.dirp(opt.dataset) then
-   local path = sys.dirname(path_dataset)
+   local path = sys.dirname(opt.dataset)
    local tar = sys.basename(opt.www)
    os.execute('mkdir -p ' .. path .. '; '..
               'cd ' .. path .. '; '..
