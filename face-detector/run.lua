@@ -31,7 +31,7 @@ parse = inline.load [[
       THDoubleTensor *tensor = luaT_checkudata(L, 1, id);
       double threshold = lua_tonumber(L, 2);
       int table_blobs = 3;
-      int idx = lua_objlen(L, 3);
+      int idx = lua_objlen(L, 3) + 1;
       double scale = lua_tonumber(L, 4);
 
       // loop over pixels
@@ -74,7 +74,7 @@ network_sub = 4
 camera = image.Camera{}
 
 -- process input at multiple scales
-scales = {0.3, 0.24, 0.192, 0.15, 0.12, 0.1, 0.0833}
+scales = {0.3, 0.24, 0.192, 0.15, 0.12, 0.1}
 
 -- use a pyramid packer/unpacker
 require 'PyramidPacker'
@@ -85,6 +85,9 @@ unpacker = nn.PyramidUnPacker(network)
 -- setup GUI (external UI file)
 widget = qtuiloader.load('g.ui')
 win = qt.QtLuaPainter(widget.frame)
+
+-- a gaussian for smoothing the distributions
+gaussian = image.gaussian(3)
 
 -- process function
 function process()
@@ -104,13 +107,14 @@ function process()
    distributions = unpacker:forward(multiscale, coordinates)
 
    -- (6) parse distributions to extract blob centroids
-   threshold = widget.verticalSlider.value/50 - 1
+   threshold = widget.verticalSlider.value/100
    rawresults = {}
    for i,distribution in ipairs(distributions) do
-      parse(distribution[1], threshold, rawresults, scales[i])
+      local smoothed = image.convolve(distribution[1]:add(1):mul(0.5), gaussian)
+      parse(smoothed, threshold, rawresults, scales[i])
    end
 
-   -- (7) cleanup results
+   -- (7) clean up results
    detections = {}
    for i,res in ipairs(rawresults) do
       local scale = res[3]
@@ -144,7 +148,7 @@ function display()
    for i,distribution in ipairs(distributions) do
       local prev = distributions[i-1]
       if prev then prevx = prevx + prev:size(3) end
-      image.display{image=distribution[1], win=win, x=prevx, min=-1, max=1}
+      image.display{image=distribution[1], win=win, x=prevx, min=0, max=1}
    end
 
    win:gend()
