@@ -10,7 +10,7 @@ order to work.
 Linux (Ubuntu > 9.04):
 
 1/ Basic tools
-$ apt-get install gcc g++ git libreadline5-dev cmake
+$ apt-get install gcc g++ git libreadline5-dev cmake wget
 
 2/ QT4 (at least 4.4)
 $ apt-get install libqt4-core libqt4-gui libqt4-dev
@@ -27,7 +27,7 @@ Mac OS X > 10.5:
    for MacPorts.
 
 1/ Basic tools, using Homebrew:
-$ brew install git readline cmake 
+$ brew install git readline cmake wget
 
 2/ Install QT4 (at least 4.4)
 $ brew install qt
