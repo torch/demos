@@ -83,8 +83,10 @@ packer = nn.PyramidPacker(network, scales)
 unpacker = nn.PyramidUnPacker(network)
 
 -- setup GUI (external UI file)
-widget = qtuiloader.load('g.ui')
-win = qt.QtLuaPainter(widget.frame)
+if not win or not widget then 
+   widget = qtuiloader.load('g.ui')
+   win = qt.QtLuaPainter(widget.frame) 
+end
 
 -- a gaussian for smoothing the distributions
 gaussian = image.gaussian(3,0.15)
@@ -155,7 +157,7 @@ function display()
 end
 
 -- setup gui
-local timer = qt.QTimer()
+timer = qt.QTimer()
 timer.interval = 10
 timer.singleShot = true
 qt.connect(timer,
