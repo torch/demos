@@ -1,0 +1,60 @@
+<!-------------------------------------------------------------------------->
+<geometry>640x480</geometry>
+
+<!-------------------------------------------------------------------------->
+<slide>
+  <title>A simple face detector</title>
+  <transition>none</transition>
+  <align>center</align>
+  <body>
+    <h3>A simple convolutional network trained end to end to detect
+      faces</h3>
+    <ul>
+      <li>frames are grabbed from a webcam</li>
+      <li>transformed from RGB -> Y</li>
+      <li>Y is then transformed by the pre-trained network</li>
+      <li>the output of the network is a map of distribution vectors:
+        each vector has 2 components, one for faces and the other one for
+        background</li>
+      <li>this map is then parsed to extract blob locations, which
+        correspond to face locations</li>
+    </ul>
+  </body>
+</slide>
+
+<!-------------------------------------------------------------------------->
+<slide>
+  <title>A Simple face detector: Live !</title>
+  <transition>flip</transition>
+  <align>center</align>
+  <body>
+    (press <font color=red>i</font>)
+  </body>
+  <lua>
+    function __interaction__(self,it)
+       win = self.w
+       widget = {}
+       widget.verticalSlider = {value=70}
+       widget.show = function() end
+       dofile 'run.lua'
+       function killtimer(char, key)
+          if "Key_Down" or key == "Key_Right" then
+             timer:stop()
+             camera:stop()
+             qt.disconnect(win.listener,'sigKeyPress(QString,QByteArray,QByteArray)',killtimer)
+          end
+       end
+       qt.connect(win.listener,'sigKeyPress(QString,QByteArray,QByteArray)',killtimer)
+    end
+  </lua>
+</slide>
+
+<!-------------------------------------------------------------------------->
+<slide>
+  <title>Done.</title>
+  <transition>open</transition>
+  <align>center</align>
+  <body>
+    <h3>Done !</h3>
+  </body>
+</slide>
