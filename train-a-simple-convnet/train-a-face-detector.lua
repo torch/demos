@@ -58,7 +58,7 @@ if not opt.network then
    convnet:add(nn.Abs())
    convnet:add(nn.SpatialMaxPooling(4, 4))
    convnet:add(nn.Tanh())
-   convnet:add(nn.SpatialConvolutionSparse(nn.tables.random(8, 32, 4), 7, 7))
+   convnet:add(nn.SpatialConvolutionMap(nn.tables.random(8, 32, 4), 7, 7))
    convnet:add(nn.Tanh())
    convnet:add(nn.SpatialLinear(32,2))
 else
