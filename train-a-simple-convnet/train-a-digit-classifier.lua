@@ -41,9 +41,15 @@ op:option{'-f', '--full', action='store_true', dest='full',
           help='use full dataset (60,000 samples) to train'}
 op:option{'-v', '--visualize', action='store_true', dest='visualize',
           help='visualize the datasets'}
+op:option{'-sd', '--seed', action='store', dest='seed',
+          help='use fixed seed for randomized initialization'}
 opt = op:parse()
 
 torch.setdefaulttensortype('torch.DoubleTensor')
+
+if opt.seed then
+   random.manualSeed(opt.seed)
+end
 
 ----------------------------------------------------------------------
 -- define network to train: CSCSCF

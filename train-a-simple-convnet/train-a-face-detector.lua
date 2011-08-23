@@ -43,9 +43,15 @@ op:option{'-p', '--patches', action='store', dest='patches', default='all',
           help='nb of patches to use'}
 op:option{'-v', '--visualize', action='store_true', dest='visualize',
           help='visualize the datasets'}
+op:option{'-sd', '--seed', action='store', dest='seed',
+          help='use fixed seed for randomized initialization'}
 opt = op:parse()
 
 torch.setdefaulttensortype('torch.DoubleTensor')
+
+if opt.seed then
+   random.manualSeed(opt.seed)
+end
 
 ----------------------------------------------------------------------
 -- define network to train: CSCF
