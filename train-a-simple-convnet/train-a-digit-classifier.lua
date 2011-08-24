@@ -119,8 +119,8 @@ confusion = nn.ConfusionMatrix(classes)
 trainLogger = nn.Logger(sys.dirname(opt.save) .. '/train.log')
 testLogger = nn.Logger(sys.dirname(opt.save) .. '/test.log')
 
-trainer.hookTrainSample = function(trainer, sample)
-   confusion:add(trainer.module.output, sample[2])
+optimizer.hook = function(optimizer, sample)
+   confusion:add(optimizer.module.output, sample[2])
 end
 
 trainer.hookTestSample = function(trainer, sample)
