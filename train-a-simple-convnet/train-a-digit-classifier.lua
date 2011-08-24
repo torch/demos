@@ -119,7 +119,7 @@ confusion = nn.ConfusionMatrix(classes)
 trainLogger = nn.Logger(sys.dirname(opt.save) .. '/train.log')
 testLogger = nn.Logger(sys.dirname(opt.save) .. '/test.log')
 
-optimizer.hook = function(optimizer, sample)
+optimizer.posthook = function(optimizer, sample)
    confusion:add(optimizer.module.output, sample[2])
 end
 
