@@ -43,6 +43,9 @@ op:option{'-v', '--visualize', action='store_true', dest='visualize',
           help='visualize the datasets'}
 op:option{'-sd', '--seed', action='store', dest='seed',
           help='use fixed seed for randomized initialization'}
+op:option{'-op', '--optimization', action='store', dest='optimization',
+          default='SGD',
+          help='optimization method: SGD or BFGS'}
 opt = op:parse()
 
 torch.setdefaulttensortype('torch.DoubleTensor')
@@ -87,14 +90,22 @@ criterion.sizeAverage = true
 ----------------------------------------------------------------------
 -- trainer: std stochastic trainer, plus training hooks
 --
-trainer = nn.StochasticTrainer{module=convnet, 
-                               criterion=criterion,
-                               learningRate = 1e-2,
-                               learningRateDecay = 0,
-                               weightDecay = 1e-4,
-                               maxEpoch = 50,
-                               momentum = 0.5,
-                               save = opt.save}
+if opt.optimization == 'BFGS' then
+   optimizer = nn.LBFGSOptimization{module = convnet,
+                                    criterion = criterion}
+else
+   optimizer = nn.SGDOptimization{module = convnet,
+                                  criterion = criterion,
+                                  learningRate = 1e-2,
+                                  weightDecay = 1e-4,
+                                  momentum = 0.5}
+end
+
+trainer = nn.OnlineTrainer{module = convnet, 
+                           criterion = criterion,
+                           optimizer = optimizer,
+                           maxEpoch = 50,
+                           save = opt.save}
 trainer:setShuffle(false)
 
 classes = {'1','2','3','4','5','6','7','8','9','10'}
