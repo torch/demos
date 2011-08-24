@@ -92,7 +92,8 @@ criterion.sizeAverage = true
 --
 if opt.optimization == 'BFGS' then
    optimizer = nn.LBFGSOptimization{module = convnet,
-                                    criterion = criterion}
+                                    criterion = criterion,
+                                    maxIterations = 20}
    batchSize = 20
 else
    optimizer = nn.SGDOptimization{module = convnet,
