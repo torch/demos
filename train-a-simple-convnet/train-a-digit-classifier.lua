@@ -93,18 +93,21 @@ criterion.sizeAverage = true
 if opt.optimization == 'BFGS' then
    optimizer = nn.LBFGSOptimization{module = convnet,
                                     criterion = criterion}
+   batchSize = 20
 else
    optimizer = nn.SGDOptimization{module = convnet,
                                   criterion = criterion,
                                   learningRate = 1e-2,
                                   weightDecay = 1e-4,
                                   momentum = 0.5}
+   batchSize = 1
 end
 
 trainer = nn.OnlineTrainer{module = convnet, 
                            criterion = criterion,
                            optimizer = optimizer,
                            maxEpoch = 50,
+                           batchSize = batchSize,
                            save = opt.save}
 trainer:setShuffle(false)
 
