@@ -46,6 +46,13 @@ op:option{'-sd', '--seed', action='store', dest='seed',
 op:option{'-op', '--optimization', action='store', dest='optimization',
           default='SGD',
           help='optimization method: SGD or BFGS'}
+op:option{'-bs', '--batchSize', action='store', dest='batchSize',
+          default=1,
+          help='mini-batch size'}
+op:option{'-mi', '--maxIteration', action='store', dest='bfgsMaxIteration',
+          default=20,
+          help='maximum nb of iterations for each mini-batch'}
+
 opt = op:parse()
 
 torch.setdefaulttensortype('torch.DoubleTensor')
@@ -93,16 +100,16 @@ criterion.sizeAverage = true
 if opt.optimization == 'BFGS' then
    optimizer = nn.LBFGSOptimization{module = convnet,
                                     criterion = criterion,
-                                    maxIterations = 20}
-   batchSize = 100
+                                    maxIterations = opt.bfgsMaxIteration}
 else
    optimizer = nn.SGDOptimization{module = convnet,
                                   criterion = criterion,
                                   learningRate = 1e-2,
                                   weightDecay = 1e-4,
                                   momentum = 0.5}
-   batchSize = 1
 end
+
+batchSize = opt.batchSize
 
 trainer = nn.OnlineTrainer{module = convnet, 
                            criterion = criterion,
