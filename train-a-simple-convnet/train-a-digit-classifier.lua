@@ -43,6 +43,9 @@ op:option{'-v', '--visualize', action='store_true', dest='visualize',
           help='visualize the datasets'}
 op:option{'-sd', '--seed', action='store', dest='seed',
           help='use fixed seed for randomized initialization'}
+op:option{'-op', '--optimization', action='store', dest='optimization',
+          default='SGD',
+          help='optimization method: SGD or BFGS'}
 opt = op:parse()
 
 torch.setdefaulttensortype('torch.DoubleTensor')
@@ -87,14 +90,26 @@ criterion.sizeAverage = true
 ----------------------------------------------------------------------
 -- trainer: std stochastic trainer, plus training hooks
 --
-trainer = nn.StochasticTrainer{module=convnet, 
-                               criterion=criterion,
-                               learningRate = 1e-2,
-                               learningRateDecay = 0,
-                               weightDecay = 1e-4,
-                               maxEpoch = 50,
-                               momentum = 0.5,
-                               save = opt.save}
+if opt.optimization == 'BFGS' then
+   optimizer = nn.LBFGSOptimization{module = convnet,
+                                    criterion = criterion,
+                                    maxIterations = 20}
+   batchSize = 100
+else
+   optimizer = nn.SGDOptimization{module = convnet,
+                                  criterion = criterion,
+                                  learningRate = 1e-2,
+                                  weightDecay = 1e-4,
+                                  momentum = 0.5}
+   batchSize = 1
+end
+
+trainer = nn.OnlineTrainer{module = convnet, 
+                           criterion = criterion,
+                           optimizer = optimizer,
+                           maxEpoch = 50,
+                           batchSize = batchSize,
+                           save = opt.save}
 trainer:setShuffle(false)
 
 classes = {'1','2','3','4','5','6','7','8','9','10'}
@@ -104,8 +119,8 @@ confusion = nn.ConfusionMatrix(classes)
 trainLogger = nn.Logger(sys.dirname(opt.save) .. '/train.log')
 testLogger = nn.Logger(sys.dirname(opt.save) .. '/test.log')
 
-trainer.hookTrainSample = function(trainer, sample)
-   confusion:add(trainer.module.output, sample[2])
+optimizer.posthook = function(optimizer, sample)
+   confusion:add(optimizer.module.output, sample[2])
 end
 
 trainer.hookTestSample = function(trainer, sample)
