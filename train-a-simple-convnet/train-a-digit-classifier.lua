@@ -114,7 +114,7 @@ batchSize = opt.batchSize
 trainer = nn.OnlineTrainer{module = convnet, 
                            criterion = criterion,
                            optimizer = optimizer,
-                           maxEpoch = 50,
+                           maxEpoch = 500,
                            batchSize = batchSize,
                            save = opt.save}
 trainer:setShuffle(false)
