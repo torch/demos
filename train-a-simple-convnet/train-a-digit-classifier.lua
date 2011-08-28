@@ -69,8 +69,8 @@ end
 --
 
 nbClasses = 10
-connex = {6,16,120}
-fanin = {1,6,16}
+connex = {12,32,128}
+fanin = {1,8,32}
 
 if not opt.network then
    convnet = nn.Sequential()
@@ -104,7 +104,8 @@ if opt.optimization == 'BFGS' then
    optimizer = nn.LBFGSOptimization{module = convnet,
                                     criterion = criterion,
                                     parallelize = tonumber(opt.parallelize),
-                                    maxIterations = opt.bfgsMaxIteration}
+                                    maxIterations = opt.bfgsMaxIteration,
+                                    verbose = 0}
 else
    optimizer = nn.SGDOptimization{module = convnet,
                                   criterion = criterion,
