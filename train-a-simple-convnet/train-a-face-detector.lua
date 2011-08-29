@@ -82,14 +82,18 @@ criterion.sizeAverage = true
 ----------------------------------------------------------------------
 -- trainer and hooks
 --
-trainer = nn.StochasticTrainer{module=convnet, 
-                               criterion=criterion,
+optimizer = nn.SGDOptimization{module = convnet,
+                               criterion = criterion,
                                learningRate = 1e-3,
-                               learningRateDecay = 1e-2,
                                weightDecay = 1e-6,
-                               maxEpoch = 50,
-                               momentum = 0.8,
-                               save = opt.save}
+                               momentum = 0.8}
+
+trainer = nn.OnlineTrainer{module = convnet, 
+                           criterion = criterion,
+                           optimizer = optimizer,
+                           maxEpoch = 100,
+                           batchSize = 1,
+                           save = opt.save}
 trainer:setShuffle(false)
 
 confusion = nn.ConfusionMatrix{'Faces', 'Background'}
@@ -169,11 +173,13 @@ testBg = dataBG:popSubset{ratio=opt.ratio}
 trainData = nn.DataList()
 trainData:appendDataSet(dataFace,'Faces')
 trainData:appendDataSet(dataBG,'Background')
+trainData.spatialTarget = true
 
 -- testing set
 testData = nn.DataList()
 testData:appendDataSet(testFace,'Faces')
 testData:appendDataSet(testBg,'Background')
+testData.spatialTarget = true
 
 -- display
 if opt.visualize then
