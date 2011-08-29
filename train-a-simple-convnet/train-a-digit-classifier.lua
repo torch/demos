@@ -44,7 +44,7 @@ op:option{'-v', '--visualize', action='store_true', dest='visualize',
 op:option{'-sd', '--seed', action='store', dest='seed',
           help='use fixed seed for randomized initialization'}
 op:option{'-ls', '--loss', action='store', dest='error',
-          help='type of loss function: mse OR nll', default='mse'}
+          help='type of loss function: mse OR nll', default='nll'}
 op:option{'-op', '--optimization', action='store', dest='optimization',
           default='SGD',
           help='optimization method: SGD or BFGS'}
