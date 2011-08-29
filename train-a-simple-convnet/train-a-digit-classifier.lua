@@ -43,6 +43,8 @@ op:option{'-v', '--visualize', action='store_true', dest='visualize',
           help='visualize the datasets'}
 op:option{'-sd', '--seed', action='store', dest='seed',
           help='use fixed seed for randomized initialization'}
+op:option{'-ls', '--loss', action='store', dest='error',
+          help='type of loss function: mse OR nll', default='mse'}
 op:option{'-op', '--optimization', action='store', dest='optimization',
           default='SGD',
           help='optimization method: SGD or BFGS'}
@@ -84,7 +86,8 @@ if not opt.network then
    convnet:add(nn.Tanh())
    convnet:add(nn.SpatialConvolution(connex[2],connex[3], 5, 5))
    convnet:add(nn.Tanh())
-   convnet:add(nn.SpatialLinear(connex[3],nbClasses))
+   convnet:add(nn.Reshape(connex[3]))
+   convnet:add(nn.Linear(connex[3],nbClasses))
 else
    print('<trainer> reloading previously trained network')
    convnet = nn.Sequential()
@@ -94,8 +97,13 @@ end
 ----------------------------------------------------------------------
 -- training criterion: a simple Mean-Square Error
 --
-criterion = nn.MSECriterion()
-criterion.sizeAverage = true
+if opt.error == 'mse' then
+   criterion = nn.MSECriterion()
+   criterion.sizeAverage = true
+elseif opt.error == 'nll' then
+   criterion = nn.DistNLLCriterion()
+   criterion.targetIsProbability = true
+end
 
 ----------------------------------------------------------------------
 -- trainer: std stochastic trainer, plus training hooks
@@ -199,6 +207,11 @@ for i,class in ipairs(classes) do
                              nbSamplesRequired = nbTestingPatches/10, channels=1}
    subset:shuffle()
    testData:appendDataSet(subset, class)
+end
+
+if opt.error == 'nll' then
+   trainData.targetIsProbability = true
+   testData.targetIsProbability = true
 end
 
 if opt.visualize then
