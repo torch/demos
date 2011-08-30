@@ -119,6 +119,7 @@ else
                                   criterion = criterion,
                                   learningRate = 1e-2,
                                   weightDecay = 1e-4,
+                                  learningRateDecay = 5e-7,
                                   momentum = 0.5}
 end
 
