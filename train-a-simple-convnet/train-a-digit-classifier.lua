@@ -118,6 +118,7 @@ if opt.optimization == 'BFGS' then
 else
    optimizer = nn.SGDOptimization{module = convnet,
                                   criterion = criterion,
+                                  parallelize = tonumber(opt.parallelize),
                                   learningRate = 1e-2,
                                   weightDecay = 1e-4,
                                   learningRateDecay = 5e-7,
