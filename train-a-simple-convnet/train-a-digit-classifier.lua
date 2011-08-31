@@ -113,7 +113,8 @@ if opt.optimization == 'BFGS' then
                                     criterion = criterion,
                                     parallelize = tonumber(opt.parallelize),
                                     maxIterations = opt.bfgsMaxIteration,
-                                    verbose = 0}
+                                    verbose = 2}
+   dispProgress = false
 else
    optimizer = nn.SGDOptimization{module = convnet,
                                   criterion = criterion,
@@ -121,6 +122,7 @@ else
                                   weightDecay = 1e-4,
                                   learningRateDecay = 5e-7,
                                   momentum = 0.5}
+   dispProgress = true
 end
 
 batchSize = opt.batchSize
@@ -129,6 +131,7 @@ trainer = nn.OnlineTrainer{module = convnet,
                            criterion = criterion,
                            optimizer = optimizer,
                            maxEpoch = 500,
+                           dispProgress = dispProgress,
                            batchSize = batchSize,
                            save = opt.save}
 
