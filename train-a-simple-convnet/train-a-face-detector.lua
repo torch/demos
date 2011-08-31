@@ -94,7 +94,6 @@ trainer = nn.OnlineTrainer{module = convnet,
                            maxEpoch = 100,
                            batchSize = 1,
                            save = opt.save}
-trainer:setShuffle(false)
 
 confusion = nn.ConfusionMatrix{'Faces', 'Background'}
 
