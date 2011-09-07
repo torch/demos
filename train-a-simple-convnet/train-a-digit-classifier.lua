@@ -54,6 +54,9 @@ op:option{'-bs', '--batchSize', action='store', dest='batchSize',
 op:option{'-mi', '--maxIteration', action='store', dest='bfgsMaxIteration',
           default=20,
           help='maximum nb of iterations for each mini-batch'}
+op:option{'-me', '--maxEval', action='store', dest='maxEval',
+          default=0,
+          help='maximum nb of function evaluations for each mini-batch'}
 op:option{'-pz', '--parallelize', action='store', dest='parallelize',
           default=1,
           help='parallelize mini-batch computations onto N cores'}
@@ -112,7 +115,8 @@ if opt.optimization == 'BFGS' then
    optimizer = nn.LBFGSOptimization{module = convnet,
                                     criterion = criterion,
                                     parallelize = tonumber(opt.parallelize),
-                                    maxIterations = opt.bfgsMaxIteration,
+				    maxEvaluation = opt.maxEval,
+				    maxIterations = opt.bfgsMaxIteration,
                                     verbose = 2}
    dispProgress = false
 else
