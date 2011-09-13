@@ -66,7 +66,7 @@ if not opt.network then
    convnet:add(nn.Tanh())
    convnet:add(nn.SpatialConvolutionMap(nn.tables.random(8, 32, 4), 7, 7))
    convnet:add(nn.Tanh())
-   convnet:add(nn.SpatialLinear(32,2))
+   convnet:add(nn.SpatialClassifier(nn.Linear(32,2)))
 else
    print('<trainer> reloading previously trained network')
    convnet = nn.Sequential()
