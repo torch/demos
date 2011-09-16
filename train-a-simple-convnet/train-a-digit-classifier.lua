@@ -148,7 +148,9 @@ trainLogger = nn.Logger(sys.dirname(opt.save) .. '/train.log')
 testLogger = nn.Logger(sys.dirname(opt.save) .. '/test.log')
 
 optimizer.posthook = function(optimizer, sample)
-   confusion:add(optimizer.module.output, sample[2])
+   if confusion then
+      confusion:add(optimizer.module.output, sample[2])
+   end
 end
 
 trainer.hookTestSample = function(trainer, sample)
