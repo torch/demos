@@ -232,4 +232,11 @@ end
 ----------------------------------------------------------------------
 -- and train !!
 --
-trainer:train(trainData)
+train = function () trainer:train(trainData) end
+if opt.__main__ then
+   ok,err = pcall(train)
+   if not ok then print(err) end
+   if parallel then parallel.close() end
+else
+   print('<trainer> interpreted mode: call train() to start training')
+end
