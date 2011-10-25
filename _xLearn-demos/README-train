@@ -1,0 +1,35 @@
+The example of training is in ext-exlern/demos 
+folder in the file called train-on-faces.lua .
+
+In this example we are training a network on the dataset of faces we have
+2 classes: faces and background.
+
+To adopt this example to your case you basically need to take care of 2 things:
+1) Giving the correct path to your dataset of images
+2) Setting the correct parameters for the network
+
+For (1) look at the line 79 in train-on-faces.lua file. We create 2 objects of type
+DataSet class called dataFace and dataBG. Like this:
+
+dataBG = DataSet{dataSetFolder=datasetPath..'bg', chanels=1,
+                 cacheFile=datasetPath..'bg'}
+
+here instead of datasetPath..'bg' you would give your path.
+We assume here that all the images of faces are stored in one folder and 
+all images of background are sored in another folder.
+
+
+
+As for the (2) - the network parameters look at line 45. 
+You should probably start by using the same layers that we are using, 
+but you will have to change the parameters so that it would fit
+your initial image size. 
+In our case the images in the dataset are 32x32. 
+The idea is set the sizes of the layers to that you will g
+et to 1x1 in the end, so we do:
+32x32 -- conv(5,5) --> 28x28 -- subsample(4,4) --> 7x7 -- conv(7,7) --> 1x1
+
+
+As for normalizing the images, it is now a part of the network, 
+the very first layer called: nn.LocalNorm() on line 46 
+in train-on-faces.lua file.
