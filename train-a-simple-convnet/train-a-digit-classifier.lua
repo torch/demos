@@ -47,7 +47,7 @@ op:option{'-ls', '--loss', action='store', dest='error',
           help='type of loss function: mse OR nll', default='nll'}
 op:option{'-op', '--optimization', action='store', dest='optimization',
           default='SGD',
-          help='optimization method: SGD or BFGS'}
+          help='optimization method: SGD, CG or BFGS'}
 op:option{'-bs', '--batchSize', action='store', dest='batchSize',
           default=1,
           help='mini-batch size'}
@@ -57,6 +57,9 @@ op:option{'-mi', '--maxIteration', action='store', dest='bfgsMaxIteration',
 op:option{'-me', '--maxEval', action='store', dest='maxEval',
           default=0,
           help='maximum nb of function evaluations for each mini-batch'}
+op:option{'-ln', '--linesearch', action='store', dest='linesearch',
+          default='wolfe',
+          help='type of linesearch for CG or LBFGS ("morethuente","armijo","wolfe","strong_wolfe")'}
 op:option{'-pz', '--parallelize', action='store', dest='parallelize',
           default=1,
           help='parallelize mini-batch computations onto N cores'}
@@ -118,6 +121,7 @@ if opt.optimization == 'BFGS' then
                                     parallelize = opt.parallelize,
                                     maxEvaluation = opt.maxEval,
                                     maxIterations = opt.bfgsMaxIteration,
+                                    linesearch = opt.linesearch,
                                     verbose = 2}
    dispProgress = false
 elseif opt.optimization == 'CG' then
@@ -126,6 +130,7 @@ elseif opt.optimization == 'CG' then
                                  parallelize = opt.parallelize,
                                  maxEvaluation = opt.maxEval,
                                  maxIterations = opt.bfgsMaxIteration,
+                                 linesearch = opt.linesearch,
                                  verbose = 2}
    dispProgress = false
 else

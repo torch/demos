@@ -9,7 +9,7 @@ order to work.
 1/ Basic tools
 
 ``` sh
-$ apt-get install gcc g++ git libreadline5-dev cmake wget
+$ apt-get install gcc g++ git libreadline-dev cmake wget
 ```
 
 2/ QT4 (at least 4.4)
