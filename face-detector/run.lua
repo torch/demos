@@ -1,3 +1,4 @@
+#!/usr/bin/env qlua
 ------------------------------------------------------------
 -- a face detector, based on a simple convolutional network,
 -- trained end-to-end for that task.

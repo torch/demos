@@ -1,3 +1,4 @@
+#!/usr/bin/env qlua
 ------------------------------------------------------------
 -- a scene segmenter, base on a ConvNet trained end-to-end 
 -- to predict class distributions at dense locations.
