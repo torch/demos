@@ -72,7 +72,7 @@ network_fov = 32
 network_sub = 4
 
 -- setup camera
-camera = image.Camera{}
+camera = image.Camera(opt.camidx)
 
 -- process input at multiple scales
 scales = {0.3, 0.24, 0.192, 0.15, 0.12, 0.1}
