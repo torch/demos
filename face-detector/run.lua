@@ -92,6 +92,9 @@ end
 -- a gaussian for smoothing the distributions
 gaussian = image.gaussian(3,0.15)
 
+-- profiler
+p = xlua.Profiler()
+
 -- process function
 function process()
    -- (1) grab frame
@@ -164,9 +167,15 @@ timer.singleShot = true
 qt.connect(timer,
            'timeout()',
            function()
+              p:start('prediction')
               process()
+              p:lap('prediction')
+              p:start('display')
               display()
+              p:lap('display')
+              require 'openmp'
               timer:start()
+              p:printAll()
            end)
 widget.windowTitle = 'Face Detector'
 widget:show()
