@@ -18,8 +18,8 @@
 ----------------------------------------------------------------------
 
 require 'xlua'
-xrequire ('image', true)
-xrequire ('nnx', true)
+require 'image'
+require 'nnx'
 
 ----------------------------------------------------------------------
 -- parse options
@@ -78,21 +78,22 @@ end
 --
 
 nbClasses = 10
-connex = {12,32,128}
-fanin = {1,8,32}
+connex = {50,128,200}
+fanin = {-1,10,-1}
 
 if not opt.network then
    convnet = nn.Sequential()
-   convnet:add(nn.SpatialConvolution(1,connex[1], 5, 5))
+   convnet:add(nn.SpatialConvolution(1, connex[1], 5, 5))
    convnet:add(nn.Tanh())
-   convnet:add(nn.SpatialSubSampling(connex[1], 2, 2, 2, 2))
+   convnet:add(nn.SpatialMaxPooling(2, 2, 2, 2))
+
+   convnet:add(nn.SpatialConvolutionMap(nn.tables.random(connex[1], connex[2], fanin[2]), 5, 5))
    convnet:add(nn.Tanh())
-   convnet:add(nn.SpatialConvolution(connex[1],connex[2], 5, 5))
+   convnet:add(nn.SpatialMaxPooling(2, 2, 2, 2))
+
+   convnet:add(nn.SpatialConvolution(connex[2], connex[3], 5, 5))
    convnet:add(nn.Tanh())
-   convnet:add(nn.SpatialSubSampling(connex[2], 2, 2, 2, 2))
-   convnet:add(nn.Tanh())
-   convnet:add(nn.SpatialConvolution(connex[2],connex[3], 5, 5))
-   convnet:add(nn.Tanh())
+
    convnet:add(nn.Reshape(connex[3]))
    convnet:add(nn.Linear(connex[3],nbClasses))
 else
