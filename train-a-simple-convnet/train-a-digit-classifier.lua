@@ -243,14 +243,14 @@ function train(dataset)
 
       elseif opt.optimization == 'SGD' then
          config = config or {learningRate = 1e-2,
-                             weightDecay = 1e-5,
+                             weightDecay = 1e-3,
                              momentum = 0,
                              learningRateDecay = 5e-7}
          optim.sgd(feval, parameters, config)
 
       elseif opt.optimization == 'ASGD' then
          config = config or {eta0 = 1e-2,
-                             t0 = nbTrainingPatches * 1}
+                             t0 = nbTrainingPatches * 4}
          _,_,average = optim.asgd(feval, parameters, config)
 
       else
