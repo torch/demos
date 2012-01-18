@@ -20,6 +20,7 @@
 require 'xlua'
 require 'image'
 require 'nnx'
+require 'optim'
 
 ----------------------------------------------------------------------
 -- parse options
@@ -37,35 +38,30 @@ op:option{'-d', '--dataset', action='store', dest='dataset',
 op:option{'-w', '--www', action='store', dest='www',
           default='http://data.neuflow.org/data/mnist.tgz',
           help='path to retrieve dataset online (if not available locally)'}
+
 op:option{'-f', '--full', action='store_true', dest='full',
           help='use full dataset (60,000 samples) to train'}
+
 op:option{'-v', '--visualize', action='store_true', dest='visualize',
           help='visualize the datasets'}
+
 op:option{'-sd', '--seed', action='store', dest='seed',
           help='use fixed seed for randomized initialization'}
+
 op:option{'-ls', '--loss', action='store', dest='error',
           help='type of loss function: mse OR nll', default='nll'}
+
 op:option{'-op', '--optimization', action='store', dest='optimization',
           default='SGD',
-          help='optimization method: SGD, CG or BFGS'}
+          help='optimization method: SGD | CG'}
 op:option{'-bs', '--batchSize', action='store', dest='batchSize',
           default=1,
           help='mini-batch size'}
-op:option{'-mi', '--maxIteration', action='store', dest='bfgsMaxIteration',
-          default=20,
+op:option{'-mi', '--maxIteration', action='store', dest='maxIteration',
+          default=5,
           help='maximum nb of iterations for each mini-batch'}
-op:option{'-me', '--maxEval', action='store', dest='maxEval',
-          default=0,
-          help='maximum nb of function evaluations for each mini-batch'}
-op:option{'-ln', '--linesearch', action='store', dest='linesearch',
-          default='wolfe',
-          help='type of linesearch for CG or LBFGS ("morethuente","armijo","wolfe","strong_wolfe")'}
-op:option{'-pz', '--parallelize', action='store', dest='parallelize',
-          default=1,
-          help='parallelize mini-batch computations onto N cores'}
 
 opt = op:parse()
-opt.parallelize = tonumber(opt.parallelize)
 
 torch.setdefaulttensortype('torch.DoubleTensor')
 
@@ -82,28 +78,31 @@ connex = {50,128,200}
 fanin = {-1,10,-1}
 
 if not opt.network then
-   convnet = nn.Sequential()
-   convnet:add(nn.SpatialConvolution(1, connex[1], 5, 5))
-   convnet:add(nn.Tanh())
-   convnet:add(nn.SpatialMaxPooling(2, 2, 2, 2))
+   module = nn.Sequential()
+   module:add(nn.SpatialConvolution(1, connex[1], 5, 5))
+   module:add(nn.Tanh())
+   module:add(nn.SpatialMaxPooling(2, 2, 2, 2))
 
-   convnet:add(nn.SpatialConvolutionMap(nn.tables.random(connex[1], connex[2], fanin[2]), 5, 5))
-   convnet:add(nn.Tanh())
-   convnet:add(nn.SpatialMaxPooling(2, 2, 2, 2))
+   module:add(nn.SpatialConvolutionMap(nn.tables.random(connex[1], connex[2], fanin[2]), 5, 5))
+   module:add(nn.Tanh())
+   module:add(nn.SpatialMaxPooling(2, 2, 2, 2))
 
-   convnet:add(nn.SpatialConvolution(connex[2], connex[3], 5, 5))
-   convnet:add(nn.Tanh())
+   module:add(nn.SpatialConvolution(connex[2], connex[3], 5, 5))
+   module:add(nn.Tanh())
 
-   convnet:add(nn.Reshape(connex[3]))
-   convnet:add(nn.Linear(connex[3],nbClasses))
+   module:add(nn.Reshape(connex[3]))
+   module:add(nn.Linear(connex[3],nbClasses))
 else
    print('<trainer> reloading previously trained network')
-   convnet = nn.Sequential()
-   convnet:read(torch.DiskFile(opt.network))
+   module = nn.Sequential()
+   module:read(torch.DiskFile(opt.network))
 end
 
+parameters = nnx.flattenParameters(nnx.getParameters(module))
+gradParameters = nnx.flattenParameters(nnx.getGradParameters(module))
+
 ----------------------------------------------------------------------
--- training criterion: a simple Mean-Square Error
+-- training criterion: MSE or Cross-entropy
 --
 if opt.error == 'mse' then
    criterion = nn.MSECriterion()
@@ -114,99 +113,10 @@ elseif opt.error == 'nll' then
 end
 
 ----------------------------------------------------------------------
--- trainer: std stochastic trainer, plus training hooks
---
-if opt.optimization == 'BFGS' then
-   optimizer = nn.LBFGSOptimization{module = convnet,
-                                    criterion = criterion,
-                                    parallelize = opt.parallelize,
-                                    maxEvaluation = opt.maxEval,
-                                    maxIterations = opt.bfgsMaxIteration,
-                                    linesearch = opt.linesearch,
-                                    verbose = 2}
-   dispProgress = false
-elseif opt.optimization == 'CG' then
-   optimizer = nn.CGOptimization{module = convnet,
-                                 criterion = criterion,
-                                 parallelize = opt.parallelize,
-                                 maxEvaluation = opt.maxEval,
-                                 maxIterations = opt.bfgsMaxIteration,
-                                 linesearch = opt.linesearch,
-                                 verbose = 2}
-   dispProgress = false
-else
-   if opt.parallelize > 1 then
-      optimizer = nn.GeneticSGDOptimization{module = convnet,
-                                            criterion = criterion,
-                                            parallelize = opt.parallelize,
-                                            learningRate = 1e-2,
-                                            weightDecay = 1e-4,
-                                            learningRateDecay = 5e-7,
-                                            momentum = 0.5
-                                         }
-   else
-      optimizer = nn.SGDOptimization{module = convnet,
-                                     criterion = criterion,
-                                     parallelize = opt.parallelize,
-                                     learningRate = 1e-2,
-                                     weightDecay = 1e-4,
-                                     learningRateDecay = 5e-7,
-                                     momentum = 0.5}
-   end
-   dispProgress = true
-end
-
-batchSize = opt.batchSize
-
-trainer = nn.OnlineTrainer{module = convnet,
-                           criterion = criterion,
-                           optimizer = optimizer,
-                           maxEpoch = 500,
-                           dispProgress = dispProgress,
-                           batchSize = batchSize,
-                           save = opt.save}
-
-classes = {'1','2','3','4','5','6','7','8','9','10'}
-
-confusion = nn.ConfusionMatrix(classes)
-
-trainLogger = nn.Logger(sys.dirname(opt.save) .. '/train.log')
-testLogger = nn.Logger(sys.dirname(opt.save) .. '/test.log')
-
-optimizer.posthook = function(optimizer, sample)
-                        if confusion then
-                           confusion:add(optimizer.module.output, sample[2])
-                        end
-                     end
-
-trainer.hookTestSample = function(trainer, sample)
-                            confusion:add(trainer.module.output, sample[2])
-                         end
-
-trainer.hookTrainEpoch = function(trainer)
-                            -- print confusion matrix
-                            print(confusion)
-                            trainLogger:add{['% mean class accuracy (train set)'] = confusion.totalValid * 100}
-                            confusion:zero()
-
-                            -- run on test_set
-                            trainer:test(testData)
-
-                            -- print confusion matrix
-                            print(confusion)
-                            testLogger:add{['% mean class accuracy (test set)'] = confusion.totalValid * 100}
-                            confusion:zero()
-
-                            -- plot errors
-                            trainLogger:style{['% mean class accuracy (train set)'] = '-'}
-                            testLogger:style{['% mean class accuracy (test set)'] = '-'}
-                            trainLogger:plot()
-                            testLogger:plot()
-                         end
-
-----------------------------------------------------------------------
 -- get/create dataset
 --
+classes = {'1','2','3','4','5','6','7','8','9','10'}
+
 path_dataset = opt.dataset
 if not sys.dirp(path_dataset) then
    local path = sys.dirname(path_dataset)
@@ -256,13 +166,178 @@ if opt.visualize then
 end
 
 ----------------------------------------------------------------------
--- and train !!
+-- define training and testing functions
 --
-train = function () trainer:train(trainData) end
-if opt.__main__ then
-   ok,err = pcall(train)
-   if not ok then print(err) end
-   if parallel then parallel.close() end
-else
-   print('<trainer> interpreted mode: call train() to start training')
+
+confusion = nn.ConfusionMatrix(classes)
+
+trainLogger = nn.Logger(sys.dirname(opt.save) .. '/train.log')
+testLogger = nn.Logger(sys.dirname(opt.save) .. '/test.log')
+
+function train(dataset)
+   -- epoch tracker
+   epoch = epoch or 1
+
+   -- local vars
+   local time = sys.clock()
+
+   -- do one epoch
+   print('<trainer> on training set:')
+   print("<trainer> online epoch # " .. epoch .. ' [batchSize = ' .. opt.batchSize .. ']')
+   for t = 1,dataset:size(),opt.batchSize do
+      -- disp progress
+      xlua.progress(t, dataset:size())
+
+      -- create mini batch
+      local inputs = {}
+      local targets = {}
+      for i = t,math.min(t+opt.batchSize-1,dataset:size()) do
+         -- load new sample
+         local sample = dataset[i]
+         local input = sample[1]
+         local target = sample[2]
+         table.insert(inputs, input)
+         table.insert(targets, target)
+      end
+
+      -- creature closure to evaluate f(X) and df/dX
+      local feval = function(x)
+                       -- get new parameters
+                       if x ~= parameters then
+                          parameters:copy(x)
+                       end
+
+                       -- reset gradients
+                       gradParameters:zero()
+
+                       -- f is the average of all criterions
+                       local f = 0
+
+                       -- evaluate function for complete mini batch
+                       for i = 1,#inputs do
+                          -- estimate f
+                          local output = module:forward(inputs[i])
+                          local err = criterion:forward(output, targets[i])
+                          f = f + err
+
+                          -- estimate df/dW
+                          local df_do = criterion:backward(output, targets[i])
+                          module:backward(inputs[i], df_do)
+
+                          -- update confusion
+                          confusion:add(output, targets[i])
+                       end
+
+                       -- normalize gradients and f(X)
+                       gradParameters:div(#inputs)
+                       f = f/#inputs
+
+                       -- return f and df/dX
+                       return f,gradParameters
+                    end
+
+      -- optimize on current mini-batch
+      if opt.optimization == 'CG' then
+         config = config or {length = opt.maxIteration}
+         optim.cg(feval, parameters, config)
+
+      elseif opt.optimization == 'SGD' then
+         config = config or {learningRate = 1e-2,
+                             weightDecay = 1e-5,
+                             momentum = 0,
+                             learningRateDecay = 5e-7}
+         optim.sgd(feval, parameters, config)
+
+      elseif opt.optimization == 'ASGD' then
+         config = config or {eta0 = 1e-2,
+                             t0 = nbTrainingPatches * 1}
+         _,_,average = optim.asgd(feval, parameters, config)
+
+      else
+         error('unknown optimization method')
+      end
+   end
+
+   -- time taken
+   time = sys.clock() - time
+   time = time / dataset:size()
+   print("<trainer> time to learn 1 sample = " .. (time*1000) .. 'ms')
+
+   -- print confusion matrix
+   print(confusion)
+   trainLogger:add{['% mean class accuracy (train set)'] = confusion.totalValid * 100}
+   confusion:zero()
+
+   -- save/log current net
+   if opt.save then 
+      -- save network
+      local filename = opt.save
+      os.execute('mkdir -p ' .. sys.dirname(filename))
+      if sys.filep(filename) then
+         os.execute('mv ' .. filename .. ' ' .. filename .. '.old')
+      end
+      print('<trainer> saving network to '..filename)
+      torch.save(filename, module)
+   end
+
+   -- next epoch
+   epoch = epoch + 1
+end
+
+function test(dataset)
+   -- local vars
+   local time = sys.clock()
+
+   -- averaged param use?
+   if average then
+      print('averaging')
+      cachedparams = parameters:clone()
+      parameters:copy(average)
+   end
+
+   -- test over given dataset
+   print('<trainer> on testing Set:')
+   for t = 1,dataset:size() do
+      -- disp progress
+      xlua.progress(t, dataset:size())
+
+      -- get new sample
+      local sample = dataset[t]
+      local input = sample[1]
+      local target = sample[2]
+
+      -- test sample
+      confusion:add(module:forward(input), target)
+   end
+
+   -- timing
+   time = sys.clock() - time
+   time = time / dataset:size()
+   print("<trainer> time to test 1 sample = " .. (time*1000) .. 'ms')
+
+   -- print confusion matrix
+   print(confusion)
+   testLogger:add{['% mean class accuracy (test set)'] = confusion.totalValid * 100}
+   confusion:zero()
+
+   -- averaged param use?
+   if average then
+      -- restore parameters
+      parameters:copy(cachedparams)
+   end
+end
+
+----------------------------------------------------------------------
+-- and train!
+--
+while true do
+   -- train/test
+   train(trainData)
+   test(testData)
+
+   -- plot errors
+   trainLogger:style{['% mean class accuracy (train set)'] = '-'}
+   testLogger:style{['% mean class accuracy (test set)'] = '-'}
+   trainLogger:plot()
+   testLogger:plot()
 end
