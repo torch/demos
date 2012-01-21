@@ -19,6 +19,7 @@ require 'torch'
 require 'lab'
 require 'nnx'
 require 'optim'
+require 'image'
 
 ----------------------------------------------------------------------
 -- parse command-line options
@@ -55,7 +56,7 @@ op:option{'-op', '--optimization', action='store', dest='optimization',
           help='optimization method: SGD | ASGD | CG'}
 op:option{'-lr', '--lrate', action='store', dest='learningRate',
           default=1e-2,
-          help='learning rate at t=0 (only applies for SGD methods)'}
+          help='learning rate'}
 op:option{'-bs', '--batchSize', action='store', dest='batchSize',
           default=1,
           help='mini-batch size'}
@@ -301,6 +302,11 @@ function train(dataset)
       if opt.optimization == 'CG' then
          config = config or {length = opt.maxIteration}
          optim.cg(feval, parameters, config)
+
+      elseif opt.optimization == 'LBFGS' then
+         config = config or {learningRate = opt.learningRate,
+                             maxIter = opt.maxIteration}
+         optim.lbfgs(feval, parameters, config)
 
       elseif opt.optimization == 'SGD' then
          config = config or {learningRate = opt.learningRate,
