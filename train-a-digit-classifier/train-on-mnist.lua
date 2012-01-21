@@ -4,8 +4,9 @@
 --
 -- This script demonstrates a classical example of training 
 -- well-known models (convnet, MLP, logistic regression)
--- on a 10-class classification problem. It illustrates several 
--- points:
+-- on a 10-class classification problem. 
+--
+-- It illustrates several points:
 -- 1/ description of the model
 -- 2/ choice of a loss function (criterion) to minimize
 -- 3/ creation of a dataset, from a simple directory of PNGs
@@ -14,7 +15,8 @@
 -- Clement Farabet
 ----------------------------------------------------------------------
 
-require 'image'
+require 'torch'
+require 'lab'
 require 'nnx'
 require 'optim'
 
@@ -43,7 +45,7 @@ op:option{'-f', '--full', action='store_true', dest='full',
           help='use full dataset (60,000 samples) to train'}
 
 op:option{'-v', '--visualize', action='store_true', dest='visualize',
-          help='visualize the datasets'}
+          help='visualize input data and filters during training'}
 
 op:option{'-sd', '--seed', action='store', dest='seed',
           help='use fixed seed for randomized initialization'}
@@ -51,6 +53,9 @@ op:option{'-sd', '--seed', action='store', dest='seed',
 op:option{'-op', '--optimization', action='store', dest='optimization',
           default='SGD',
           help='optimization method: SGD | ASGD | CG'}
+op:option{'-lr', '--lrate', action='store', dest='learningRate',
+          default=1e-2,
+          help='learning rate at t=0 (only applies for SGD methods)'}
 op:option{'-bs', '--batchSize', action='store', dest='batchSize',
           default=1,
           help='mini-batch size'}
@@ -199,25 +204,29 @@ testLogger = nn.Logger(sys.dirname(opt.save) .. '/test.log')
 
 -- display function
 function display(input)
+   iter = iter or 0
    require 'image'
    win_input = image.display{image=input, win=win_input, zoom=2, legend='input'}
-   if opt.model == 'convnet' then
-      win_w1 = image.display{image=model:get(2).weight, zoom=4, nrow=10,
-                             win=win_w1, legend='stage 1: weights', padding=1}
-      win_w2 = image.display{image=model:get(6).weight, zoom=4, nrow=30,
-                             win=win_w2, legend='stage 2: weights', padding=1}
-      win_g1 = image.display{image=model:get(2).gradWeight, zoom=4, nrow=10,
-                             win=win_g1, legend='stage 1: gradients', padding=1}
-      win_g2 = image.display{image=model:get(6).gradWeight, zoom=4, nrow=30,
-                             win=win_g2, legend='stage 2: gradients', padding=1}
-   elseif opt.model == 'mlp' then
-      local W1 = torch.Tensor(model:get(2).weight):resize(2048,1024)
-      win_w1 = image.display{image=W1, zoom=0.5,
-                              win=win_w1, legend='W1 weights'}
-      local W2 = torch.Tensor(model:get(2).weight):resize(10,2048)
-      win_w2 = image.display{image=W2, zoom=0.5,
-                              win=win_w2, legend='W2 weights'}
+   if iter%10 == 0 then
+      if opt.model == 'convnet' then
+         win_w1 = image.display{image=model:get(2).weight, zoom=4, nrow=10,
+                                min=-1, max=1,
+                                win=win_w1, legend='stage 1: weights', padding=1}
+         win_w2 = image.display{image=model:get(6).weight, zoom=4, nrow=30,
+                                min=-1, max=1,
+                                win=win_w2, legend='stage 2: weights', padding=1}
+      elseif opt.model == 'mlp' then
+         local W1 = torch.Tensor(model:get(2).weight):resize(2048,1024)
+         win_w1 = image.display{image=W1, zoom=0.5,
+                                min=-1, max=1,
+                                win=win_w1, legend='W1 weights'}
+         local W2 = torch.Tensor(model:get(2).weight):resize(10,2048)
+         win_w2 = image.display{image=W2, zoom=0.5,
+                                min=-1, max=1,
+                                win=win_w2, legend='W2 weights'}
+      end
    end
+   iter = iter + 1
 end
 
 -- training function
@@ -294,14 +303,14 @@ function train(dataset)
          optim.cg(feval, parameters, config)
 
       elseif opt.optimization == 'SGD' then
-         config = config or {learningRate = 1e-2,
-                             weightDecay = 1e-3,
+         config = config or {learningRate = opt.learningRate,
+                             weightDecay = 0,
                              momentum = 0,
                              learningRateDecay = 5e-7}
          optim.sgd(feval, parameters, config)
 
       elseif opt.optimization == 'ASGD' then
-         config = config or {eta0 = 1e-2,
+         config = config or {eta0 = opt.learningRate,
                              t0 = nbTrainingPatches}
          _,_,average = optim.asgd(feval, parameters, config)
 
