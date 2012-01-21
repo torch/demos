@@ -9,7 +9,7 @@
 -- It illustrates several points:
 -- 1/ description of the model
 -- 2/ choice of a loss function (criterion) to minimize
--- 3/ creation of a dataset, from a simple directory of PNGs
+-- 3/ creation of a dataset as a simple Lua table
 -- 4/ description of training and test procedures
 --
 -- Clement Farabet
@@ -20,56 +20,40 @@ require 'lab'
 require 'nnx'
 require 'optim'
 require 'image'
+require 'dataset'
 
 ----------------------------------------------------------------------
 -- parse command-line options
 --
 dname,fname = sys.fpath()
-op = xlua.OptionParser('%prog [options]')
-op:option{'-s', '--save', action='store', dest='save',
-          default=fname:gsub('.lua','') .. '/digit.net',
-          help='file to save network after each epoch'}
-op:option{'-l', '--load', action='store', dest='network',
-          help='reload pretrained network'}
+cmd = torch.CmdLine()
+cmd:text()
+cmd:text('MNIST Training')
+cmd:text()
+cmd:text('Options:')
+cmd:option('-save', fname:gsub('.lua',''), 'subdirectory to save/log experiments in')
+cmd:option('-network', '', 'reload pretrained network')
+cmd:option('-model', 'convnet', 'type of model to train: convnet | mlp | linear')
+cmd:option('-full', false, 'use full dataset (60,000 samples)')
+cmd:option('-visualize', false, 'visualize input data and weights during training')
+cmd:option('-seed', 1, 'fixed input seed for repeatable experiments')
+cmd:option('-optimization', 'SGD', 'optimization method: SGD | ASGD | CG | LBFGS')
+cmd:option('-learningRate', 1e-2, 'learning rate at t=0')
+cmd:option('-batchSize', 1, 'mini-batch size (1 = pure stochastic)')
+cmd:option('-maxIter', 5, 'maximum nb of iterations for CG and LBFGS')
+cmd:option('-openmp', false, 'use OpenMP to //')
+cmd:option('-threads', 2, 'nb of threads to use with OpenMP')
+cmd:text()
+opt = cmd:parse(arg)
 
-op:option{'-m', '--model', action='store', dest='model',
-          help='model type: convnet | mlp | linear', default='convnet'}
+-- fix seed
+random.manualSeed(opt.seed)
 
-op:option{'-d', '--dataset', action='store', dest='dataset',
-          default='../datasets/mnist',
-          help='path to MNIST root dir'}
-op:option{'-w', '--www', action='store', dest='www',
-          default='http://data.neuflow.org/data/mnist.tgz',
-          help='path to retrieve dataset online (if not available locally)'}
-
-op:option{'-f', '--full', action='store_true', dest='full',
-          help='use full dataset (60,000 samples) to train'}
-
-op:option{'-v', '--visualize', action='store_true', dest='visualize',
-          help='visualize input data and filters during training'}
-
-op:option{'-sd', '--seed', action='store', dest='seed',
-          help='use fixed seed for randomized initialization'}
-
-op:option{'-op', '--optimization', action='store', dest='optimization',
-          default='SGD',
-          help='optimization method: SGD | ASGD | CG'}
-op:option{'-lr', '--lrate', action='store', dest='learningRate',
-          default=1e-2,
-          help='learning rate'}
-op:option{'-bs', '--batchSize', action='store', dest='batchSize',
-          default=1,
-          help='mini-batch size'}
-op:option{'-mi', '--maxIteration', action='store', dest='maxIteration',
-          default=5,
-          help='maximum nb of iterations for each mini-batch'}
-
-opt = op:parse()
-
-torch.setdefaulttensortype('torch.DoubleTensor')
-
-if opt.seed then
-   random.manualSeed(opt.seed)
+-- openmp
+if opt.openmp then
+   require 'openmp'
+   openmp.setDefaultNumThreads(opt.threads)
+   print('<OpenMP> enabled with ' .. opt.threads .. ' threads')
 end
 
 ----------------------------------------------------------------------
@@ -78,7 +62,10 @@ end
 --
 classes = {'1','2','3','4','5','6','7','8','9','10'}
 
-if not opt.network then
+-- geometry: width and height of input images
+geometry = {32,32}
+
+if opt.network == '' then
    -- define model to train
    model = nn.Sequential()
 
@@ -123,7 +110,7 @@ if not opt.network then
 
    else
       print('Unknown model type')
-      op:help()
+      cmd:text()
       error()
    end
 else
@@ -144,53 +131,22 @@ criterion.targetIsProbability = true
 ----------------------------------------------------------------------
 -- get/create dataset
 --
-path_dataset = opt.dataset
-
--- retrieve dataset from the web
-if not sys.dirp(path_dataset) then
-   local path = sys.dirname(path_dataset)
-   local tar = sys.basename(opt.www)
-   os.execute('mkdir -p ' .. path .. '; '..
-              'cd ' .. path .. '; '..
-              'wget ' .. opt.www .. '; '..
-              'tar xvf ' .. tar)
-end
-
--- train on full dataset, or smaller toy subset
 if opt.full then
    nbTrainingPatches = 60000
    nbTestingPatches = 10000
 else
    nbTrainingPatches = 2000
    nbTestingPatches = 1000
-   print('<warning> only using 2000 samples to train quickly (use flag --full to use 60000 samples)')
+   print('<warning> only using 2000 samples to train quickly (use flag -full to use 60000 samples)')
 end
 
--- create training set
-trainData = nn.DataList()
-for i,class in ipairs(classes) do
-   local dir = sys.concat(path_dataset,'train',class)
-   local subset = nn.DataSet{dataSetFolder = dir,
-                             cacheFile = sys.concat(path_dataset,'train',class..'-cache'),
-                             nbSamplesRequired = nbTrainingPatches/10, channels=1}
-   subset:shuffle()
-   trainData:appendDataSet(subset, class)
-end
+-- create training set and normalize
+trainData = mnist.loadTrainSet(nbTrainingPatches, geometry)
+mean, std = trainData:normalizeGlobal()
 
--- create test set
-testData = nn.DataList()
-for i,class in ipairs(classes) do
-   local subset = nn.DataSet{dataSetFolder = sys.concat(path_dataset,'test',class),
-                             cacheFile = sys.concat(path_dataset,'test',class..'-cache'),
-                             nbSamplesRequired = nbTestingPatches/10, channels=1}
-   subset:shuffle()
-   testData:appendDataSet(subset, class)
-end
-
--- set both datasets to generate valid probability distributions
--- as target vectors
-trainData.targetIsProbability = true
-testData.targetIsProbability = true
+-- create test set and normalize
+testData = mnist.loadTestSet(nbTestingPatches, geometry)
+testData:normalizeGlobal(mean, std)
 
 ----------------------------------------------------------------------
 -- define training and testing functions
@@ -200,8 +156,8 @@ testData.targetIsProbability = true
 confusion = nn.ConfusionMatrix(classes)
 
 -- log results to files
-trainLogger = nn.Logger(sys.dirname(opt.save) .. '/train.log')
-testLogger = nn.Logger(sys.dirname(opt.save) .. '/test.log')
+trainLogger = nn.Logger(paths.concat(opt.save, 'train.log'))
+testLogger = nn.Logger(paths.concat(opt.save, 'test.log'))
 
 -- display function
 function display(input)
@@ -300,7 +256,7 @@ function train(dataset)
 
       -- optimize on current mini-batch
       if opt.optimization == 'CG' then
-         config = config or {length = opt.maxIteration}
+         config = config or {maxIter = opt.maxIteration}
          optim.cg(feval, parameters, config)
 
       elseif opt.optimization == 'LBFGS' then
@@ -336,16 +292,13 @@ function train(dataset)
    confusion:zero()
 
    -- save/log current net
-   if opt.save then 
-      -- save network
-      local filename = opt.save
-      os.execute('mkdir -p ' .. sys.dirname(filename))
-      if sys.filep(filename) then
-         os.execute('mv ' .. filename .. ' ' .. filename .. '.old')
-      end
-      print('<trainer> saving network to '..filename)
-      torch.save(filename, model)
+   local filename = paths.concat(opt.save, 'mnist.net')
+   os.execute('mkdir -p ' .. sys.dirname(filename))
+   if sys.filep(filename) then
+      os.execute('mv ' .. filename .. ' ' .. filename .. '.old')
    end
+   print('<trainer> saving network to '..filename)
+   torch.save(filename, model)
 
    -- next epoch
    epoch = epoch + 1
