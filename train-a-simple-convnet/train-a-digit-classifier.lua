@@ -1,29 +1,25 @@
 ----------------------------------------------------------------------
--- A simple script that trains a conv net on the MNIST dataset,
--- using stochastic gradient descent.
+-- This script shows how to train different models on the MNIST 
+-- dataset, using multiple optimization techniques (SGD, ASGD, CG)
 --
--- This script demonstrates a classical example of training a simple
--- convolutional network on a 10-class classification problem. It
--- illustrates several points:
--- 1/ description of the network
--- 2/ choice of a cost function (criterion) to minimize
--- 3/ instantiation of a trainer, with definition of learning rate,
---    decays, and momentums
--- 4/ creation of a dataset, from a simple directory of PNGs
--- 5/ running the trainer, which consists in showing all PNGs+Labels
---    to the network, and performing stochastic gradient descent
---    updates
+-- This script demonstrates a classical example of training 
+-- well-known models (convnet, MLP, logistic regression)
+-- on a 10-class classification problem. It illustrates several 
+-- points:
+-- 1/ description of the model
+-- 2/ choice of a loss function (criterion) to minimize
+-- 3/ creation of a dataset, from a simple directory of PNGs
+-- 4/ description of training and test procedures
 --
--- Clement Farabet  |  July  7, 2011, 12:44PM
+-- Clement Farabet
 ----------------------------------------------------------------------
 
-require 'xlua'
 require 'image'
 require 'nnx'
 require 'optim'
 
 ----------------------------------------------------------------------
--- parse options
+-- parse command-line options
 --
 dname,fname = sys.fpath()
 op = xlua.OptionParser('%prog [options]')
@@ -32,6 +28,10 @@ op:option{'-s', '--save', action='store', dest='save',
           help='file to save network after each epoch'}
 op:option{'-l', '--load', action='store', dest='network',
           help='reload pretrained network'}
+
+op:option{'-m', '--model', action='store', dest='model',
+          help='model type: convnet | mlp | linear', default='convnet'}
+
 op:option{'-d', '--dataset', action='store', dest='dataset',
           default='../datasets/mnist',
           help='path to MNIST root dir'}
@@ -48,12 +48,9 @@ op:option{'-v', '--visualize', action='store_true', dest='visualize',
 op:option{'-sd', '--seed', action='store', dest='seed',
           help='use fixed seed for randomized initialization'}
 
-op:option{'-ls', '--loss', action='store', dest='error',
-          help='type of loss function: mse OR nll', default='nll'}
-
 op:option{'-op', '--optimization', action='store', dest='optimization',
           default='SGD',
-          help='optimization method: SGD | CG'}
+          help='optimization method: SGD | ASGD | CG'}
 op:option{'-bs', '--batchSize', action='store', dest='batchSize',
           default=1,
           help='mini-batch size'}
@@ -70,54 +67,80 @@ if opt.seed then
 end
 
 ----------------------------------------------------------------------
--- define network to train: CSCSCF
+-- define model to train
+-- on the 10-class classification problem
 --
-
-nbClasses = 10
-connex = {50,128,200}
-fanin = {-1,10,-1}
+classes = {'1','2','3','4','5','6','7','8','9','10'}
 
 if not opt.network then
-   module = nn.Sequential()
-   module:add(nn.SpatialConvolution(1, connex[1], 5, 5))
-   module:add(nn.Tanh())
-   module:add(nn.SpatialMaxPooling(2, 2, 2, 2))
+   -- define model to train
+   model = nn.Sequential()
 
-   module:add(nn.SpatialConvolutionMap(nn.tables.random(connex[1], connex[2], fanin[2]), 5, 5))
-   module:add(nn.Tanh())
-   module:add(nn.SpatialMaxPooling(2, 2, 2, 2))
+   if opt.model == 'convnet' then
+      ------------------------------------------------------------
+      -- convolutional network 
+      ------------------------------------------------------------
+      -- stage 1 : mean suppresion -> filter bank -> squashing -> max pooling
+      model:add(nn.SpatialSubtractiveNormalization(1, image.gaussian1D(15)))
+      model:add(nn.SpatialConvolution(1, 50, 5, 5))
+      model:add(nn.Tanh())
+      model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
+      -- stage 2 : mean suppresion -> filter bank -> squashing -> max pooling
+      model:add(nn.SpatialSubtractiveNormalization(50, image.gaussian1D(15)))
+      model:add(nn.SpatialConvolutionMap(nn.tables.random(50, 128, 10), 5, 5))
+      model:add(nn.Tanh())
+      model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
+      -- stage 3 : standard 2-layer neural network
+      model:add(nn.Reshape(128*5*5))
+      model:add(nn.Linear(128*5*5, 200))
+      model:add(nn.Tanh())
+      model:add(nn.Linear(200,#classes))
+      ------------------------------------------------------------
 
-   module:add(nn.SpatialConvolution(connex[2], connex[3], 5, 5))
-   module:add(nn.Tanh())
+   elseif opt.model == 'mlp' then
+      ------------------------------------------------------------
+      -- regular 2-layer MLP
+      ------------------------------------------------------------
+      model:add(nn.Reshape(1024))
+      model:add(nn.Linear(1024, 2048))
+      model:add(nn.Tanh())
+      model:add(nn.Linear(2048,#classes))
+      ------------------------------------------------------------
 
-   module:add(nn.Reshape(connex[3]))
-   module:add(nn.Linear(connex[3],nbClasses))
+   elseif opt.model == 'linear' then
+      ------------------------------------------------------------
+      -- simple linear model: logistic regression
+      ------------------------------------------------------------
+      model:add(nn.Reshape(1024))
+      model:add(nn.Linear(1024,#classes))
+      ------------------------------------------------------------
+
+   else
+      print('Unknown model type')
+      op:help()
+      error()
+   end
 else
    print('<trainer> reloading previously trained network')
-   module = nn.Sequential()
-   module:read(torch.DiskFile(opt.network))
+   model = nn.Sequential()
+   model:read(torch.DiskFile(opt.network))
 end
 
-parameters = nnx.flattenParameters(nnx.getParameters(module))
-gradParameters = nnx.flattenParameters(nnx.getGradParameters(module))
+-- retrieve parameters and gradients
+parameters,gradParameters = model:getParameters()
 
 ----------------------------------------------------------------------
--- training criterion: MSE or Cross-entropy
+-- loss function: negative log-likelihood
 --
-if opt.error == 'mse' then
-   criterion = nn.MSECriterion()
-   criterion.sizeAverage = true
-elseif opt.error == 'nll' then
-   criterion = nn.DistNLLCriterion()
-   criterion.targetIsProbability = true
-end
+criterion = nn.DistNLLCriterion()
+criterion.targetIsProbability = true
 
 ----------------------------------------------------------------------
 -- get/create dataset
 --
-classes = {'1','2','3','4','5','6','7','8','9','10'}
-
 path_dataset = opt.dataset
+
+-- retrieve dataset from the web
 if not sys.dirp(path_dataset) then
    local path = sys.dirname(path_dataset)
    local tar = sys.basename(opt.www)
@@ -127,6 +150,7 @@ if not sys.dirp(path_dataset) then
               'tar xvf ' .. tar)
 end
 
+-- train on full dataset, or smaller toy subset
 if opt.full then
    nbTrainingPatches = 60000
    nbTestingPatches = 10000
@@ -136,6 +160,7 @@ else
    print('<warning> only using 2000 samples to train quickly (use flag --full to use 60000 samples)')
 end
 
+-- create training set
 trainData = nn.DataList()
 for i,class in ipairs(classes) do
    local dir = sys.concat(path_dataset,'train',class)
@@ -146,6 +171,7 @@ for i,class in ipairs(classes) do
    trainData:appendDataSet(subset, class)
 end
 
+-- create test set
 testData = nn.DataList()
 for i,class in ipairs(classes) do
    local subset = nn.DataSet{dataSetFolder = sys.concat(path_dataset,'test',class),
@@ -155,25 +181,46 @@ for i,class in ipairs(classes) do
    testData:appendDataSet(subset, class)
 end
 
-if opt.error == 'nll' then
-   trainData.targetIsProbability = true
-   testData.targetIsProbability = true
-end
-
-if opt.visualize then
-   trainData:display(100,'trainData')
-   testData:display(100,'testData')
-end
+-- set both datasets to generate valid probability distributions
+-- as target vectors
+trainData.targetIsProbability = true
+testData.targetIsProbability = true
 
 ----------------------------------------------------------------------
 -- define training and testing functions
 --
 
+-- this matrix records the current confusion across classes
 confusion = nn.ConfusionMatrix(classes)
 
+-- log results to files
 trainLogger = nn.Logger(sys.dirname(opt.save) .. '/train.log')
 testLogger = nn.Logger(sys.dirname(opt.save) .. '/test.log')
 
+-- display function
+function display(input)
+   require 'image'
+   win_input = image.display{image=input, win=win_input, zoom=2, legend='input'}
+   if opt.model == 'convnet' then
+      win_w1 = image.display{image=model:get(2).weight, zoom=4, nrow=10,
+                             win=win_w1, legend='stage 1: weights', padding=1}
+      win_w2 = image.display{image=model:get(6).weight, zoom=4, nrow=30,
+                             win=win_w2, legend='stage 2: weights', padding=1}
+      win_g1 = image.display{image=model:get(2).gradWeight, zoom=4, nrow=10,
+                             win=win_g1, legend='stage 1: gradients', padding=1}
+      win_g2 = image.display{image=model:get(6).gradWeight, zoom=4, nrow=30,
+                             win=win_g2, legend='stage 2: gradients', padding=1}
+   elseif opt.model == 'mlp' then
+      local W1 = torch.Tensor(model:get(2).weight):resize(2048,1024)
+      win_w1 = image.display{image=W1, zoom=0.5,
+                              win=win_w1, legend='W1 weights'}
+      local W2 = torch.Tensor(model:get(2).weight):resize(10,2048)
+      win_w2 = image.display{image=W2, zoom=0.5,
+                              win=win_w2, legend='W2 weights'}
+   end
+end
+
+-- training function
 function train(dataset)
    -- epoch tracker
    epoch = epoch or 1
@@ -216,16 +263,21 @@ function train(dataset)
                        -- evaluate function for complete mini batch
                        for i = 1,#inputs do
                           -- estimate f
-                          local output = module:forward(inputs[i])
+                          local output = model:forward(inputs[i])
                           local err = criterion:forward(output, targets[i])
                           f = f + err
 
                           -- estimate df/dW
                           local df_do = criterion:backward(output, targets[i])
-                          module:backward(inputs[i], df_do)
+                          model:backward(inputs[i], df_do)
 
                           -- update confusion
                           confusion:add(output, targets[i])
+
+                          -- visualize?
+                          if opt.visualize then
+                             display(inputs[i])
+                          end
                        end
 
                        -- normalize gradients and f(X)
@@ -250,7 +302,7 @@ function train(dataset)
 
       elseif opt.optimization == 'ASGD' then
          config = config or {eta0 = 1e-2,
-                             t0 = nbTrainingPatches * 4}
+                             t0 = nbTrainingPatches}
          _,_,average = optim.asgd(feval, parameters, config)
 
       else
@@ -277,13 +329,14 @@ function train(dataset)
          os.execute('mv ' .. filename .. ' ' .. filename .. '.old')
       end
       print('<trainer> saving network to '..filename)
-      torch.save(filename, module)
+      torch.save(filename, model)
    end
 
    -- next epoch
    epoch = epoch + 1
 end
 
+-- test function
 function test(dataset)
    -- local vars
    local time = sys.clock()
@@ -307,7 +360,7 @@ function test(dataset)
       local target = sample[2]
 
       -- test sample
-      confusion:add(module:forward(input), target)
+      confusion:add(model:forward(input), target)
    end
 
    -- timing
