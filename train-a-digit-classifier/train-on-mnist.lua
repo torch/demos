@@ -213,7 +213,7 @@ function train(dataset)
          table.insert(targets, target)
       end
 
-      -- creature closure to evaluate f(X) and df/dX
+      -- create closure to evaluate f(X) and df/dX
       local feval = function(x)
                        -- get new parameters
                        if x ~= parameters then
