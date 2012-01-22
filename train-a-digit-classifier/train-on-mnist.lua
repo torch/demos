@@ -122,6 +122,10 @@ end
 -- retrieve parameters and gradients
 parameters,gradParameters = model:getParameters()
 
+-- verbose
+print('<mnist> using model:')
+print(model)
+
 ----------------------------------------------------------------------
 -- loss function: negative log-likelihood
 --
