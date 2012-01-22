@@ -256,12 +256,13 @@ function train(dataset)
 
       -- optimize on current mini-batch
       if opt.optimization == 'CG' then
-         config = config or {maxIter = opt.maxIteration}
+         config = config or {maxIter = opt.maxIter}
          optim.cg(feval, parameters, config)
 
       elseif opt.optimization == 'LBFGS' then
          config = config or {learningRate = opt.learningRate,
-                             maxIter = opt.maxIteration}
+                             maxIter = opt.maxIter,
+                             nCorrection = 10}
          optim.lbfgs(feval, parameters, config)
 
       elseif opt.optimization == 'SGD' then
