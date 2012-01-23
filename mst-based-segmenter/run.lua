@@ -1,3 +1,4 @@
+#!/usr/bin/env qlua
 ------------------------------------------------------------
 -- a scene segmenter, base on a ConvNet trained end-to-end 
 -- to predict class distributions at dense locations.
@@ -49,7 +50,7 @@ function process()
    frame = video:forward()
 
    -- (2) compute affinity graph on input image
-   frame_smoothed = image.convolve(frame, gaussian, 'full')
+   frame_smoothed = image.convolve(frame, gaussian, 'same')
    graph = imgraph.graph(frame_smoothed)
 
    -- (3) cut graph using min-spanning tree

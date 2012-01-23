@@ -1,3 +1,4 @@
+#!/usr/bin/env qlua
 ------------------------------------------------------------
 -- a face detector, based on a simple convolutional network,
 -- trained end-to-end for that task.
@@ -66,12 +67,12 @@ parse = inline.load [[
 
 -- load pre-trained network from disk
 network = nn.Sequential()
-network:read(torch.DiskFile(opt.network))
+network = torch.load(opt.network)
 network_fov = 32
 network_sub = 4
 
 -- setup camera
-camera = image.Camera{}
+camera = image.Camera(opt.camidx)
 
 -- process input at multiple scales
 scales = {0.3, 0.24, 0.192, 0.15, 0.12, 0.1}
@@ -90,6 +91,9 @@ end
 
 -- a gaussian for smoothing the distributions
 gaussian = image.gaussian(3,0.15)
+
+-- profiler
+p = xlua.Profiler()
 
 -- process function
 function process()
@@ -163,9 +167,15 @@ timer.singleShot = true
 qt.connect(timer,
            'timeout()',
            function()
+              p:start('prediction')
               process()
+              p:lap('prediction')
+              p:start('display')
               display()
+              p:lap('display')
+              require 'openmp'
               timer:start()
+              p:printAll()
            end)
 widget.windowTitle = 'Face Detector'
 widget:show()

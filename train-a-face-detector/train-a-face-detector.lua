@@ -62,7 +62,7 @@ if not opt.network then
    convnet:add(nn.SpatialConvolution(1, 8, 5, 5))
    convnet:add(nn.Tanh())
    convnet:add(nn.Abs())
-   convnet:add(nn.SpatialMaxPooling(4, 4))
+   convnet:add(nn.SpatialSubSampling(8, 4, 4, 4, 4))
    convnet:add(nn.Tanh())
    convnet:add(nn.SpatialConvolutionMap(nn.tables.random(8, 32, 4), 7, 7))
    convnet:add(nn.Tanh())

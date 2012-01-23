@@ -1,3 +1,4 @@
+#!/usr/bin/env qlua
 ------------------------------------------------------------
 -- a simple frame grabber demo.
 --
@@ -23,7 +24,7 @@ widget = qtuiloader.load('g.ui')
 win = qt.QtLuaPainter(widget.frame)
 
 -- setup camera
-camera = image.Camera{}
+camera = image.Camera(opt.camidx)
 
 -- process function
 function process()
