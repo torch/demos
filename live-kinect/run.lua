@@ -3,26 +3,35 @@
 -- WHAT: segments a image source.
 --       the image source must be provided on the command line.
 --
-require 'XLearn'
+require 'xlua'
 require 'os'
-require 'mstsegm'
-require 'mincut'
+--require 'mstsegm'
+--require 'mincut'
 require 'kinect'
+require 'qt'
+require 'qtwidget'
+require 'qtuiloader'
 
 -- parse args
-op = OptionParser('%prog -s SOURCE [options]')
-op:add_option{'-s', '--source', action='store', dest='source', 
+op = xlua.OptionParser('%prog -s SOURCE [options]')
+op:option{'-s', '--source', action='store', dest='source', 
               help='image source, can be one of: camera | lena | video'}
-op:add_option{'-c', '--camera', action='store', dest='camidx', 
+op:option{'-c', '--camera', action='store', dest='camidx', 
               help='if source=camera, you can specify the camera index: /dev/videoIDX [default=0]'}
-op:add_option{'-p', '--path', action='store', dest='path', 
+op:option{'-p', '--path', action='store', dest='path', 
               help='path to video'}
-options,args = op:parse_args()
+options,args = op:parse()
 
 -- setup QT gui
-toolBox.useQT()
-widget = qtuiloader.load('live-kinect.ui')
-painter = qt.QtLuaPainter(widget.frame)
+-- toolBox.useQT()
+-- widget = qtuiloader.load('live-kinect.ui')
+-- painter = qt.QtLuaPainter(widget.frame)
+
+-- setup GUI (external UI file)
+if not win or not widget then 
+   widget = qtuiloader.load('g.ui')
+   win = qt.QtLuaPainter(widget.frame) 
+end
 
 -- video source
 -- source = nn.ImageSource{type = options.source or 'camera', 
@@ -33,9 +42,9 @@ painter = qt.QtLuaPainter(widget.frame)
 --                         height = 150}
 
 -- displayers
-displayer_source = Displayer()
-displayer_depth = Displayer()
-displayer_segments = Displayer()
+-- displayer_source = Displayer()
+-- displayer_depth = Displayer()
+-- displayer_segments = Displayer()
 
 -- global zoom
 zoom = 1
@@ -98,25 +107,25 @@ function run()
                        result=result,
                        threshold=thre}
    
-   painter:gbegin()
-   painter:showpage()
+   win:gbegin()
+   win:showpage()
    
-   displayer_source:show{tensor = frame, painter = painter, globalzoom=zoom, 
+   displayer_source:show{tensor = frame, painter = win, globalzoom=zoom, 
                          min=0,max=1, offset_x=0, offset_y=10, 
                          legend='camera image'}
-   displayer_depth:show{tensor = input:select(3,4), painter = painter, globalzoom=zoom, 
+   displayer_depth:show{tensor = input:select(3,4), painter = win, globalzoom=zoom, 
                         min = 0, max = 1, 
                         offset_x = frame:size(1)+5, offset_y = 10, 
                         legend = 'depth image'}
-   displayer_segments:show{tensor = result, painter = painter, globalzoom=zoom, 
+   displayer_segments:show{tensor = result, painter = win, globalzoom=zoom, 
                            min = 0, max = 1, 
                            offset_x = 0, offset_y = frame:size(2) + 20, 
                            legend = 'segmented image'}
    
    -- and params
-   painter:setfont(qt.QFont{serif=false,italic=false,size=14})
-   painter:moveto(330, 460); painter:show('Threshold = ' .. thre)
-   painter:gend()
+   win:setfont(qt.QFont{serif=false,italic=false,size=14})
+   win:moveto(330, 460); win:show('Threshold = ' .. thre)
+   win:gend()
 end
 
 -- Loop Process
