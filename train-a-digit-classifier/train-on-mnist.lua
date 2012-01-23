@@ -316,7 +316,6 @@ function test(dataset)
 
    -- averaged param use?
    if average then
-      print('averaging')
       cachedparams = parameters:clone()
       parameters:copy(average)
    end
