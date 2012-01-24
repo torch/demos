@@ -40,6 +40,8 @@ cmd:option('-seed', 1, 'fixed input seed for repeatable experiments')
 cmd:option('-optimization', 'SGD', 'optimization method: SGD | ASGD | CG | LBFGS')
 cmd:option('-learningRate', 1e-2, 'learning rate at t=0')
 cmd:option('-batchSize', 1, 'mini-batch size (1 = pure stochastic)')
+cmd:option('-weightDecay', 0, 'weight decay (SGD only)')
+cmd:option('-momentum', 0, 'momentum (SGD only)')
 cmd:option('-t0', 1, 'start averaging at t0 (ASGD only), in nb of epochs')
 cmd:option('-maxIter', 5, 'maximum nb of iterations for CG and LBFGS')
 cmd:option('-openmp', false, 'use OpenMP to //')
@@ -272,8 +274,8 @@ function train(dataset)
 
       elseif opt.optimization == 'SGD' then
          config = config or {learningRate = opt.learningRate,
-                             weightDecay = 0,
-                             momentum = 0,
+                             weightDecay = opt.weightDecay,
+                             momentum = opt.momentum,
                              learningRateDecay = 5e-7}
          optim.sgd(feval, parameters, config)
 
