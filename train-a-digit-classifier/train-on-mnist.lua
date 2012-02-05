@@ -16,7 +16,6 @@
 ----------------------------------------------------------------------
 
 require 'torch'
-require 'lab'
 require 'nnx'
 require 'optim'
 require 'image'
@@ -47,7 +46,7 @@ cmd:text()
 opt = cmd:parse(arg)
 
 -- fix seed
-random.manualSeed(opt.seed)
+torch.manualSeed(opt.seed)
 
 -- openmp
 if opt.openmp then
