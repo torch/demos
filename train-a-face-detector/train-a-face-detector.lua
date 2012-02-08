@@ -1,5 +1,5 @@
 ----------------------------------------------------------------------
--- A simple script that trains a conv net on the MNIST dataset,
+-- A simple script that trains a conv net on a face detection dataset,
 -- using stochastic gradient descent.
 --
 -- This script demonstrates a classical example of training a simple
@@ -18,8 +18,8 @@
 ----------------------------------------------------------------------
 
 require 'xlua'
-xrequire ('image', true)
-xrequire ('nnx', true)
+require 'image'
+require 'nnx'
 
 ----------------------------------------------------------------------
 -- parse options
@@ -50,7 +50,7 @@ opt = op:parse()
 torch.setdefaulttensortype('torch.DoubleTensor')
 
 if opt.seed then
-   random.manualSeed(opt.seed)
+   torch.manualSeed(opt.seed)
 end
 
 ----------------------------------------------------------------------
