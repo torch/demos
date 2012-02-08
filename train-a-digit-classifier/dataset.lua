@@ -1,5 +1,4 @@
 require 'torch'
-require 'lab'
 require 'paths'
 
 mnist = {}
@@ -47,8 +46,8 @@ function mnist.loadFlatDataset(fileName, maxLoad)
 
    function dataset:normalize(mean_, std_)
       local data = tensor:narrow(2, 1, dim-1)
-      local std = std_ or lab.std(data, true, 1)
-      local mean = mean_ or lab.mean(data, 1)
+      local std = std_ or torch.std(data, 1, true)
+      local mean = mean_ or torch.mean(data, 1)
       for i=1,dim-1 do
          tensor:select(2, i):add(-mean[1][i])
          if std[1][i] > 0 then
@@ -73,7 +72,7 @@ function mnist.loadFlatDataset(fileName, maxLoad)
       return nExample
    end
 
-   local labelvector = lab.zeros(10)
+   local labelvector = torch.zeros(10)
 
    setmetatable(dataset, {__index = function(self, index)
                                        local input = tensor[index]:narrow(1, 1, dim-1)
@@ -103,7 +102,7 @@ function mnist.loadConvDataset(fileName, maxLoad, geometry)
 
    local iheight = geometry[2]
    local iwidth = geometry[1]
-   local inputpatch = lab.zeros(1, iheight, iwidth)
+   local inputpatch = torch.zeros(1, iheight, iwidth)
 
    setmetatable(cdataset, {__index = function(self,index)
                                        local ex = dataset[index]
