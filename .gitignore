@@ -15,3 +15,17 @@ datasets/
 # Ignore log folders
 log/
 
+
+train-a-face-detector/.DS_Store
+
+train-a-face-detector/train-a-face-detector/face.net
+
+train-a-face-detector/train-a-face-detector/face.net.old
+
+train-a-face-detector/train-a-face-detector/test.log
+
+train-a-face-detector/train-a-face-detector/test.log.eps
+
+train-a-face-detector/train-a-face-detector/train.log
+
+train-a-face-detector/train-a-face-detector/train.log.eps
