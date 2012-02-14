@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>709</width>
+    <width>732</width>
     <height>504</height>
    </rect>
   </property>
@@ -146,12 +146,32 @@
    <item row="1" column="1">
     <layout class="QVBoxLayout" name="verticalLayout">
      <item>
+      <widget class="QLabel" name="label">
+       <property name="text">
+        <string>obj1</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLCDNumber" name="lcdNumber">
+       <property name="maximumSize">
+        <size>
+         <width>50</width>
+         <height>22</height>
+        </size>
+       </property>
+       <property name="segmentStyle">
+        <enum>QLCDNumber::Flat</enum>
+       </property>
+      </widget>
+     </item>
+     <item>
       <widget class="QSlider" name="verticalSlider">
        <property name="minimum">
         <number>1</number>
        </property>
        <property name="maximum">
-        <number>100</number>
+        <number>200</number>
        </property>
        <property name="pageStep">
         <number>5</number>

@@ -114,6 +114,7 @@ function process()
 
    -- (6) parse distributions to extract blob centroids
    threshold = widget.verticalSlider.value/100
+   widget.lcdNumber.value = threshold
    rawresults = {}
    for i,distribution in ipairs(distributions) do
       local smoothed = image.convolve(distribution[1]:add(1):mul(0.5), gaussian)
