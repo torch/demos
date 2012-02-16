@@ -121,6 +121,9 @@ function process()
       parse(smoothed, threshold, rawresults, scales[i])
    end
 
+	a=0 
+	k=0
+
    -- (7) clean up results
    detections = {}
    for i,res in ipairs(rawresults) do
@@ -129,7 +132,30 @@ function process()
       local y = res[2]*network_sub/scale
       local w = network_fov/scale
       local h = network_fov/scale
-      detections[i] = {x=x, y=y, w=w, h=h}
+       for m=1, k do
+    
+         	if (detections[m].x<=x) and x<=(detections[m].x+detections[m].w) and (detections[m].y<=y) and (y<=(detections[m].y+detections[m].h)) then 
+             		a=1								  			
+			end
+	  
+	   end
+
+	   for m=1, k do
+          
+			if (detections[m].x>=x)and (x+w)>=detections[m].x and (detections[m].y>=y) and (y + h)>=detections[m].y  then 
+             		a=1						
+		 	end
+	  
+	   end
+
+	  
+      if (a==0) then	
+	  	k=k+1	
+      	detections[k] = {x=x, y=y, w=w, h=h}
+   	  end
+
+      a=0
+
    end
 end
 
