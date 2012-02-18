@@ -112,19 +112,30 @@ function process()
    -- (5) unpack pyramid
    distributions = unpacker:forward(multiscale, coordinates)
 
-   -- (6) parse distributions to extract blob centroids
+   -- set up and display the threshold
+   widget.verticalSlider.maximum = 200
    threshold = widget.verticalSlider.value/100
    widget.lcdNumber.value = threshold
+
+   -- (6) parse distributions to extract blob centroids
+   max_global = 0
    rawresults = {}
    for i,distribution in ipairs(distributions) do
       local smoothed = image.convolve(distribution[1]:add(1):mul(0.5), gaussian)
       parse(smoothed, threshold, rawresults, scales[i])
+
+      -- compute Max. value of the output layer
+      local max_col = lab.max(smoothed,1)
+      local max_val, idx_col = lab.max(max_col, 2)
+      if max_global < max_val[1][1] then
+         max_global = max_val[1][1]
+      end
+      widget.progressBar.value = math.floor(max_global*10000/widget.verticalSlider.maximum+0.5)
    end
 
-	a=0 
-	k=0
-
    -- (7) clean up results
+   k=0
+   duplicate=0
    detections = {}
    for i,res in ipairs(rawresults) do
       local scale = res[3]
@@ -132,30 +143,21 @@ function process()
       local y = res[2]*network_sub/scale
       local w = network_fov/scale
       local h = network_fov/scale
-       for m=1, k do
-    
-         	if (detections[m].x<=x) and x<=(detections[m].x+detections[m].w) and (detections[m].y<=y) and (y<=(detections[m].y+detections[m].h)) then 
-             		a=1								  			
-			end
-	  
-	   end
-
-	   for m=1, k do
-          
-			if (detections[m].x>=x)and (x+w)>=detections[m].x and (detections[m].y>=y) and (y + h)>=detections[m].y  then 
-             		a=1						
-		 	end
-	  
-	   end
-
-	  
-      if (a==0) then	
-	  	k=k+1	
-      	detections[k] = {x=x, y=y, w=w, h=h}
+      
+      -- kill excessive detection rectangles
+      for m=1, k do
+         if (detections[m].x<=x) and x<=(detections[m].x+detections[m].w) and (detections[m].y<=y) and (y<=(detections[m].y+detections[m].h)) then 
+            duplicate=1								  			
+         end
+         if (detections[m].x>=x)and (x+w)>=detections[m].x and (detections[m].y>=y) and (y + h)>=detections[m].y  then 
+            duplicate=1
+         end
+      end
+      if (duplicate==0) then	
+         k=k+1	
+         detections[k] = {x=x, y=y, w=w, h=h}
    	  end
-
-      a=0
-
+      duplicate=0
    end
 end
 
