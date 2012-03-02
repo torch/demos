@@ -49,31 +49,19 @@ $ brew install qt
 $ brew install ffmpeg gnuplot
 ```
 
-## Install Lua, Luarocks and Torch7 on both platforms
-
-1/ Lua 5.1 + Luarocks + xLua 
+## Install Torch7 (full instructions on torch.ch) and extra packages
 
 ``` sh
-$ git clone https://github.com/clementfarabet/lua4torch
-$ cd lua4torch
-$ make install PREFIX=/usr/local
+$ git clone git://github.com/andresy/torch.git
+$ cd torch
+$ mkdir build; cd build
+$ cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local
+$ make install
 ```
 
-2/ Torch7 (a numeric package for Lua)
-
 ``` sh
-$ luarocks install torch
-```
-
-At this stage, extra packages will be auto-installed by
-each demo/script, as needed. In case something goes wrong, 
-each extra package can be installed like Torch:
-
-3/ Extra packages
-
-``` sh
-$ luarocks install image    # an image library for Torch7
-$ luarocks install nnx      # lots of extra neural-net modules
-$ luarocks install camera   # a camera interface for Linux/MacOS
-$ luarocks install ffmpeg   # a video decoder for most formats
+$ torch-pkg install image    # an image library for Torch7
+$ torch-pkg install nnx      # lots of extra neural-net modules
+$ torch-pkg install camera   # a camera interface for Linux/MacOS
+$ torch-pkg install ffmpeg   # a video decoder for most formats
 ```
