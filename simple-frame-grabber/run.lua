@@ -1,4 +1,4 @@
-#!/usr/bin/env qlua
+#!/usr/bin/env torch
 ------------------------------------------------------------
 -- a simple frame grabber demo.
 --

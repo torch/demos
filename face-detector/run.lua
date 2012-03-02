@@ -1,4 +1,4 @@
-#!/usr/bin/env qlua
+#!/usr/bin/env torch
 ------------------------------------------------------------
 -- a face detector, based on a simple convolutional network,
 -- trained end-to-end for that task.
