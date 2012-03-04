@@ -11,15 +11,14 @@ require 'torch'
 require 'qt'
 require 'qtwidget'
 require 'qtuiloader'
-xrequire('inline',true)
-xrequire('camera',true)
-xrequire('nnx',true)
+require 'inline'
+require 'camera'
+require 'nnx'
 
 -- parse args
 op = xlua.OptionParser('%prog [options]')
 op:option{'-c', '--camera', action='store', dest='camidx',
-          help='if source=camera, you can specify the camera index: /dev/videoIDX', 
-          default=0}
+          help='camera index: /dev/videoIDX', default=0}
 op:option{'-n', '--network', action='store', dest='network', 
           help='path to existing [trained] network',
           default='face.net'}
