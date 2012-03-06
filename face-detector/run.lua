@@ -24,21 +24,23 @@ op:option{'-n', '--network', action='store', dest='network',
           default='face.net'}
 opt,args = op:parse()
 
+torch.setdefaulttensortype('torch.FloatTensor')
+
 -- blob parser
 parse = inline.load [[
       // get args
-      const void* id = luaT_checktypename2id(L, "torch.DoubleTensor");
-      THDoubleTensor *tensor = luaT_checkudata(L, 1, id);
-      double threshold = lua_tonumber(L, 2);
+      const void* id = luaT_checktypename2id(L, "torch.FloatTensor");
+      THFloatTensor *tensor = luaT_checkudata(L, 1, id);
+      float threshold = lua_tonumber(L, 2);
       int table_blobs = 3;
       int idx = lua_objlen(L, 3) + 1;
-      double scale = lua_tonumber(L, 4);
+      float scale = lua_tonumber(L, 4);
 
       // loop over pixels
       int x,y;
       for (y=0; y<tensor->size[0]; y++) {
          for (x=0; x<tensor->size[1]; x++) {
-            double val = THDoubleTensor_get2d(tensor, y, x);
+            float val = THFloatTensor_get2d(tensor, y, x);
             if (val > threshold) {
                // entry = {}
                lua_newtable(L);
@@ -66,7 +68,7 @@ parse = inline.load [[
 
 -- load pre-trained network from disk
 network = nn.Sequential()
-network = torch.load(opt.network)
+network = torch.load(opt.network):float()
 network_fov = 32
 network_sub = 4
 
