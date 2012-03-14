@@ -63,7 +63,7 @@ if not opt.network then
    model:add(nn.SpatialConvolution(1, 8, 5, 5))
    model:add(nn.Tanh())
    model:add(nn.Abs())
-   model:add(nn.SpatialMaxPooling(4, 4, 4, 4))
+   model:add(nn.SpatialSubSampling(8, 4, 4, 4, 4))
    model:add(nn.Tanh())
    model:add(nn.SpatialConvolutionMap(nn.tables.random(8, 32, 4), 7, 7))
    model:add(nn.Tanh())
