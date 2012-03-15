@@ -13,7 +13,7 @@ require 'xlua'
 require 'os'
 require 'torch'
 require 'qt'
-require 'lab'
+--require 'lab'
 
 require 'qtwidget'
 require 'qtuiloader'
@@ -122,11 +122,11 @@ edgestrip:add(m)
 
 function find_max_index(input)
 
-   local max_col = lab.max(input,1)
-   local max_val, idx_col = lab.max(max_col, 2)
+   local max_col = torch.max(input,1)
+   local max_val, idx_col = torch.max(max_col, 2)
 
-   local max_row = lab.max(input,2)
-   local max_val, idx_row = lab.max(max_row,1)
+   local max_row = torch.max(input,2)
+   local max_val, idx_row = torch.max(max_row,1)
 
    return idx_row[1][1], idx_col[1][1]
 end
@@ -443,7 +443,7 @@ end
 
 -- window
 -- setup GUI (external UI file)
-widget = qtuiloader.load('client-attention.ui')
+widget = qtuiloader.load('attention.ui')
 win = qt.QtLuaPainter(widget.frame)
 
 
