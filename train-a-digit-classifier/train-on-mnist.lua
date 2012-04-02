@@ -132,7 +132,7 @@ print(model)
 -- loss function: negative log-likelihood
 --
 model:add(nn.LogSoftMax())
-criterion = nn.DistKLDivCriterion()
+criterion = nn.ClassNLLCriterion()
 
 ----------------------------------------------------------------------
 -- get/create dataset
@@ -214,7 +214,8 @@ function train(dataset)
          -- load new sample
          local sample = dataset[i]
          local input = sample[1]
-         local target = sample[2]
+         local _,target = sample[2]:max(1)
+         target = target:squeeze()
          table.insert(inputs, input)
          table.insert(targets, target)
       end
@@ -331,7 +332,8 @@ function test(dataset)
       -- get new sample
       local sample = dataset[t]
       local input = sample[1]
-      local target = sample[2]
+      local _,target = sample[2]:max(1)
+      target = target:squeeze()
 
       -- test sample
       confusion:add(model:forward(input), target)
