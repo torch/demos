@@ -44,30 +44,27 @@ op:option{'-p', '--patches', action='store', dest='patches', default='all',
           help='nb of patches to use'}
 op:option{'-v', '--visualize', action='store_true', dest='visualize',
           help='visualize the datasets'}
-op:option{'-sd', '--seed', action='store', dest='seed',
+op:option{'-sd', '--seed', action='store', dest='seed', default=0,
           help='use fixed seed for randomized initialization'}
 opt = op:parse()
 
 torch.setdefaulttensortype('torch.DoubleTensor')
 
-if opt.seed then
-   torch.manualSeed(opt.seed)
-end
+torch.manualSeed(opt.seed)
 
 ----------------------------------------------------------------------
 -- define network to train: CSCF
 --
 if not opt.network then
    model = nn.Sequential()
-   model:add(nn.SpatialNormalization(1, image.gaussian(7)))
+   model:add(nn.SpatialContrastiveNormalization(1, image.gaussian1D(5)))
    model:add(nn.SpatialConvolution(1, 8, 5, 5))
    model:add(nn.Tanh())
-   model:add(nn.Abs())
-   model:add(nn.SpatialSubSampling(8, 4, 4, 4, 4))
+   model:add(nn.SpatialMaxPooling(4, 4, 4, 4))
+   model:add(nn.SpatialConvolutionMap(nn.tables.random(8, 64, 4), 7, 7))
    model:add(nn.Tanh())
-   model:add(nn.SpatialConvolutionMap(nn.tables.random(8, 32, 4), 7, 7))
-   model:add(nn.Tanh())
-   model:add(nn.SpatialClassifier(nn.Linear(32,2)))
+   model:add(nn.Reshape(64))
+   model:add(nn.Linear(64,2))
 else
    print('<trainer> reloading previously trained network')
    model = nn.Sequential()
@@ -126,13 +123,11 @@ testBg = dataBG:popSubset{ratio=opt.ratio}
 trainData = nn.DataList()
 trainData:appendDataSet(dataFace,'Faces')
 trainData:appendDataSet(dataBG,'Background')
-trainData.spatialTarget = true
 
 -- testing set
 testData = nn.DataList()
 testData:appendDataSet(testFace,'Faces')
 testData:appendDataSet(testBg,'Background')
-testData.spatialTarget = true
 
 -- display
 if opt.visualize then
@@ -145,11 +140,11 @@ end
 --
 
 -- this matrix records the current confusion across classes
-confusion = nn.ConfusionMatrix{'Face','Background'}
+confusion = optim.ConfusionMatrix{'Face','Background'}
 
 -- log results to files
-trainLogger = nn.Logger(paths.concat(sys.dirname(opt.save), 'train.log'))
-testLogger = nn.Logger(paths.concat(sys.dirname(opt.save), 'test.log'))
+trainLogger = optim.Logger(paths.concat(sys.dirname(opt.save), 'train.log'))
+testLogger = optim.Logger(paths.concat(sys.dirname(opt.save), 'test.log'))
 
 -- optim config
 config = {learningRate = 1e-3, weightDecay = 1e-3,
