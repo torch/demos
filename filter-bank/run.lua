@@ -53,9 +53,9 @@ function display()
    p:start('display','fps')
    win:gbegin()
    win:showpage()
-   image.display{image=frame, min=0, max=1, win=win}
+   image.display{image=frame, min=0, max=1, win=win, saturate=false}
    image.display{image=transformed, min=-2, max=2, nrow=4,
-                 win=win, zoom=1/2, x=frame:size(3)}
+                 win=win, zoom=1/2, x=frame:size(3), saturate=false}
    win:gend()
    p:lap('display')
 end
