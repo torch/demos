@@ -138,7 +138,7 @@ function display()
    win:gbegin()
    win:showpage()
    -- (1) display input image + pyramid
-   image.display{image=frame, win=win}
+   image.display{image=frame, win=win, saturation=false, min=0, max=1}
 
    -- (2) overlay bounding boxes for each detection
    for i,detect in ipairs(detections) do
@@ -149,33 +149,26 @@ function display()
       win:moveto(detect.x, detect.y-1)
       win:show('face')
    end
-
-   -- (3) display distributions
-   local prevx = 0
-   for i,distribution in ipairs(distributions) do
-      local prev = distributions[i-1]
-      if prev then prevx = prevx + prev:size(3) end
-      image.display{image=distribution[1], win=win, x=prevx, min=0, max=1}
-   end
-
    win:gend()
 end
 
 -- setup gui
 timer = qt.QTimer()
-timer.interval = 10
+timer.interval = 1
 timer.singleShot = true
 qt.connect(timer,
            'timeout()',
            function()
-              p:start('prediction')
+              p:start('full loop','fps')
+              p:start('prediction','fps')
               process()
               p:lap('prediction')
-              p:start('display')
+              p:start('display','fps')
               display()
               p:lap('display')
               require 'openmp'
               timer:start()
+              p:lap('full loop')
               p:printAll()
            end)
 widget.windowTitle = 'Face Detector'
