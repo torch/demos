@@ -16,7 +16,7 @@
 ----------------------------------------------------------------------
 
 require 'torch'
-require 'nnx'
+require 'nn'
 require 'optim'
 require 'image'
 require 'dataset'
@@ -131,8 +131,8 @@ print(model)
 ----------------------------------------------------------------------
 -- loss function: negative log-likelihood
 --
-criterion = nn.DistNLLCriterion()
-criterion.targetIsProbability = true
+model:add(nn.LogSoftMax())
+criterion = nn.ClassNLLCriterion()
 
 ----------------------------------------------------------------------
 -- get/create dataset
@@ -159,11 +159,11 @@ testData:normalizeGlobal(mean, std)
 --
 
 -- this matrix records the current confusion across classes
-confusion = nn.ConfusionMatrix(classes)
+confusion = optim.ConfusionMatrix(classes)
 
 -- log results to files
-trainLogger = nn.Logger(paths.concat(opt.save, 'train.log'))
-testLogger = nn.Logger(paths.concat(opt.save, 'test.log'))
+trainLogger = optim.Logger(paths.concat(opt.save, 'train.log'))
+testLogger = optim.Logger(paths.concat(opt.save, 'test.log'))
 
 -- display function
 function display(input)
@@ -214,7 +214,8 @@ function train(dataset)
          -- load new sample
          local sample = dataset[i]
          local input = sample[1]
-         local target = sample[2]
+         local _,target = sample[2]:max(1)
+         target = target:squeeze()
          table.insert(inputs, input)
          table.insert(targets, target)
       end
@@ -331,7 +332,8 @@ function test(dataset)
       -- get new sample
       local sample = dataset[t]
       local input = sample[1]
-      local target = sample[2]
+      local _,target = sample[2]:max(1)
+      target = target:squeeze()
 
       -- test sample
       confusion:add(model:forward(input), target)
