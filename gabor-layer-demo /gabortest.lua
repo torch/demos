@@ -27,9 +27,7 @@
 -- include packages
 require 'xlua' 
 require 'os'
-require 'torch'
 require 'qt'
-require 'lab'
 require 'qtwidget'
 require 'qtuiloader'
 xrequire('nnx',true)
