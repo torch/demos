@@ -17,6 +17,7 @@
 
 require 'torch'
 require 'nn'
+require 'nnx'
 require 'optim'
 require 'image'
 require 'dataset'
@@ -77,12 +78,12 @@ if opt.network == '' then
       ------------------------------------------------------------
       -- stage 1 : mean suppresion -> filter bank -> squashing -> max pooling
       model:add(nn.SpatialSubtractiveNormalization(1, image.gaussian1D(15)))
-      model:add(nn.SpatialConvolution(1, 50, 5, 5))
+      model:add(nn.SpatialConvolution(1, 16, 5, 5))
       model:add(nn.Tanh())
       model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
       -- stage 2 : mean suppresion -> filter bank -> squashing -> max pooling
-      model:add(nn.SpatialSubtractiveNormalization(50, image.gaussian1D(15)))
-      model:add(nn.SpatialConvolutionMap(nn.tables.random(50, 128, 10), 5, 5))
+      model:add(nn.SpatialSubtractiveNormalization(16, image.gaussian1D(15)))
+      model:add(nn.SpatialConvolutionMap(nn.tables.random(16, 128, 4), 5, 5))
       model:add(nn.Tanh())
       model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
       -- stage 3 : standard 2-layer neural network
@@ -133,6 +134,7 @@ print(model)
 --
 model:add(nn.LogSoftMax())
 criterion = nn.ClassNLLCriterion()
+--criterion = nn.DistKLDivCriterion()
 
 ----------------------------------------------------------------------
 -- get/create dataset
@@ -213,8 +215,8 @@ function train(dataset)
       for i = t,math.min(t+opt.batchSize-1,dataset:size()) do
          -- load new sample
          local sample = dataset[i]
-         local input = sample[1]
-         local _,target = sample[2]:max(1)
+         local input = sample[1]:clone()
+         local _,target = sample[2]:clone():max(1)
          target = target:squeeze()
          table.insert(inputs, input)
          table.insert(targets, target)
