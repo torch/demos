@@ -1,19 +1,14 @@
----------------------------------------------------------------
+--#!/usr/bin/env qlua
+------------------------------------------------------------
+-- e. culurciello
+-- temporal difference simulator
 
-
--- Attention detector
--- The image is grabbed from a webcam and you can run the program both on Neuflow and CPU. 
---
--- Author: Aysegul Dundar
--- Date: 01/18/2012
-
-
-require 'neuflow'
+--require 'XLearn'
 require 'xlua' 
 require 'os'
 require 'torch'
 require 'qt'
---require 'lab'
+
 
 require 'qtwidget'
 require 'qtuiloader'
@@ -21,128 +16,182 @@ xrequire('nnx',true)
 xrequire('camera',true)
 xrequire('inline',true)
 
-----------------------------------------------------------------------
--- ARGS: parse user arguments
-
+-- parse args
 op = xlua.OptionParser('%prog [options]')
 op:option{'-c', '--camera', action='store', dest='camidx',
           help='if source=camera, you can specify the camera index: /dev/videoIDX', 
           default=0}
 opt,args = op:parse()
-target = 'neuflow' or 'cpu'
-last_name=target
-last_fps = -1
-counting = 0
-----------------------------------------------------------------------
--- INIT: initialize the neuFlow context
--- a mem manager, the dataflow core, and the compiler
+
+lowerthreshold = inline.load [[
+      // get args	lowerthreshold(tensor, x)
+      
+      const void* id = luaT_checktypename2id(L, "torch.DoubleTensor");
+      THDoubleTensor *tensor = luaT_checkudata(L, 1, id);
+      double threshold = lua_tonumber(L, 2);
+      
+      
+
+      // loop over pixels
+      int x,y;
+      for (y=0; y<tensor->size[1]; y++) {
+         for (x=0; x<tensor->size[0]; x++) {
+         	            double val = THDoubleTensor_get2d(tensor, x, y);
+            if (val < threshold) {  
+            	       	
+            	 			     	              	
+            THDoubleTensor_set2d(tensor, x, y, 0); 
+            	
+              
+            }
+            if (val >= threshold) { 	
+            	
+						            	
+            THDoubleTensor_set2d(tensor, x, y, val-threshold); 
+              
+            }
+         }
+      }
+            
+      return 0;
+]]
+
+imagethreshold=inline.load[[
+
+	
+	const void* id = luaT_checktypename2id(L, "torch.DoubleTensor");
+      THDoubleTensor *tensor = luaT_checkudata(L, 1, id);
+      double threshold = lua_tonumber(L, 2);
+
+      // loop over pixels
+      int x,y;
+      for (y=0; y<tensor->size[1]; y++) {
+         for (x=0; x<tensor->size[0]; x++) {
+            double val = THDoubleTensor_get2d(tensor, x, y);
+            if (val < -threshold) {
+            	THDoubleTensor_set2d(tensor, x, y, -threshold); 
+            	
+              
+            }
+            if (val > threshold) {
+            	THDoubleTensor_set2d(tensor, x, y, threshold); 
+              
+            }
+            
+           if(-threshold<val<threshold){
+            	
+            THDoubleTensor_set2d(tensor, x, y, 0); 
+            	}
+         }
+      }
+      return 0;
 
 
-neuFlow = neuflow.init()
-
-----------------------------------------------------------------------
--- ELABORATION: describe the algorithm to be run on neuFlow, and 
--- how it should interact with the host (data exchange)
--- note: any copy**Host() inserted here needs to be matched by
--- a copy**Dev() in the EXEC section.
---
-
-
--- image sizes
-
-size = 380
-inputs = torch.Tensor(3,size,size)
-intensity = torch.Tensor(size,size)
-intensity1=torch.Tensor(size,size)
-intensitydiv = torch.Tensor(1,size,size)
-intermediate = torch.Tensor(4,size,size)
-output = torch.Tensor(4,size,size)
-intensityA=torch.Tensor(size,size)
-intensityB=torch.Tensor(size,size)
+]]
 
 
 
-----------------------------------------------
---absolute module
---------------------------------------------
+-- setup GUI (external UI file)
+widget = qtuiloader.load('attention.ui')
+win = qt.QtLuaPainter(widget.frame)
 
-absnet=nn.Sequential()
-absnet:add(nn.Abs())
----------------------------------------------
+-- Camera frames
+local camFrameA = torch.Tensor(3, 480, 640)
+local camFrameB = torch.Tensor(3, 480, 640)
 
+local vslide = 0
+local nPoints = 10
+local pointSize = 32
+local tempdiffWeight = 0.5
+local colorThreshold = 0.4
 
----------------------
--- edgenet module
----------------------
+-- get frame from camera
+camera = image.Camera{}
+camFrameA = camFrameA:copy(camera:forward())
+--camFrameA = camera:forward() 
 
-edgenet = nn.Sequential()
-m = nn.SpatialConvolution(1,1,3,3,1,1)
-m.weight[1][1][1][1] = 0
-m.weight[1][1][2][1] = -1
-m.weight[1][1][3][1] = 0
-m.weight[1][1][1][2] = -1
-m.weight[1][1][2][2] = 4
-m.weight[1][1][3][2] = -1
-m.weight[1][1][1][3] = 0
-m.weight[1][1][2][3] = -1
-m.weight[1][1][3][3] = 0
-m.bias:fill(0)
-n = nn.SpatialPadding(1,1,1,1)
-o = nn.Abs()
-edgenet:add(m)
-edgenet:add(n)
-edgenet:add(o)
+-- sobel
 
---------------------------
--- edgestrip module
---------------------------
+local kx= torch.Tensor(3,3)
+s=kx:storage()
+s[1]=-1 s[2]=-2 s[3]=-1
+s[4]=0 s[5]=0 s[6]=0
+s[7]=1 s[8]=2 s[9]=1
 
-edgestrip = nn.Sequential()
-m = nn.SpatialConvolution(1,1,3,3,1,1)
-m.weight[1][1][1][1] = 0
-m.weight[1][1][2][1] = 0
-m.weight[1][1][3][1] = 0
-m.weight[1][1][1][2] = 0
-m.weight[1][1][2][2] = 1
-m.weight[1][1][3][2] = 0
-m.weight[1][1][1][3] = 0
-m.weight[1][1][2][3] = 0
-m.weight[1][1][3][3] = 0
-m.bias:fill(0)
-edgestrip:add(m)
-------------------------------------------------------
+local ky= torch.Tensor(3,3)
+n=ky:storage()
+n[1]=-1 n[2]=0 n[3]=1
+n[4]=-2 n[5]=0 n[6]=2
+n[7]=-1 n[8]=0 n[9]=1
 
--------------------------------------------------
--- These two functions below are borrowed from old attention code
---------------------------------------------------
+-- global results
+--local alternative
+
+-- time
+local timeDisplay = os.clock()
+local timeDetect = os.clock()
+local timeUpdates = os.clock()
+
+--scale (normalize between 0 and 1)
+local function scale(frame)
+	scaled_frame = frame:add(-frame:min())
+	scaled_frame = scaled_frame:div(scaled_frame:max())
+	return scaled_frame
+end
+
+-----------------------------------------
 -- function that receives a 2D tensor "input" 
 -- the function returns the location - (r,c) of the 
 -- maximum value in the tensor
---------------------------------------------------
-
+-----------------------------------------
 function find_max_index(input)
 
    local max_col = torch.max(input,1)
    local max_val, idx_col = torch.max(max_col, 2)
 
-   local max_row = torch.max(input,2)
+   local max_row =torch.max(input,2)
    local max_val, idx_row = torch.max(max_row,1)
 
    return idx_row[1][1], idx_col[1][1]
 end
+
+-------------------------------------------------------
+-- removes an area around point x y in the given tensor. 
+-- THIS FUNCTION SLOWS IT DOWN A LOT IF POINTSIZE IS LARGE
+---------------------------------------------------------
+
+
+function remove(tensor, x, y)
+	local w = tensor:size(1)
+	local h = tensor:size(2)
+	for i=1,pointSize do
+		for j=1,pointSize do
+			local xx = x-pointSize/2+i
+			local yy = y-pointSize/2+j
+			if xx < 1 then xx = 1 end
+			if yy < 1 then yy = 1 end
+			if xx > w then xx = w end
+			if yy > h then yy = h end
+			tensor[xx][yy]=0
+		end
+	end
+	return tensor
+end
+
+
+
 
 ----------------------------------
 --alternative method for finding max: divide image into a grid
 --find global maxima within subdivisions
 --nPoints number of grids
 -----------------------------------
+
 function return_section(input)
-   local x_range = math.floor((input:size(1))/pointSize)
-   local y_range = math.floor((input:size(2))/pointSize)
+	local x_range = (input:size(1))/pointSize
+	local y_range = (input:size(2))/pointSize
 
 	section_holder = torch.Tensor(x_range,y_range)
-
-
 	for i=1,x_range do
 		for j=1,y_range do
 			local start_x = (i-1)*pointSize+1
@@ -154,299 +203,278 @@ function return_section(input)
 	return section_holder
 end
 
-----------------------
-
--- Matrix to use in sobel operation (Edge detection)
-kernel=torch.Tensor(3,3)
-n=kernel:storage()
-n[1]=0 n[2]=-1 n[3]=0
-n[4]=-1 n[5]=4 n[6]=-1
-n[7]=0 n[8]=-1 n[9]=0
-
-
-
-
---copy first image (Note this operation is done only one time so not in the loop)
-
-intensity_dev_a=neuFlow:copyFromHost(intensity)
-intensity_dev_b=neuFlow:copyFromHost(intensity)
-intensity_dev_c=neuFlow:allocHeap(intensity)
-
-output_dev=neuFlow:allocHeap(output)
-intermed_dev=neuFlow:allocHeap(intermediate)
-
-kernel_dev=neuFlow:allocDataPacked(kernel)
-
-
-
--- global loop
-neuFlow:beginLoop('main') do
-
-   -- copy input image to dev
-   
-	neuFlow:copy(intensity_dev_a, intensity_dev_b)
-	neuFlow:copyFromHost(intensity, intensity_dev_a)
-	
-	
-	inputs_dev=neuFlow:copyFromHost(inputs)
-	intensity_dev=neuFlow:copyFromHost(intensitydiv)
-   
-   
-    -- get RG map
-	neuFlow.core:subtract(inputs_dev[1], inputs_dev[2], intermed_dev[1])
-	neuFlow.core:divide(intermed_dev[1], intensity_dev[1], output_dev[1])
-   
-   	--get BY map
-	neuFlow.core:add(inputs_dev[1], inputs_dev[2], intermed_dev[2])
-	neuFlow.core:multiplyScalar(intermed_dev[2], 0.5, intermed_dev[1])
-	neuFlow.core:subtract(inputs_dev[3], intermed_dev[1], intermed_dev[2])
-	neuFlow.core:divide(intermed_dev[2], intensity_dev[1], output_dev[2])
-   
-   	--get Edge map
-	neuFlow.core:convolBank({intensity_dev_a[1]}, {kernel_dev[1]}, {intermed_dev[3]})
-	output_dev[3]=neuFlow:compile(absnet, {intermed_dev[3]})
-   
-   	--get Temporal Difference map
-	neuFlow.core:subtract(intensity_dev_a[1], intensity_dev_b[1], intermed_dev[1])
-  	TD_dev=neuFlow:compile(absnet, {intermed_dev[1]})
-   
-   
-   
-   -- copy filtered images to host
-	output2=neuFlow:copyToHost(output_dev[2])
-	output3=neuFlow:copyToHost(output_dev[1])
-	output4=neuFlow:copyToHost(output_dev[3])
-	output5=neuFlow:copyToHost(TD_dev)
- 
- 
-	-- multiplication and addition operations to find the saliency map
-	neuFlow.core:multiplyScalar(TD_dev[1], 0.4,TD_dev[1])
-	neuFlow.core:multiplyScalar(output_dev[3][1], 0.3,output_dev[3][1])
-	neuFlow.core:multiplyScalar(output_dev[2], 0.1, output_dev[2])
-	neuFlow.core:multiplyScalar(output_dev[1], 0.1, output_dev[1])
-	neuFlow.core:multiplyScalar(intensity_dev_a[1], 0.1, intensity_dev_c[1])
-	
-	neuFlow.core:add(TD_dev[1], output_dev[1], intermed_dev[1])
-	neuFlow.core:add(intermed_dev[1],  output_dev[2], intermed_dev[2])
-	neuFlow.core:add(intermed_dev[2],   intensity_dev_c[1], intermed_dev[3])
-	neuFlow.core:add(intermed_dev[3],  output_dev[3][1], intermed_dev[4])
-	
-	-- copy salience to host
-	sal_dev=neuFlow:compile(edgestrip, {intermed_dev[4]})
-	salience=neuFlow:copyToHost(sal_dev[1])
-	
-	
-end neuFlow:endLoop('main')
-
-
-
--- LOAD: load the bytecode on the device, and execute it
-neuFlow:loadBytecode()
-
-
-----------------------------------------------------------------------
--- EXEC: this part executes the host code, and interacts with the dev
---
-
-
-
-camera=image.Camera{}
-
-
-function process()
-	neuFlow.profiler: start('whole-loop', 'fps')
-	
-	
-	-- get frame from camera and obtain intensity image by rgb function
-   camFrame = camera:forward()
-   camFrameYa = image.rgb2y(camFrame)
-   
-   image.scale(camFrameYa, intensitydiv, 'bilinear')
-   intensitydiv=intensitydiv+1
-   camFrameY=camFrameYa:select(1,1)
-   
-
-   image.scale(camFrameY, intensity, 'bilinear')
-   image.scale(camFrame, inputs, 'bilinear')
-
-	-- Remember copyHost() inserted in device parts need to 
-	--be matched by a copyDev in this execution section
-
-	-- In the device part copying first image only occurs one time
-	-- so to match the copyHost()-copyDev()  we should send this data only once
-	-- This part provides that matching, if target is neuflow for the first time we send the intensity maps to device  
-   
-  	if (target=='neuflow') and (counting==0) then
-   		neuFlow:copyToDev(intensity)
-   		neuFlow:copyToDev(intensity)
-   		counting=1
-   	end
-   
- 	if (target=='neuflow') then	
-		neuFlow:copyToDev(intensity)
-		neuFlow:copyToDev(inputs)
-		neuFlow:copyToDev(intensitydiv)
-
-	-- Copy results from the device to display
-		neuFlow:copyFromDev(output2)
-		neuFlow:copyFromDev(output3)
-		neuFlow:copyFromDev(output4)
-		neuFlow:copyFromDev(output5)
-	
-		neuFlow:copyFromDev(salience)
+-- get maps in specified scale
+local function getMaps(frame1, frame2, scaling)
+	local camFrame = torch.Tensor(frame1:size(1), frame1:size(2)*scaling, frame1:size(3)*scaling)
 		
-	else
-
-	one_map = torch.Tensor(1,size,size)
-	two_map = torch.Tensor(1,size,size)
-	three_map = torch.Tensor(1,size,size)
-	four_map = torch.Tensor(1,size,size)
-	I_map = torch.Tensor(1,size,size)
-		profiler_cpu = neuFlow.profiler:start('compute-cpu')
-		neuFlow.profiler:setColor('compute-cpu', 'blue')
-   
-	intensityA:copy(intensityB)
-	intensityB:copy(intensity)
-
-		--get Temporal Difference map
-		output5 = (intensityB - intensityA):abs()
-		output5:resize(1,output5:size(1), output5:size(2))
-		one_map:copy(output5)
-  
-		-- get RG map
-		output3 = (inputs:select(1,1) - inputs:select(1,2)):cdiv(intensitydiv)
-		output3:resize(1, output3:size(1), output3:size(2))   
-		two_map:copy(output3)
-		
-		-- get BY map
-		mid = ((inputs:select(1,1))+(inputs:select(1,2))):mul(0.5)
-		output2 = ((inputs:select(1,3))-(mid)):cdiv(intensitydiv)
-		output2:resize(1,output2:size(1), output2:size(2))
-		three_map:copy(output2) 
-
-		-- get Edge map
-		intensitymap = torch.Tensor(1,size,size)
-		intensitymap:copy(intensityB)
-		output4 = edgenet:forward((intensitymap))
-		four_map:copy(output4)
-
-		I_map:copy(intensitydiv-1)   
-
-	-- multiplication and addition operations to find the saliency map
-	temp = (one_map:mul(0.4)):add(two_map:mul(0.1)):add(three_map:mul(0.1)):add(I_map:mul(0.1)):add(four_map:mul(0.3))
-	salience = edgestrip:forward(temp)   
-
-   neuFlow.profiler:lap('compute-cpu')
-   end
-
-
+	image.scale(frame1, camFrame, 'simple')
+	frameY = image.rgb2y(camFrame)
 	
-	sal=salience[1]		
-	neuFlow.profiler:start('scale-salience-down')
-	saliencetemp = return_section(sal)
-	neuFlow.profiler:lap('scale-salience-down')
+	image.scale(frame2, camFrame, 'simple')
+	frameY2 = image.rgb2y(camFrame)
+   	--get intensity map
+   
+	R = camFrame:select(1,1)
+	G = camFrame:select(1,2)
+	B = camFrame:select(1,3)
+	
+	intensity=frameY2[1]
+	
+	--get BY map
+	Y = (R+G):mul(0.5)
+	BY = (B-Y):cdiv(intensity+1)
+	BY = scale(BY)		
+	lowerthreshold(BY,colorThreshold)
+	BY = scale(BY)
+	
+	--get RG map
+	RG = (R-G):cdiv(intensity+1)
+	RG = scale(RG)
+	lowerthreshold(RG,colorThreshold)
+	RG = scale(RG)
 			
-   	win:gbegin()
-   	win:showpage()
-   		
-  	neuFlow.profiler:start('display')
-  	
-	-- display original input image
-	image.display{image=inputs, win=win,
-   	                zoom=1,  x=0, y=30, legend='Input'}
-			
-		   win:moveto(0, 20)
+	--get edge map
+	
+	gx = image.convolve(intensity,kx, 'valid')
+	gy = image.convolve(intensity,ky, 'valid')
+	edge = (gx:pow(2)+gy:pow(2)):sqrt()
+	
+	edge = scale(edge)		
+	padder = nn.SpatialPadding(1,1,1,1)
+	edge = torch.Tensor(edge):resize(1, edge:size(1), edge:size(2))
+	edge=padder:forward(edge)
+	edge = edge[1]
+   	-- get motion map / temp diff w/ threshold  	  
+    	   
+   	frameTD = torch.Tensor():resizeAs(frameY2):copy(frameY2):mul(-1):add(frameY):select(1,1)
+   	      	
+   	frameTD:abs()
+   	local thE = vslide/150
+  	imagethreshold(frameTD, thE)	
+   
+   	-- time
+   	local diff = os.clock() - timeDisplay
+   	timeDisplay = os.clock()
+   	local fps = 1/diff
+	
+	return camFrame, intensity, BY, RG, edge, frameTD, fps
+	
+end
+
+-- create salience map (WEIGHTS ARE ARBITRARY NOW)
+local function createSalienceMap(frameTD, edge, RG, BY, intensity)
+
+	local edgeWeight = (1-tempdiffWeight)/4
+	local rgWeight = (1-tempdiffWeight)/4
+	local byWeight = (1-tempdiffWeight)/4
+	local intensityWeight=(1-tempdiffWeight)/4
+	
+	salience = frameTD:mul(tempdiffWeight):add(edge:mul(edgeWeight)):add(RG:mul(rgWeight)):add(BY:mul(byWeight)):add(intensity:mul(intensityWeight))
+	
+		-- back to 640 x 480
+	local temp = camFrameA[1]
+	local salience_big = torch.Tensor():resizeAs(temp)
+	image.scale(salience, salience_big, 'simple')
+	return salience_big
+end
+	
+-- display internal maps
+local function displayInternals(camFrame_small, intensity, BY, RG, edge, frameTD, fps, offset_X, offset_Y, zoom )
+
+
+	-- display color scaled image
+   	image.display{image=camFrame_small, win=win,
+                   zoom=zoom, x=offset_X, y=offset_Y, legend='Input'}
+                  
+      	   win:moveto(offset_X, 20)
 	   	   win:setfont(qt.QFont{size=14})
-   		   win:show(string.format('Input'))    
-		   
-	-- display BY 
-	image.display{image=output2, win=win,
-   	                zoom=0.4,  x=500, y=30, legend='BY'}
-   	       win:moveto(500, 20)
-   		   win:show(string.format('BY'))  
-  
-	-- display RG 			
-	image.display{image=output3, win=win,
-   	                zoom=0.4,  x=530+output3:size(2)*0.4, y=30, legend='RG'}
-   	       win:moveto(530+output3:size(2)*0.4, 20)
-   		   win:show(string.format('RG')) 
+   		   win:show(string.format('Input'))                               
+                  
+   	--disp intensity
+   	image.display{image=intensity, win=win,
+                   zoom=zoom, x=offset_X,y=offset_Y+30+camFrame_small:size(2), legend='Intensity'}
+           
+           win:moveto(offset_X, 20+30+camFrame_small:size(2))
+   		   win:show(string.format('Intensity'))   
 
-	-- display sobel image 			
-	image.display{image=output4, win=win,
-   	                zoom=0.4,  x=500, y=60+output3:size(3)*0.4, legend='Edge'}
-   	       win:moveto(500, 50+output3:size(3)*0.4)
-   		   win:show(string.format('Edge')) 
-   	        
-	-- display temporal difference image 		
-	image.display{image=output5, win=win,
-  	                zoom=0.4,  x=530+output3:size(3)*0.4, y=60+output3:size(3)*0.4, legend='Temp Diff'}
-  	       win:moveto(530+output3:size(3)*0.4, 50+output3:size(3)*0.4)
-   		   win:show(string.format('Temp Diff')) 
+	--disp BY
+   	image.display{image=BY, win=win, 
+                  zoom=zoom, x=camFrame_small:size(3)+offset_X, y=offset_Y, legend='BY'}
+            
+ 		   win:moveto(camFrame_small:size(3)+offset_X, 20)
+   		   win:show(string.format('BY'))  
+   		   
+   		   
+   		   
+	--disp RG
+   	image.display{image=RG, win=win,
+                   zoom=zoom, x=camFrame_small:size(3)+offset_X, y=offset_Y+30+camFrame_small:size(2), legend='RG'}
+           win:moveto(camFrame_small:size(3)+offset_X, 20+30+camFrame_small:size(2))
+   		   win:show(string.format('RG'))  
+                   
+   	-- disp sobel image
+ 	image.display{image=edge,  win=win,
+          	  zoom=zoom, x=2*camFrame_small:size(3)+offset_X, y=offset_Y, legend='Sobel'}
+           
+           win:moveto(2*camFrame_small:size(3)+offset_X, 20)
+   		   win:show(string.format('Sobel'))
+          	  
+    --disp temp diff image
+	image.display{image=frameTD, win=win,
+   	                zoom=zoom,  x=2*camFrame_small:size(3)+offset_X, y=offset_Y+30+camFrame_small:size(2), legend='Temp Diff'}
+   	                
+   	       win:moveto(2*camFrame_small:size(3)+offset_X, 20+30+camFrame_small:size(2))
+   		   win:show(string.format('Temp Diff'))
+
+   	                
+	-- disp FPS
 	
-	-- display Salinecy map 		
-	image.display{image=salience, win=win,
-  	                zoom=0.4,  x=530, y=90+output3:size(3)*0.8, legend='Salience'}
-		   win:moveto(530,80+output3:size(3)*0.8)
-   		   win:show(string.format('Salience'))
+--win:moveto(offset_X*zoom, (offset_Y+60+RG:size(1)*2)*zoom)
+--   		win:show(string.format('FPS = %0f', fps))   		
+   
+end
+
+
+-- display
+
+
+local function displayer()
+ 	
+ 	local startTime = os.clock()
+ 	timeDisplay = startTime
+
+ 	--get second frame
+
+	camFrameB = camera:forward()
+
+   	win:gbegin()    	
+   	win:showpage()
+
+   	
+   	local offset_Y = 30
+   	local offset_X = 700
+	local zoom = 1
+
+   	-- display input
+
+	   	   image.display{image=camFrameB, win=win, zoom=1, x=0, y=30, legend='CAMERA INPUT, 640x480'}	
+	   	   win:moveto(camFrameA:size(2)/2, 20)
+	   	   win:setfont(qt.QFont{size=14})
+   		   win:show(string.format('CAMERA INPUT, 640x480'))     	   
+                   
+    --subsample (original is 640 x 480. We subsample to 160 x 120 and 80 x 60)
+	local scales = {1/4, 1/8, 1/16}
+	-------------------------------------------------------------------------------
+	-- 160 x 120 
+   	camFrame1_small, intensity1, BY1, RG1, edge1, frameTD1, fps1 = getMaps(camFrameA, camFrameB, scales[1])
+   
+   	   	
+	--display internals    
+	if widget.checkBox1.checked then
+		displayInternals(camFrame1_small, intensity1, BY1, RG1, edge1, frameTD1, fps1, offset_X, offset_Y, zoom)
 		
+	end
+	
+	-- create salience map (WEIGHTS ARE ARBITRARY NOW)
+	salience1 = createSalienceMap(frameTD1, edge1, RG1, BY1, intensity1)
+ 	-------------------------------------------------------------------------------
+	-- 80 x 60
+	camFrame2_small, intensity2, BY2, RG2, edge2, frameTD2, fps2 = getMaps(camFrameA, camFrameB, scales[2])
+   
+	-- time
+	local diff = os.clock() - timeDisplay
+	timeDisplay = os.clock()
+	local fps = 1/diff
+	
+	local offset_Y = 400
+	
+	--display internals
+	if widget.checkBox1.checked then
+--		displayInternals(camFrame2_small, intensity2, BY2, RG2, edge2, frameTD2, fps2, offset_X, offset_Y, zoom)
+	end
 		
+	-- create salience map (WEIGHTS ARE ARBITRARY NOW)
+	salience2 = createSalienceMap(frameTD2, edge2, RG2, BY2, intensity2)
+	-------------------------------------------------------------------------------
+		-- 40 x 30
+	camFrame3_small, intensity3, BY3, RG3, edge3, frameTD3, fps3 = getMaps(camFrameA, camFrameB, scales[3])
+   	
+	-- time
+	local diff = os.clock() - timeDisplay
+	timeDisplay = os.clock()
+	local fps = 1/diff
+	
+	local offset_Y = 700
+	
+	--display internals
+	if widget.checkBox1.checked then
 		
-		-- draw squares 
+--		displayInternals(camFrame3_small, intensity3, BY3, RG3, edge3, frameTD3, fps3, offset_X, offset_Y, zoom)
+		
+	end
+		
+	-- create salience map (WEIGHTS ARE ARBITRARY NOW)
+	salience3 = createSalienceMap(frameTD3, edge3, RG3, BY3, intensity3)
+	-------------------------------------------------------------------------------
+	
+	-- combine saliency maps (WEIGHTS ARBITRARY)
+	salience_final = (salience1:add(salience2):add(salience3)):div(3)
+	if widget.checkBox1.checked then
+	-- disp salience map
+   		image.display{image=salience_final,win=win, zoom=zoom/2, x=700, y=350,
+   		--camFrameA:size(2)+90, 
+                       legend='FINAL SALIENCE MAP, 640x480'}
+                       
+         win:moveto(700, 340)
+   		  win:show(string.format('FINAL SALIENCE MAP, 640x480'))
+			    
+
+    end
+    
+    --draw squares
+    if (alternative) then
+    
+	    --- alternative draw squares
+	    saliencetemp = return_section(salience_final)
 	    for i=1,nPoints do
 	    
 	    	local x, y = find_max_index(saliencetemp)
 	    	
 	    	saliencetemp[x][y]=0	    	
-			x = 1+pointSize*(x-1)
+	    	x = 1+pointSize*(x-1)
 	    	y = 1+pointSize*(y-1)	    		    	
 	    	 win:rectangle(y, x+30, pointSize, pointSize)
 	    	 win:stroke()
 	  
 	    end
-      
 	    
-	    neuFlow.profiler:lap('display')
-	    neuFlow.profiler:lap('whole-loop')
-	    
-	    neuFlow.profiler:displayAll{win=win, x=0, y=450, zoom=0.6}
-
-
-
-	local x = 30
-   	local y = 650
-   	local zoom = 0.6
-   	win:setfont(qt.QFont{serif=false,italic=false,size=24*zoom})   
- 	win:setcolor("red")
-   	local str
-   	str = string.format('compare to <%s> = %f fps', last_name, last_fps)
-   
-   -- disp line:
-   	win:moveto(x,y);
-  	win:show(str)
-   
-   -- if we have both cpu and neuflow timimgs saved
-   	if(last_fps ~= -1) then
-      	x = 400
-      	y = 650
-      	win:setfont(qt.QFont{serif=false,italic=false,size=28*zoom})
-    	win:setcolor("red")      
-      	local speedup = neuFlow.profiler.events['compute-cpu'].reald/neuFlow.profiler.events['on-board-processing'].reald
-     	str = string.format('speedup = %f ',
-			  speedup)    
-   -- disp line:
-		win:moveto(x,y);
-		win:show(str)
-   	end
-  
+    else -- draw red squares
+	    saliencetemp = torch.Tensor():resizeAs(salience_final):copy(salience_final)
+	    for i=1,nPoints do
+	    	local x, y = find_max_index(saliencetemp)
+	    	
+	    	 win:rectangle(y-pointSize/2, x+30-pointSize/2, pointSize, pointSize)
+	    	 win:stroke()
+	         saliencetemp = remove(saliencetemp, x, y, pointSize)
+	    end
+    end
+    
+    -- disp FPS
+	local fpsTotal = 1/(os.clock()-startTime)
+    
+    	win:setcolor("black")
+   		win:moveto(10*zoom, (camFrameB:size(2)+60)*zoom)
+  	 	win:show(string.format('FPS = %0f', fpsTotal))
+  	  
+	-- 	end of paint
+	
+	win:grestore()
 	win:gend()
-end   
-
--- window
--- setup GUI (external UI file)
-widget = qtuiloader.load('attention.ui')
-win = qt.QtLuaPainter(widget.frame)
-
-
+	
+	-- keep current frame
+	camFrameA:resizeAs(camFrameB):copy(camFrameB)
+	
+end
 
 -- Create QT events
 local timer = qt.QTimer()
@@ -454,52 +482,20 @@ timer.interval = 1
 timer.singleShot = true
 qt.connect(timer,'timeout()',			
            function() 
-           
-            	
-             	nPoints = widget.spinBox.value
-              	pointSize = widget.spinBox_2.value
-             	checkerror = widget.checkBox.checked
-             	process()
+            	vslide = widget.verticalSlider2.value
+            	--hslide = widget.verticalSlider1.value
+             	alternative = widget.checkBox2.checked
+             	nPoints = widget.spinBox1.value
+              	pointSize = widget.spinBox2.value
+             	tempdiffWeight = widget.doubleSpinBox1.value
+             	colorThreshold = widget.doubleSpinBox2.value
+              	displayer()
               	timer:start()
            end )
-	   
-qt.connect(qt.QtLuaListener(widget.pushButton_2),
-           'sigMousePress(int,int,QByteArray,QByteArray,QByteArray)',
-           function (...) 
-	      -- only if we are changing the process source,
-	      --change the fps
-	      if (target ~= 'neuflow') then
-			last_fps = 1/neuFlow.profiler.list[1].reald
-	      end
-          target = 'neuflow'
-	      last_name = 'cpu'
-	   end)
-
-qt.connect(qt.QtLuaListener(widget.pushButton),
-           'sigMousePress(int,int,QByteArray,QByteArray,QByteArray)',
-           function (...) 
-	      -- only if we are changing the process source,
-	      --change the fps
-	      if (target ~= 'cpu') then
-		 	last_fps = 1/neuFlow.profiler.list[1].reald
-	      end
-          target = 'cpu'
-	      last_name = 'neuflow'
-	   end)
-
-
 
 -- Close Process
-qt.connect(qt.QtLuaListener(widget),
-           'sigShow(bool)',
-		function(b) 
-		if b then timer:start() end 
-		end )
 
 
-
-timer:start()
 widget.windowTitle = "Temporal Difference Imaging"
 widget:show()
-
-
+timer:start()
