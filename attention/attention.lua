@@ -1,6 +1,6 @@
 --#!/usr/bin/env qlua
 ------------------------------------------------------------
--- e. culurciello
+-- Author: Aysegul Dundar
 -- temporal difference simulator
 
 --require 'XLearn'
