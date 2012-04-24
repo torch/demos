@@ -1,9 +1,8 @@
---#!/usr/bin/env qlua
+--#!/usr/bin/env torch
 ------------------------------------------------------------
 -- Author: Aysegul Dundar
 -- temporal difference simulator
 
---require 'XLearn'
 require 'xlua' 
 require 'os'
 require 'torch'
@@ -30,25 +29,16 @@ lowerthreshold = inline.load [[
       THDoubleTensor *tensor = luaT_checkudata(L, 1, id);
       double threshold = lua_tonumber(L, 2);
       
-      
-
       // loop over pixels
       int x,y;
       for (y=0; y<tensor->size[1]; y++) {
          for (x=0; x<tensor->size[0]; x++) {
-         	            double val = THDoubleTensor_get2d(tensor, x, y);
-            if (val < threshold) {  
-            	       	
-            	 			     	              	
-            THDoubleTensor_set2d(tensor, x, y, 0); 
-            	
-              
+         	double val = THDoubleTensor_get2d(tensor, x, y);
+            if (val < threshold) {              	 			     	              	
+            THDoubleTensor_set2d(tensor, x, y, 0);              
             }
-            if (val >= threshold) { 	
-            	
-						            	
-            THDoubleTensor_set2d(tensor, x, y, val-threshold); 
-              
+            if (val >= threshold) { 						            	
+            THDoubleTensor_set2d(tensor, x, y, val-threshold);               
             }
          }
       }
@@ -57,9 +47,8 @@ lowerthreshold = inline.load [[
 ]]
 
 imagethreshold=inline.load[[
-
 	
-	const void* id = luaT_checktypename2id(L, "torch.DoubleTensor");
+      const void* id = luaT_checktypename2id(L, "torch.DoubleTensor");
       THDoubleTensor *tensor = luaT_checkudata(L, 1, id);
       double threshold = lua_tonumber(L, 2);
 
@@ -69,27 +58,18 @@ imagethreshold=inline.load[[
          for (x=0; x<tensor->size[0]; x++) {
             double val = THDoubleTensor_get2d(tensor, x, y);
             if (val < -threshold) {
-            	THDoubleTensor_set2d(tensor, x, y, -threshold); 
-            	
-              
+            	THDoubleTensor_set2d(tensor, x, y, -threshold);         	              
             }
             if (val > threshold) {
-            	THDoubleTensor_set2d(tensor, x, y, threshold); 
-              
-            }
-            
-           if(-threshold<val<threshold){
-            	
+            	THDoubleTensor_set2d(tensor, x, y, threshold);              
+            }            
+            if(-threshold<val<threshold){            	
             THDoubleTensor_set2d(tensor, x, y, 0); 
-            	}
+            }
          }
       }
       return 0;
-
-
 ]]
-
-
 
 -- setup GUI (external UI file)
 widget = qtuiloader.load('attention.ui')
@@ -109,9 +89,7 @@ local colorThreshold = 0.4
 camera = image.Camera{}
 camFrameA = camFrameA:copy(camera:forward())
 --camFrameA = camera:forward() 
-
 -- sobel
-
 local kx= torch.Tensor(3,3)
 s=kx:storage()
 s[1]=-1 s[2]=-2 s[3]=-1
@@ -160,7 +138,6 @@ end
 -- THIS FUNCTION SLOWS IT DOWN A LOT IF POINTSIZE IS LARGE
 ---------------------------------------------------------
 
-
 function remove(tensor, x, y)
 	local w = tensor:size(1)
 	local h = tensor:size(2)
@@ -177,9 +154,6 @@ function remove(tensor, x, y)
 	end
 	return tensor
 end
-
-
-
 
 ----------------------------------
 --alternative method for finding max: divide image into a grid
@@ -280,51 +254,46 @@ end
 	
 -- display internal maps
 local function displayInternals(camFrame_small, intensity, BY, RG, edge, frameTD, fps, offset_X, offset_Y, zoom )
-
-
+	
 	-- display color scaled image
-   	image.display{image=camFrame_small, win=win,
-                   zoom=zoom, x=offset_X, y=offset_Y, legend='Input'}
+   	image.display{image=camFrame_small, win=win,zoom=zoom,
+                    x=offset_X, y=offset_Y, legend='Input'}
                   
-      	   win:moveto(offset_X, 20)
-	   	   win:setfont(qt.QFont{size=14})
-   		   win:show(string.format('Input'))                               
+    win:moveto(offset_X, 20)
+	win:setfont(qt.QFont{size=14})
+    win:show(string.format('Input'))                               
                   
    	--disp intensity
-   	image.display{image=intensity, win=win,
-                   zoom=zoom, x=offset_X,y=offset_Y+30+camFrame_small:size(2), legend='Intensity'}
+   	image.display{image=intensity, win=win, zoom=zoom, 
+                   x=offset_X,y=offset_Y+30+camFrame_small:size(2), legend='Intensity'}
            
-           win:moveto(offset_X, 20+30+camFrame_small:size(2))
-   		   win:show(string.format('Intensity'))   
+     win:moveto(offset_X, 20+30+camFrame_small:size(2))
+     win:show(string.format('Intensity'))   
 
 	--disp BY
-   	image.display{image=BY, win=win, 
-                  zoom=zoom, x=camFrame_small:size(3)+offset_X, y=offset_Y, legend='BY'}
+   	image.display{image=BY, win=win, zoom=zoom, 
+                  x=camFrame_small:size(3)+offset_X, y=offset_Y, legend='BY'}
             
- 		   win:moveto(camFrame_small:size(3)+offset_X, 20)
-   		   win:show(string.format('BY'))  
-   		   
-   		   
-   		   
+ 	win:moveto(camFrame_small:size(3)+offset_X, 20)
+    win:show(string.format('BY'))  
+   		     		   
 	--disp RG
-   	image.display{image=RG, win=win,
-                   zoom=zoom, x=camFrame_small:size(3)+offset_X, y=offset_Y+30+camFrame_small:size(2), legend='RG'}
-           win:moveto(camFrame_small:size(3)+offset_X, 20+30+camFrame_small:size(2))
-   		   win:show(string.format('RG'))  
+   	image.display{image=RG, win=win,zoom=zoom, 
+                  x=camFrame_small:size(3)+offset_X, y=offset_Y+30+camFrame_small:size(2), legend='RG'}
+    win:moveto(camFrame_small:size(3)+offset_X, 20+30+camFrame_small:size(2))
+    win:show(string.format('RG'))  
                    
    	-- disp sobel image
- 	image.display{image=edge,  win=win,
-          	  zoom=zoom, x=2*camFrame_small:size(3)+offset_X, y=offset_Y, legend='Sobel'}
-           
-           win:moveto(2*camFrame_small:size(3)+offset_X, 20)
-   		   win:show(string.format('Sobel'))
+ 	image.display{image=edge,  win=win,  zoom=zoom, 
+          	 x=2*camFrame_small:size(3)+offset_X, y=offset_Y, legend='Sobel'}        
+    win:moveto(2*camFrame_small:size(3)+offset_X, 20)
+    win:show(string.format('Sobel'))
           	  
     --disp temp diff image
-	image.display{image=frameTD, win=win,
-   	                zoom=zoom,  x=2*camFrame_small:size(3)+offset_X, y=offset_Y+30+camFrame_small:size(2), legend='Temp Diff'}
-   	                
-   	       win:moveto(2*camFrame_small:size(3)+offset_X, 20+30+camFrame_small:size(2))
-   		   win:show(string.format('Temp Diff'))
+	image.display{image=frameTD, win=win,  zoom=zoom, 
+   	                x=2*camFrame_small:size(3)+offset_X, y=offset_Y+30+camFrame_small:size(2), legend='Temp Diff'}
+    win:moveto(2*camFrame_small:size(3)+offset_X, 20+30+camFrame_small:size(2))
+    win:show(string.format('Temp Diff'))
 
    	                
 	-- disp FPS
@@ -356,19 +325,17 @@ local function displayer()
 	local zoom = 1
 
    	-- display input
-
-	   	   image.display{image=camFrameB, win=win, zoom=1, x=0, y=30, legend='CAMERA INPUT, 640x480'}	
-	   	   win:moveto(camFrameA:size(2)/2, 20)
-	   	   win:setfont(qt.QFont{size=14})
-   		   win:show(string.format('CAMERA INPUT, 640x480'))     	   
+	image.display{image=camFrameB, win=win, zoom=1, x=0, y=30, legend='CAMERA INPUT, 640x480'}	
+	win:moveto(camFrameA:size(2)/2, 20)
+	win:setfont(qt.QFont{size=14})
+    win:show(string.format('CAMERA INPUT, 640x480'))     	   
                    
     --subsample (original is 640 x 480. We subsample to 160 x 120 and 80 x 60)
 	local scales = {1/4, 1/8, 1/16}
 	-------------------------------------------------------------------------------
 	-- 160 x 120 
    	camFrame1_small, intensity1, BY1, RG1, edge1, frameTD1, fps1 = getMaps(camFrameA, camFrameB, scales[1])
-   
-   	   	
+     	   	
 	--display internals    
 	if widget.checkBox1.checked then
 		displayInternals(camFrame1_small, intensity1, BY1, RG1, edge1, frameTD1, fps1, offset_X, offset_Y, zoom)
@@ -387,11 +354,6 @@ local function displayer()
 	local fps = 1/diff
 	
 	local offset_Y = 400
-	
-	--display internals
-	if widget.checkBox1.checked then
---		displayInternals(camFrame2_small, intensity2, BY2, RG2, edge2, frameTD2, fps2, offset_X, offset_Y, zoom)
-	end
 		
 	-- create salience map (WEIGHTS ARE ARBITRARY NOW)
 	salience2 = createSalienceMap(frameTD2, edge2, RG2, BY2, intensity2)
@@ -406,12 +368,6 @@ local function displayer()
 	
 	local offset_Y = 700
 	
-	--display internals
-	if widget.checkBox1.checked then
-		
---		displayInternals(camFrame3_small, intensity3, BY3, RG3, edge3, frameTD3, fps3, offset_X, offset_Y, zoom)
-		
-	end
 		
 	-- create salience map (WEIGHTS ARE ARBITRARY NOW)
 	salience3 = createSalienceMap(frameTD3, edge3, RG3, BY3, intensity3)
@@ -421,59 +377,46 @@ local function displayer()
 	salience_final = (salience1:add(salience2):add(salience3)):div(3)
 	if widget.checkBox1.checked then
 	-- disp salience map
-   		image.display{image=salience_final,win=win, zoom=zoom/2, x=700, y=350,
-   		--camFrameA:size(2)+90, 
-                       legend='FINAL SALIENCE MAP, 640x480'}
+   		image.display{image=salience_final,win=win, zoom=zoom/2, x=700, y=350, 
+                     legend='FINAL SALIENCE MAP, 640x480'}
                        
-         win:moveto(700, 340)
-   		  win:show(string.format('FINAL SALIENCE MAP, 640x480'))
-			    
-
+        win:moveto(700, 340)
+   		win:show(string.format('FINAL SALIENCE MAP, 640x480'))
     end
     
     --draw squares
     if (alternative) then
-    
 	    --- alternative draw squares
 	    saliencetemp = return_section(salience_final)
-	    for i=1,nPoints do
-	    
-	    	local x, y = find_max_index(saliencetemp)
-	    	
+	    for i=1,nPoints do    
+	    	local x, y = find_max_index(saliencetemp)    	
 	    	saliencetemp[x][y]=0	    	
 	    	x = 1+pointSize*(x-1)
 	    	y = 1+pointSize*(y-1)	    		    	
-	    	 win:rectangle(y, x+30, pointSize, pointSize)
-	    	 win:stroke()
-	  
-	    end
-	    
+	    	win:rectangle(y, x+30, pointSize, pointSize)
+	    	win:stroke()	  
+	    end	    
     else -- draw red squares
 	    saliencetemp = torch.Tensor():resizeAs(salience_final):copy(salience_final)
 	    for i=1,nPoints do
-	    	local x, y = find_max_index(saliencetemp)
-	    	
-	    	 win:rectangle(y-pointSize/2, x+30-pointSize/2, pointSize, pointSize)
-	    	 win:stroke()
-	         saliencetemp = remove(saliencetemp, x, y, pointSize)
+	    	local x, y = find_max_index(saliencetemp)	    	
+	    	win:rectangle(y-pointSize/2, x+30-pointSize/2, pointSize, pointSize)
+	    	win:stroke()
+	        saliencetemp = remove(saliencetemp, x, y, pointSize)
 	    end
-    end
+   end
     
     -- disp FPS
 	local fpsTotal = 1/(os.clock()-startTime)
     
-    	win:setcolor("black")
-   		win:moveto(10*zoom, (camFrameB:size(2)+60)*zoom)
-  	 	win:show(string.format('FPS = %0f', fpsTotal))
-  	  
-	-- 	end of paint
-	
+    win:setcolor("black")
+   	win:moveto(10*zoom, (camFrameB:size(2)+60)*zoom)
+  	win:show(string.format('FPS = %0f', fpsTotal))
+ 	-- 	end of paint	
 	win:grestore()
 	win:gend()
-	
 	-- keep current frame
-	camFrameA:resizeAs(camFrameB):copy(camFrameB)
-	
+	camFrameA:resizeAs(camFrameB):copy(camFrameB)	
 end
 
 -- Create QT events
@@ -494,7 +437,6 @@ qt.connect(timer,'timeout()',
            end )
 
 -- Close Process
-
 
 widget.windowTitle = "Temporal Difference Imaging"
 widget:show()
