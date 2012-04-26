@@ -125,8 +125,8 @@ function process()
       parse(smoothed, threshold, rawresults, scales[i])
 
       -- compute Max. value of the output layer
-      local max_col = lab.max(smoothed,1)
-      local max_val, idx_col = lab.max(max_col, 2)
+      local max_col = torch.max(smoothed,1)
+      local max_val, idx_col = torch.max(max_col, 2)
       if max_global < max_val[1][1] then
          max_global = max_val[1][1]
       end
