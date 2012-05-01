@@ -28,9 +28,6 @@ op:option{'-e', '--ext', action='store', dest='ext', help='only load files of th
 opt = op:parse()
 op:summarize()
 
--- Extension provided?
-opt.ext = opt.ext or '*'
-
 
 ----------------------------------------------------------------------
 -- 2. Load all files in directory
@@ -43,8 +40,8 @@ files = {}
 
 -- Go over all files in directory. We use an iterator, paths.files().
 for file in paths.files(opt.dir) do
-   -- We skip uninteresting files, and use the extension filter
-   if file ~= '.' and file ~= '..' and file:find(opt.ext .. '$') then
+   -- We only load files that match the extension
+   if file:find(opt.ext .. '$') then
       -- and insert the ones we care about in our table
       table.insert(files, paths.concat(opt.dir,file))
    end
