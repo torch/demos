@@ -269,9 +269,8 @@ function train(dataset)
          optim.cg(feval, parameters, config)
 
       elseif opt.optimization == 'LBFGS' then
-         config = config or {learningRate = opt.learningRate,
-                             maxIter = opt.maxIter,
-                             nCorrection = 10}
+         config = config or {maxIter = opt.maxIter,
+                             lineSearch = optim.lswolfe}
          optim.lbfgs(feval, parameters, config)
 
       elseif opt.optimization == 'SGD' then
