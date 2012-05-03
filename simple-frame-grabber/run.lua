@@ -1,4 +1,4 @@
-#!/usr/bin/env qlua
+#!/usr/bin/env torch
 ------------------------------------------------------------
 -- a simple frame grabber demo.
 --
@@ -10,13 +10,12 @@ require 'torch'
 require 'qt'
 require 'qtwidget'
 require 'qtuiloader'
-xrequire('camera',true)
+require 'camera'
 
 -- parse args
 op = xlua.OptionParser('%prog [options]')
 op:option{'-c', '--camera', action='store', dest='camidx',
-          help='if source=camera, you can specify the camera index: /dev/videoIDX', 
-          default=0}
+          help='camera index: /dev/videoIDX', default=0}
 opt,args = op:parse()
 
 -- setup GUI (external UI file)

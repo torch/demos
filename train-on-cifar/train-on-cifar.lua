@@ -1,5 +1,5 @@
 ----------------------------------------------------------------------
--- This script shows how to train different models on the MNIST 
+-- This script shows how to train different models on the CIFAR
 -- dataset, using multiple optimization techniques (SGD, ASGD, CG)
 --
 -- This script demonstrates a classical example of training 
@@ -20,7 +20,7 @@ require 'nn'
 require 'nnx'
 require 'optim'
 require 'image'
-require 'dataset'
+require 'mattorch'
 
 ----------------------------------------------------------------------
 -- parse command-line options
@@ -28,17 +28,17 @@ require 'dataset'
 dname,fname = sys.fpath()
 cmd = torch.CmdLine()
 cmd:text()
-cmd:text('MNIST Training')
+cmd:text('CIFAR Training')
 cmd:text()
 cmd:text('Options:')
 cmd:option('-save', fname:gsub('.lua',''), 'subdirectory to save/log experiments in')
 cmd:option('-network', '', 'reload pretrained network')
 cmd:option('-model', 'convnet', 'type of model to train: convnet | mlp | linear')
-cmd:option('-full', false, 'use full dataset (60,000 samples)')
+cmd:option('-full', false, 'use full dataset (50,000 samples)')
 cmd:option('-visualize', false, 'visualize input data and weights during training')
 cmd:option('-seed', 1, 'fixed input seed for repeatable experiments')
 cmd:option('-optimization', 'SGD', 'optimization method: SGD | ASGD | CG | LBFGS')
-cmd:option('-learningRate', 1e-2, 'learning rate at t=0')
+cmd:option('-learningRate', 1e-3, 'learning rate at t=0')
 cmd:option('-batchSize', 1, 'mini-batch size (1 = pure stochastic)')
 cmd:option('-weightDecay', 0, 'weight decay (SGD only)')
 cmd:option('-momentum', 0, 'momentum (SGD only)')
@@ -63,10 +63,8 @@ end
 -- define model to train
 -- on the 10-class classification problem
 --
-classes = {'1','2','3','4','5','6','7','8','9','10'}
-
--- geometry: width and height of input images
-geometry = {32,32}
+classes = {'airplane', 'automobile', 'bird', 'cat',
+           'deer', 'dog', 'frog', 'horse', 'ship', 'truck'}
 
 if opt.network == '' then
    -- define model to train
@@ -75,40 +73,60 @@ if opt.network == '' then
    if opt.model == 'convnet' then
       ------------------------------------------------------------
       -- convolutional network 
+      -- this is a typical convolutional network for vision:
+      --   1/ the image is transformed into Y-UV space
+      --   2/ the Y (luminance) channel is locally normalized
+      --   3/ the first layer allocates for filters to the Y
+      --      channels, and just a few to the U and V channels
+      --   4/ the first two stages features are locally pooled
+      --      using a max-operator
+      --   5/ a two-layer neural network is applied on the
+      --      representation
       ------------------------------------------------------------
-      -- stage 1 : mean suppresion -> filter bank -> squashing -> max pooling
-      model:add(nn.SpatialSubtractiveNormalization(1, image.gaussian1D(15)))
-      model:add(nn.SpatialConvolution(1, 16, 5, 5))
+      -- reshape vector into a 3-channel image (RGB)
+      model:add(nn.Reshape(3,32,32))
+      -- stage 0 : RGB -> YUV -> normalize(Y)
+      model:add(nn.SpatialColorTransform('rgb2yuv'))
+      do
+         ynormer = nn.Sequential()
+         ynormer:add(nn.Narrow(1,1,1))
+         ynormer:add(nn.SpatialContrastiveNormalization(1, image.gaussian1D(7)))
+         normer = nn.ConcatTable()
+         normer:add(ynormer)
+         normer:add(nn.Narrow(1,2,2))
+      end
+      model:add(normer)
+      model:add(nn.JoinTable(1))
+      -- stage 1 : mean+std normalization -> filter bank -> squashing -> max pooling
+      local table = torch.Tensor{ {1,1},{1,2},{1,3},{1,4},{1,5},{1,6},{1,7},{1,8},{2,9},{2,10},{3,11},{3,12} }
+      model:add(nn.SpatialConvolutionMap(table, 5, 5))
       model:add(nn.Tanh())
       model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
-      -- stage 2 : mean suppresion -> filter bank -> squashing -> max pooling
-      model:add(nn.SpatialSubtractiveNormalization(16, image.gaussian1D(15)))
-      model:add(nn.SpatialConvolutionMap(nn.tables.random(16, 128, 4), 5, 5))
+      -- stage 2 : filter bank -> squashing -> max pooling
+      model:add(nn.SpatialConvolutionMap(nn.tables.random(12, 32, 4), 5, 5))
       model:add(nn.Tanh())
       model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
       -- stage 3 : standard 2-layer neural network
-      model:add(nn.Reshape(128*5*5))
-      model:add(nn.Linear(128*5*5, 200))
+      model:add(nn.Reshape(32*5*5))
+      model:add(nn.Linear(32*5*5, 128))
       model:add(nn.Tanh())
-      model:add(nn.Linear(200,#classes))
+      model:add(nn.Linear(128,#classes))
       ------------------------------------------------------------
 
    elseif opt.model == 'mlp' then
       ------------------------------------------------------------
       -- regular 2-layer MLP
       ------------------------------------------------------------
-      model:add(nn.Reshape(1024))
-      model:add(nn.Linear(1024, 2048))
+      model:add(nn.Linear(3*32*32, 1*32*32))
       model:add(nn.Tanh())
-      model:add(nn.Linear(2048,#classes))
+      model:add(nn.Linear(1*32*32, #classes))
       ------------------------------------------------------------
 
    elseif opt.model == 'linear' then
       ------------------------------------------------------------
       -- simple linear model: logistic regression
       ------------------------------------------------------------
-      model:add(nn.Reshape(1024))
-      model:add(nn.Linear(1024,#classes))
+      model:add(nn.Linear(3*32*32,#classes))
       ------------------------------------------------------------
 
    else
@@ -126,7 +144,7 @@ end
 parameters,gradParameters = model:getParameters()
 
 -- verbose
-print('<mnist> using model:')
+print('<cifar> using model:')
 print(model)
 
 ----------------------------------------------------------------------
@@ -134,27 +152,49 @@ print(model)
 --
 model:add(nn.LogSoftMax())
 criterion = nn.ClassNLLCriterion()
---criterion = nn.DistKLDivCriterion()
 
 ----------------------------------------------------------------------
 -- get/create dataset
 --
 if opt.full then
-   nbTrainingPatches = 60000
-   nbTestingPatches = 10000
+   trsize = 50000
+   tesize = 10000
 else
-   nbTrainingPatches = 2000
-   nbTestingPatches = 1000
-   print('<warning> only using 2000 samples to train quickly (use flag -full to use 60000 samples)')
+   trsize = 2000
+   tesize = 1000
 end
 
--- create training set and normalize
-trainData = mnist.loadTrainSet(nbTrainingPatches, geometry)
-mean, std = trainData:normalizeGlobal()
+if not paths.dirp('cifar-10-batches-mat') then
+   local www = 'http://www.cs.toronto.edu/~kriz/cifar-10-matlab.tar.gz'
+   local tar = sys.basename(www)
+   os.execute('wget ' .. www .. '; '.. 'tar xvf ' .. tar)
+end
 
--- create test set and normalize
-testData = mnist.loadTestSet(nbTestingPatches, geometry)
-testData:normalizeGlobal(mean, std)
+trainData = {
+   data = torch.Tensor(50000, 3072),
+   labels = torch.Tensor(50000),
+   size = function() return trsize end
+}
+for i = 0,4 do
+   subset = mattorch.load('cifar-10-batches-mat/data_batch_' .. (i+1) .. '.mat')
+   trainData.data[{ {i*10000+1, (i+1)*10000} }] = subset.data:t()
+   trainData.labels[{ {i*10000+1, (i+1)*10000} }] = subset.labels
+end
+trainData.labels = trainData.labels + 1
+
+subset = mattorch.load('cifar-10-batches-mat/test_batch.mat')
+testData = {
+   data = subset.data:t():double(),
+   labels = subset.labels[1]:double(),
+   size = function() return tesize end
+}
+testData.labels = testData.labels + 1
+
+trainData.data = trainData.data[{ {1,trsize} }]
+trainData.labels = trainData.labels[{ {1,trsize} }]
+
+testData.data = testData.data[{ {1,tesize} }]
+testData.labels = testData.labels[{ {1,tesize} }]
 
 ----------------------------------------------------------------------
 -- define training and testing functions
@@ -214,10 +254,8 @@ function train(dataset)
       local targets = {}
       for i = t,math.min(t+opt.batchSize-1,dataset:size()) do
          -- load new sample
-         local sample = dataset[i]
-         local input = sample[1]:clone()
-         local _,target = sample[2]:clone():max(1)
-         target = target:squeeze()
+         local input = dataset.data[i]
+         local target = dataset.labels[i]
          table.insert(inputs, input)
          table.insert(targets, target)
       end
@@ -302,7 +340,7 @@ function train(dataset)
    confusion:zero()
 
    -- save/log current net
-   local filename = paths.concat(opt.save, 'mnist.net')
+   local filename = paths.concat(opt.save, 'cifar.net')
    os.execute('mkdir -p ' .. sys.dirname(filename))
    if sys.filep(filename) then
       os.execute('mv ' .. filename .. ' ' .. filename .. '.old')
@@ -332,13 +370,12 @@ function test(dataset)
       xlua.progress(t, dataset:size())
 
       -- get new sample
-      local sample = dataset[t]
-      local input = sample[1]
-      local _,target = sample[2]:max(1)
-      target = target:squeeze()
+      local input = dataset.data[t]
+      local target = dataset.labels[t]
 
       -- test sample
-      confusion:add(model:forward(input), target)
+      local pred = model:forward(input)
+      confusion:add(pred, target)
    end
 
    -- timing

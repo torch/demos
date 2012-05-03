@@ -1,4 +1,4 @@
-#!/usr/bin/env qlua
+#!/usr/bin/env torch
 ------------------------------------------------------------
 -- a scene segmenter, base on a ConvNet trained end-to-end 
 -- to predict class distributions at dense locations.
@@ -10,15 +10,17 @@ require 'xlua'
 require 'torch'
 require 'qt'
 require 'qtwidget'
-xrequire('inline',true)
-xrequire('ffmpeg',true)
-xrequire('imgraph',true)
-xrequire('nnx',true)
+require 'inline'
+require 'imgraph'
+require 'nnx'
 
 -- parse args
 op = xlua.OptionParser('%prog [options]')
+op:option{'-c', '--camera', action='store', dest='camidx',
+          help='camera index: /dev/videoIDX (if no video given)', 
+          default=0}
 op:option{'-v', '--video', action='store', dest='video',
-          help='video file to process', req=true}
+          help='video file to process'}
 op:option{'-f', '--fps', action='store', dest='fps',
           help='number of frames per second', default=10}
 op:option{'-t', '--time', action='store', dest='seconds',
@@ -31,9 +33,16 @@ op:option{'-z', '--zoom', action='store', dest='zoom',
           help='display zoom', default=1}
 opt,args = op:parse()
 
--- load video
-video = ffmpeg.Video{path=opt.video, width=opt.width, height=opt.height, 
-                     fps=opt.fps, length=opt.seconds, delete=false}
+if not opt.video then
+   -- load camera
+   require 'camera'
+   video = image.Camera(opt.camidx, opt.width, opt.height)
+else
+   -- load video
+   require 'ffmpeg'
+   video = ffmpeg.Video{path=opt.video, width=opt.width, height=opt.height, 
+                        fps=opt.fps, length=opt.seconds, delete=false}
+end
 
 -- setup GUI (external UI file)
 if not win or not widget then 

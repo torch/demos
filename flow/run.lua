@@ -8,8 +8,9 @@ require 'torch'
 require 'qt'
 require 'qtwidget'
 require 'qtuiloader'
-xrequire('camera',true)
 require 'opencv'
+useOpenCV = true
+require 'camera'
 
 -- parse args
 op = xlua.OptionParser('%prog [options]')
@@ -22,25 +23,41 @@ opt,args = op:parse()
 widget = qtuiloader.load('g.ui')
 win = qt.QtLuaPainter(widget.frame)
 
+
 -- setup camera
+camdiv = 4
+camx = 640/camdiv
+camy = 480/camdiv
 camera = image.Camera(opt.camidx)
-img1=torch.Tensor(3,480,640)
-img2=torch.Tensor(3,480,640)
+img1=torch.Tensor(3,camy,camx)
+img2=torch.Tensor(3,camy,camx)
+frame=torch.Tensor(3,640,480)
+norm=torch.Tensor(3,camy,camx)
+angle=torch.Tensor(3,camy,camx)
+flow_x=torch.Tensor(3,camy,camx)
+flow_y=torch.Tensor(3,camy,camx)
+hsl = torch.Tensor(3,camy,camx)
+rgb = torch.Tensor(3,camy,camx)
 
 -- process function
 function process()
-   -- flow - from testme function:
    -- grab frames
-   img1 = img1:copy(camera:forward())
-   img2 = img2:copy(camera:forward())
-   local norm, angle, flow_x, flow_y = opencv.CalcOpticalFlow{pair={img1,img2}, method='LK'}
+   img2 = img2:copy(img1)
+   img1 = image.scale(camera:forward(),camx,camy)
+  
+   -- flow - from opencv.CalcOpticalFlow_testme() function:
+   norm, angle, flow_x, flow_y = opencv.CalcOpticalFlow{pair={img2,img1}, method='LK'}
+   --   local methods = {'LK', 'HS', 'BM'}
+   -- see code here: /Users/eugenioculurciello/lua-local/share/torch/lua/opencv/init.lua
    
-   local hsl = torch.Tensor(3,img1:size(2), img1:size(3))
    hsl:select(1,1):copy(angle):div(360)
-   hsl:select(1,2):copy(norm):div(math.max(norm:max(),1e-2))
+   hsl:select(1,2):copy(norm)--:div(math.max(norm:max(),1e-2))
    hsl:select(1,3):fill(0.5)
-   local rgb = image.hsl2rgb(hsl) 
-   frame=rgb  
+   rgb = image.hsl2rgb(hsl)
+   
+   --frame={norm,angle,flow_x,flow_y}   
+   frame = image.scale(rgb,640,480,'simple')
+   --frame = image.scale(flow_x:div(math.max(flow_x:max(),1e-2)),640,480,'simple')
 end   
       
 --   local methods = {'LK', 'HS', 'BM'}

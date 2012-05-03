@@ -1,4 +1,4 @@
-#!/usr/bin/env qlua
+#!/usr/bin/env torch
 ------------------------------------------------------------
 -- a face detector, based on a simple convolutional network,
 -- trained end-to-end for that task.
@@ -11,35 +11,36 @@ require 'torch'
 require 'qt'
 require 'qtwidget'
 require 'qtuiloader'
-xrequire('inline',true)
-xrequire('camera',true)
-xrequire('nnx',true)
+require 'inline'
+require 'camera'
+require 'nnx'
 
 -- parse args
 op = xlua.OptionParser('%prog [options]')
 op:option{'-c', '--camera', action='store', dest='camidx',
-          help='if source=camera, you can specify the camera index: /dev/videoIDX', 
-          default=0}
+          help='camera index: /dev/videoIDX', default=0}
 op:option{'-n', '--network', action='store', dest='network', 
           help='path to existing [trained] network',
           default='face.net'}
 opt,args = op:parse()
 
+torch.setdefaulttensortype('torch.FloatTensor')
+
 -- blob parser
 parse = inline.load [[
       // get args
-      const void* id = luaT_checktypename2id(L, "torch.DoubleTensor");
-      THDoubleTensor *tensor = luaT_checkudata(L, 1, id);
-      double threshold = lua_tonumber(L, 2);
+      const void* id = luaT_checktypename2id(L, "torch.FloatTensor");
+      THFloatTensor *tensor = luaT_checkudata(L, 1, id);
+      float threshold = lua_tonumber(L, 2);
       int table_blobs = 3;
       int idx = lua_objlen(L, 3) + 1;
-      double scale = lua_tonumber(L, 4);
+      float scale = lua_tonumber(L, 4);
 
       // loop over pixels
       int x,y;
       for (y=0; y<tensor->size[0]; y++) {
          for (x=0; x<tensor->size[1]; x++) {
-            double val = THDoubleTensor_get2d(tensor, y, x);
+            float val = THFloatTensor_get2d(tensor, y, x);
             if (val > threshold) {
                // entry = {}
                lua_newtable(L);
@@ -67,7 +68,7 @@ parse = inline.load [[
 
 -- load pre-trained network from disk
 network = nn.Sequential()
-network = torch.load(opt.network)
+network = torch.load(opt.network):float()
 network_fov = 32
 network_sub = 4
 
@@ -112,30 +113,15 @@ function process()
    -- (5) unpack pyramid
    distributions = unpacker:forward(multiscale, coordinates)
 
-   -- set up and display the threshold
-   widget.verticalSlider.maximum = 200
-   threshold = widget.verticalSlider.value/100
-   widget.lcdNumber.value = threshold
-
    -- (6) parse distributions to extract blob centroids
-   max_global = 0
+   threshold = widget.verticalSlider.value/100
    rawresults = {}
    for i,distribution in ipairs(distributions) do
       local smoothed = image.convolve(distribution[1]:add(1):mul(0.5), gaussian)
       parse(smoothed, threshold, rawresults, scales[i])
-
-      -- compute Max. value of the output layer
-      local max_col = torch.max(smoothed,1)
-      local max_val, idx_col = torch.max(max_col, 2)
-      if max_global < max_val[1][1] then
-         max_global = max_val[1][1]
-      end
-      widget.progressBar.value = math.floor(max_global*10000/widget.verticalSlider.maximum+0.5)
    end
 
    -- (7) clean up results
-   k=0
-   duplicate=0
    detections = {}
    for i,res in ipairs(rawresults) do
       local scale = res[3]
@@ -143,21 +129,7 @@ function process()
       local y = res[2]*network_sub/scale
       local w = network_fov/scale
       local h = network_fov/scale
-      
-      -- kill excessive detection rectangles
-      for m=1, k do
-         if (detections[m].x<=x) and x<=(detections[m].x+detections[m].w) and (detections[m].y<=y) and (y<=(detections[m].y+detections[m].h)) then 
-            duplicate=1								  			
-         end
-         if (detections[m].x>=x)and (x+w)>=detections[m].x and (detections[m].y>=y) and (y + h)>=detections[m].y  then 
-            duplicate=1
-         end
-      end
-      if (duplicate==0) then	
-         k=k+1	
-         detections[k] = {x=x, y=y, w=w, h=h}
-   	  end
-      duplicate=0
+      detections[i] = {x=x, y=y, w=w, h=h}
    end
 end
 
@@ -166,7 +138,7 @@ function display()
    win:gbegin()
    win:showpage()
    -- (1) display input image + pyramid
-   image.display{image=frame, win=win}
+   image.display{image=frame, win=win, saturation=false, min=0, max=1}
 
    -- (2) overlay bounding boxes for each detection
    for i,detect in ipairs(detections) do
@@ -177,33 +149,26 @@ function display()
       win:moveto(detect.x, detect.y-1)
       win:show('face')
    end
-
-   -- (3) display distributions
-   local prevx = 0
-   for i,distribution in ipairs(distributions) do
-      local prev = distributions[i-1]
-      if prev then prevx = prevx + prev:size(3) end
-      image.display{image=distribution[1], win=win, x=prevx, min=0, max=1}
-   end
-
    win:gend()
 end
 
 -- setup gui
 timer = qt.QTimer()
-timer.interval = 10
+timer.interval = 1
 timer.singleShot = true
 qt.connect(timer,
            'timeout()',
            function()
-              p:start('prediction')
+              p:start('full loop','fps')
+              p:start('prediction','fps')
               process()
               p:lap('prediction')
-              p:start('display')
+              p:start('display','fps')
               display()
               p:lap('display')
               require 'openmp'
               timer:start()
+              p:lap('full loop')
               p:printAll()
            end)
 widget.windowTitle = 'Face Detector'

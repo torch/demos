@@ -8,8 +8,8 @@ require 'torch'
 require 'qt'
 require 'qtwidget'
 require 'qtuiloader'
-xrequire('camera',true)
-require 'opencv'
+useOpenCV = true
+require 'camera'
 
 -- parse args
 op = xlua.OptionParser('%prog [options]')
@@ -31,12 +31,10 @@ img2=torch.Tensor(3,480,640)
 function process()
    -- flow - from testme function:
    -- grab frames
-   img1 = img1:copy(camera:forward())
-   img2 = img2:copy(camera:forward())
-
-   frame = img1-img2
-   
-   
+   img2=img2:copy(img1)
+   img1 = camera:forward()
+   --img1 = img1:copy(camera:forward())
+   frame = img1-img2  
 end   
 
 
