@@ -341,7 +341,7 @@ feval = function(x_new)
    -- batch methods)
    dl_dx:zero()
 
-   -- an batch over the whole training dataset:
+   -- and batch over the whole training dataset:
    local loss_x = 0
    for i = 1,(#data)[1] do
       -- select a new training sample
