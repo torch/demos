@@ -1,8 +1,20 @@
+----------------------------------------------------------------------
 -- example-logistic-regression.lua
--- logistic regression and multinomial logistic regression
+--
+-- Logistic regression and multinomial logistic regression
+--
+
+require 'nn'
+require 'optim'
+
 
 ----------------------------------------------------------------------
 -- 1. Create the training data
+
+print('')
+print('============================================================')
+print('Constructing dataset')
+print('')
 
 -- The data come from a tutorial on using R from UCLA, which can be found at
 -- http://www.ats.ucla.edu/stat/r/dae/mlogit.htm
@@ -14,11 +26,9 @@
 --  age: a positive integer
 
 -- The data are stored in a csv file 'example-logistic-regression.csv'
--- and read through the class Csv
+-- and read through the class Csv (required from ./csv.lua)
 
 require 'csv'
-require 'nn'
-require 'optim'
 
 -- Build a table with one row for each observation
 -- Each row will contain {brand, female, age}
@@ -63,24 +73,17 @@ for i=1,10 do
 end
 
 -- Convert the rows table into a 2D Torch Tensor. The tensor form has the
--- advantage that it stores its elements continguously (which may lead to
+-- advantage that it stores its elements continguously (which leads to
 -- better performance) and a tensor allows one to select columns and rows
--- easily.
+-- easily, using slicing methods.
 
-data = torch.Tensor{rows}  -- CLEMENT: this doesn't work, hence the loop below
-data = torch.Tensor(#rows,3)
-for i=1,#rows do
-   for j=1,3 do
-      data[i][j] = rows[i][j]
-   end
-end
+data = torch.Tensor(rows)
 
-brands  = data[{ {}, {1}}]  -- the entire first column
-females = data[{ {}, {2}}]  -- the entire second column
-ages    = data[{ {}, {3}}]  -- the entire third column
+brands  = data[{ {}, {1} }]  -- the entire first column
+females = data[{ {}, {2} }]  -- the entire second column
+ages    = data[{ {}, {3} }]  -- the entire third column
 
 -- To implement the model, we need to know how many categories there are.
-
 numberOfBrands = 0
 do
    seen = {}
@@ -88,7 +91,7 @@ do
       -- brands[i] yields a 1D tensor
       local nextBrand = brands[i][1]  -- extract the integer value
       if not seen[nextBrand] then 
-	 seen[nextBrand] = true
+         seen[nextBrand] = true
       end
    end
    numberOfBrands = #seen
@@ -133,6 +136,7 @@ end
 --   Prob(brand = b) = bias + weight1 * female * weight2 * age
 -- There are two inputs (female and age) and three outputs (one for each
 -- value that brand can take on)
+
 linLayer = nn.Linear(2,3)
 
 -- The soft max layer takes the 3 outputs from the linear layer and
@@ -152,10 +156,11 @@ model = nn.Sequential()
 model:add(linLayer)
 model:add(softMaxLayer)
 
+
 ----------------------------------------------------------------------
 -- 3. Define a loss function, to be minimized.
 
--- In that example, we minimize the Mean Square Error (MSE) between
+-- In that example, we minimize the cross entropy between
 -- the predictions of our linear model and the groundtruth available
 -- in the dataset.
 
@@ -165,10 +170,16 @@ model:add(softMaxLayer)
 -- tensor. Hence, the use of the LogSoftMax layer in the model instead
 -- of SoftMax.
 
+-- Minimizing the cross-entropy is equivalent to maximizing the 
+-- maximum a-posteriori (MAP) prediction, which is equivalent to 
+-- minimizing the negative log-likelihoood (NLL), hence the use of
+-- the NLL loss.
+
 criterion = nn.ClassNLLCriterion()
 
+
 ----------------------------------------------------------------------
--- 4. Train the model
+-- 4.a. Train the model (Using SGD)
 
 -- To minimize the loss defined above, using the linear model defined
 -- in 'model', we follow a stochastic gradient descent procedure (SGD).
@@ -213,7 +224,7 @@ feval = function(x_new)
    if _nidx_ > (#data)[1] then _nidx_ = 1 end
 
    local sample = data[_nidx_]
-   local target = sample[{ 1 }]      -- this funny looking syntax allows
+   local target = sample[{ 1 }]        -- this funny looking syntax allows
    local inputs = sample[{ {2,3} }]    -- slicing of arrays.
 
    -- reset gradients (gradients are always accumulated, to accomodate 
@@ -246,7 +257,7 @@ end
 --   + a learning rate decay, to let the algorithm converge more precisely
 
 sgd_params = {
-   learningRate = 1e-1,
+   learningRate = 1e-3,
    learningRateDecay = 1e-4,
    weightDecay = 0,
    momentum = 0
@@ -255,11 +266,15 @@ sgd_params = {
 -- We're now good to go... all we have left to do is run over the dataset
 -- for a certain number of iterations, and perform a stochastic update 
 -- at each iteration. The number of iterations is found empirically here,
--- but should typically be determinined using cross-correlation.
+-- but should typically be determinined using cross-validation (i.e.
+-- using multiple folds of training/test subsets).
 
--- CLEMENT: Can we explain cross-correlation in this context?
+epochs = 1e2  -- number of times to cycle over our training data
 
-epochs = 1e4  -- number of times to cycle over our training data
+print('')
+print('============================================================')
+print('Training with SGD')
+print('')
 
 for i = 1,epochs do
 
@@ -278,9 +293,6 @@ for i = 1,epochs do
 
       _,fs = optim.sgd(feval,x,sgd_params)
 
-      -- CLEMENT: Can we also implement BFGS (which converges in the R
-      -- model in 7 iterations)?
-
       -- Functions in optim all return two things:
       --   + the new x, found by the optimization method (here SGD)
       --   + the value of the loss functions at all points that were used by
@@ -298,8 +310,98 @@ for i = 1,epochs do
 
 end
 
+
+----------------------------------------------------------------------
+-- 4.b. Train the model (Using L-BFGS)
+
+-- now that we know how to train the model using simple SGD, we can
+-- use more complex optimization heuristics. In the following, we
+-- use a second-order method: L-BFGS, which typically yields
+-- more accurate results (for linear models), but can be significantly
+-- slower. For very large datasets, SGD is typically much faster
+-- to converge, and L-FBGS can be used to refine the results.
+
+-- we start again, and reset the trained parameter vector:
+
+model:reset()
+
+-- next we re-define the closure that evaluates f and df/dx, so that
+-- it estimates the true f, and true (exact) df/dx, over the entire
+-- dataset. This is a full batch approach.
+
+feval = function(x_new)
+   -- set x to x_new, if differnt
+   -- (in this simple example, x_new will typically always point to x,
+   -- so the copy is really useless)
+   if x ~= x_new then
+      x:copy(x_new)
+   end
+
+   -- reset gradients (gradients are always accumulated, to accomodate 
+   -- batch methods)
+   dl_dx:zero()
+
+   -- an batch over the whole training dataset:
+   local loss_x = 0
+   for i = 1,(#data)[1] do
+      -- select a new training sample
+      _nidx_ = (_nidx_ or 0) + 1
+      if _nidx_ > (#data)[1] then _nidx_ = 1 end
+
+      local sample = data[_nidx_]
+      local target = sample[{ 1 }]        -- this funny looking syntax allows
+      local inputs = sample[{ {2,3} }]    -- slicing of arrays.
+
+      -- evaluate the loss function and its derivative wrt x, for that sample
+      loss_x = loss_x + criterion:forward(model:forward(inputs), target)
+      model:backward(inputs, criterion:backward(model.output, target))
+   end
+
+   -- normalize with batch size
+   loss_x = loss_x / (#data)[1]
+   dl_dx = dl_dx:div( (#data)[1] )
+
+   -- return loss(x) and dloss/dx
+   return loss_x, dl_dx
+end
+
+-- L-BFGS parameters are different than SGD:
+--   + a line search: we provide a line search, which aims at
+--                    finding the point that minimizes the loss locally
+--   + max nb of iterations: the maximum number of iterations for the batch,
+--                           which is equivalent to the number of epochs
+--                           on the given batch. In that example, it's simple
+--                           because the batch is the full dataset, but in
+--                           some cases, the batch can be a small subset
+--                           of the full dataset, in which case maxIter
+--                           becomes a more subtle parameter.
+
+lbfgs_params = {
+   lineSearch = optim.lswolfe,
+   maxIter = epochs,
+   verbose = true
+}
+
+print('')
+print('============================================================')
+print('Training with L-BFGS')
+print('')
+
+_,fs = optim.lbfgs(feval,x,lbfgs_params)
+
+-- fs contains all the evaluations of f, during optimization
+
+print('history of L-BFGS evaluations:')
+print(fs)
+
+
 ----------------------------------------------------------------------
 -- 5. Test the trained model.
+
+print('')
+print('============================================================')
+print('Testing the model')
+print('')
 
 -- Now that the model is trained, one can test it by evaluating it
 -- on new samples.
@@ -386,7 +488,6 @@ for _,row in pairs(rows) do
    local key = makeKey (age, brand, female)
    counts[key] = (counts[key] or 0) + 1
 end
-
 
 -- return probability of each brand conditioned on age and female
 function actualProbabilities(age, female)
@@ -482,6 +583,7 @@ for female = 0,1 do
    end
 end
 
+
 ----------------------------------------------------------------------
 -- 6. Assess accuracy on the training data.
 
@@ -505,8 +607,10 @@ end
 -- same parameters. The text model finds the parameters by using BFGS 
 -- whereas our model uses stochastic gradient descent.
 
-print(' ')
+print('')
+print('============================================================')
 print('Accuracy on training data')
+print('')
 
 countOfDifferences = {}
 function makeKey(female, age, actualBrand, textPrediction, ourPrediction)
@@ -581,286 +685,6 @@ printFrequency(2)
 printFrequency(3)
 
 
-
-
--- From reviewing the output for 10,000 epochs, one can see that
--- when usually when our model differs from the most likely training
--- sample (the "a" column), the model in the text is accurate.
-
--- Your results will most likely differ.
--- CLEMENT: WHERE IS THE RANDOMNESS IS THIS MODEL? 
-
 -- Note that our predictions are less accurate than simply predicting
 -- brand 2 no matter what age and female are!
-
---[[ sample output 10,000 epochs
-epoch = 10000 of 10000 current loss = 0.98691723284723
- 
-summary of data
-    number of brands 3.000000
-           min brand 1.000000
-           max brand 3.000000
-          min female 0.000000
-          max female 1.000000
-             min age 24.000000
-             max age 38.000000
- 
-training variables
-         evalCounter 7350000.000000
-         weightDecay 0.000000
-        learningRate 0.100000
-            momentum 0.000000
-   learningRateDecay 0.000100
-              epochs 10000.000000
- 
-current loss    0.98691723284723
- 
-          | actual probs      | text probs        | our probs         | best    
-female age| brnd1 brnd2 brnd3 | brnd1 brnd2 brnd3 | brnd1 brnd2 brnd3 | a t o
-0      24 | 1.000 0.000 0.000 | 0.948 0.050 0.002 | 0.516 0.291 0.193 | 1 1 1
-0      25 | 0.000 0.000 0.000 | 0.926 0.071 0.004 | 0.471 0.300 0.229 | - 1 1
-0      26 | 1.000 0.000 0.000 | 0.894 0.099 0.007 | 0.424 0.307 0.269 | 1 1 1
-0      27 | 1.000 0.000 0.000 | 0.851 0.136 0.013 | 0.378 0.310 0.312 | 1 1 1
-0      28 | 0.667 0.000 0.333 | 0.793 0.183 0.024 | 0.333 0.310 0.358 | 1 1 3
-0      29 | 0.875 0.125 0.000 | 0.718 0.240 0.042 | 0.289 0.305 0.405 | 1 1 3
-0      30 | 0.500 0.333 0.167 | 0.625 0.302 0.073 | 0.249 0.298 0.454 | 1 1 3
-0      31 | 0.588 0.294 0.118 | 0.518 0.361 0.121 | 0.211 0.287 0.502 | 1 1 3
-0      32 | 0.407 0.432 0.161 | 0.405 0.408 0.187 | 0.177 0.273 0.549 | 2 2 3
-0      33 | 0.211 0.474 0.316 | 0.296 0.432 0.272 | 0.148 0.258 0.595 | 2 2 3
-0      34 | 0.167 0.542 0.292 | 0.203 0.427 0.370 | 0.122 0.240 0.638 | 2 2 3
-0      35 | 0.000 0.182 0.818 | 0.131 0.397 0.472 | 0.099 0.223 0.678 | 3 3 3
-0      36 | 0.133 0.333 0.533 | 0.080 0.350 0.571 | 0.080 0.204 0.715 | 3 3 3
-0      37 | 0.200 0.200 0.600 | 0.046 0.294 0.660 | 0.065 0.186 0.749 | 3 3 3
-0      38 | 0.000 0.278 0.722 | 0.026 0.239 0.735 | 0.052 0.169 0.780 | 3 3 3
-1      24 | 0.000 0.000 0.000 | 0.915 0.082 0.003 | 0.394 0.381 0.225 | - 1 1
-1      25 | 0.000 0.000 0.000 | 0.881 0.114 0.005 | 0.352 0.387 0.262 | - 1 2
-1      26 | 0.000 0.000 0.000 | 0.834 0.156 0.010 | 0.311 0.388 0.301 | - 1 2
-1      27 | 0.800 0.000 0.200 | 0.773 0.209 0.018 | 0.272 0.385 0.343 | 1 1 2
-1      28 | 0.667 0.222 0.111 | 0.696 0.271 0.033 | 0.236 0.377 0.387 | 1 1 3
-1      29 | 0.636 0.364 0.000 | 0.603 0.340 0.057 | 0.202 0.367 0.432 | 1 1 3
-1      30 | 0.588 0.235 0.176 | 0.500 0.407 0.093 | 0.171 0.352 0.477 | 1 1 3
-1      31 | 0.391 0.391 0.217 | 0.392 0.462 0.145 | 0.144 0.335 0.521 | 1 2 3
-1      32 | 0.288 0.544 0.167 | 0.291 0.495 0.214 | 0.119 0.316 0.564 | 2 2 3
-1      33 | 0.083 0.639 0.278 | 0.203 0.500 0.297 | 0.098 0.296 0.606 | 2 2 3
-1      34 | 0.150 0.400 0.450 | 0.134 0.477 0.389 | 0.081 0.274 0.645 | 3 2 3
-1      35 | 0.042 0.250 0.708 | 0.084 0.432 0.484 | 0.065 0.252 0.682 | 3 3 3
-1      36 | 0.109 0.345 0.545 | 0.050 0.374 0.576 | 0.053 0.231 0.717 | 3 3 3
-1      37 | 0.000 0.294 0.706 | 0.029 0.311 0.660 | 0.042 0.210 0.748 | 3 3 3
-1      38 | 0.071 0.214 0.714 | 0.016 0.252 0.732 | 0.034 0.190 0.777 | 3 3 3
- 
-Accuracy on training data
-
-Differences between text's predictions and our predictions
-When only one prediction is correct
-female age actual text our occurs
-     0  31      1   1    3     10
-     1  27      1   1    2      4
-     1  29      1   1    3      7
-     1  28      3   1    3      1
-     1  31      3   2    3      5
-     0  30      3   1    3      1
-     0  32      3   2    3     19
-     0  34      1   2    3      4
-     0  34      2   2    3     13
-     0  31      3   1    3      2
-     1  27      3   1    2      1
-     0  29      1   1    3      7
-     0  34      3   2    3      7
-     0  32      2   2    3     51
-     0  30      2   1    3      2
-     1  33      2   2    3     23
-     1  30      3   1    3      3
-     1  34      3   2    3     18
-     1  32      2   2    3    117
-     1  31      2   2    3      9
-     1  34      1   2    3      6
-     1  31      1   2    3      9
-     0  28      1   1    3      4
-     1  32      1   2    3     62
-     1  33      1   2    3      3
-     0  33      1   2    3      4
-     1  28      1   1    3      6
-     0  33      3   2    3      6
-     1  34      2   2    3     16
-     1  33      3   2    3     10
-     1  29      2   1    3      4
-     0  28      3   1    3      2
-     1  28      2   1    3      2
-     1  32      3   2    3     36
-     0  33      2   2    3      9
-     1  30      2   1    3      4
-     0  32      1   2    3     48
-     0  31      2   1    3      5
-     0  30      1   1    3      3
-     1  30      1   1    3     10
-     0  29      2   1    3      1
-
-Fraction of text predictions that were correct on training set = 0.552381
-Fraction of our predictions that were correct on training set = 0.369126
- 
-Frequency of each brand in training data
-Brand 1 occurs 0.281633
-Brand 2 occurs 0.417687
-Brand 3 occurs 0.300680
-   --]]
-
--- With 100,000 epochs, our predictions are as accurate as always
--- predicting brand 2. We predict the same value as the text for each 
--- combination of female and age.
-
--- Studying the results on the training data, one can see that our
--- model does wors on it than the text's model, because of the differences
--- in estimating individaul (female,age) points and the distribution of
--- data in the training set.
-
---[[ sample output 100,000 epochs
-epoch = 100000 of 100000 current loss = 0.96319934821442
- 
-summary of data
-    number of brands 3.000000
-           min brand 1.000000
-           max brand 3.000000
-          min female 0.000000
-          max female 1.000000
-             min age 24.000000
-             max age 38.000000
- 
-training variables
-         evalCounter 73500000.000000
-         weightDecay 0.000000
-        learningRate 0.100000
-            momentum 0.000000
-   learningRateDecay 0.000100
-              epochs 100000.000000
- 
-current loss    0.96319934821442
- 
-          | actual probs      | text probs        | our probs         | best    
-female age| brnd1 brnd2 brnd3 | brnd1 brnd2 brnd3 | brnd1 brnd2 brnd3 | a t o
-0      24 | 1.000 0.000 0.000 | 0.948 0.050 0.002 | 0.884 0.107 0.009 | 1 1 1
-0      25 | 0.000 0.000 0.000 | 0.926 0.071 0.004 | 0.850 0.135 0.015 | - 1 1
-0      26 | 1.000 0.000 0.000 | 0.894 0.099 0.007 | 0.808 0.168 0.024 | 1 1 1
-0      27 | 1.000 0.000 0.000 | 0.851 0.136 0.013 | 0.756 0.206 0.037 | 1 1 1
-0      28 | 0.667 0.000 0.333 | 0.793 0.183 0.024 | 0.694 0.248 0.058 | 1 1 1
-0      29 | 0.875 0.125 0.000 | 0.718 0.240 0.042 | 0.622 0.291 0.088 | 1 1 1
-0      30 | 0.500 0.333 0.167 | 0.625 0.302 0.073 | 0.540 0.331 0.129 | 1 1 1
-0      31 | 0.588 0.294 0.118 | 0.518 0.361 0.121 | 0.453 0.364 0.182 | 1 1 1
-0      32 | 0.407 0.432 0.161 | 0.405 0.408 0.187 | 0.366 0.385 0.249 | 2 2 2
-0      33 | 0.211 0.474 0.316 | 0.296 0.432 0.272 | 0.284 0.391 0.325 | 2 2 2
-0      34 | 0.167 0.542 0.292 | 0.203 0.427 0.370 | 0.211 0.381 0.409 | 2 2 3
-0      35 | 0.000 0.182 0.818 | 0.131 0.397 0.472 | 0.151 0.356 0.493 | 3 3 3
-0      36 | 0.133 0.333 0.533 | 0.080 0.350 0.571 | 0.104 0.322 0.574 | 3 3 3
-0      37 | 0.200 0.200 0.600 | 0.046 0.294 0.660 | 0.069 0.282 0.649 | 3 3 3
-0      38 | 0.000 0.278 0.722 | 0.026 0.239 0.735 | 0.045 0.241 0.714 | 3 3 3
-1      24 | 0.000 0.000 0.000 | 0.915 0.082 0.003 | 0.821 0.166 0.013 | - 1 1
-1      25 | 0.000 0.000 0.000 | 0.881 0.114 0.005 | 0.775 0.205 0.020 | - 1 1
-1      26 | 0.000 0.000 0.000 | 0.834 0.156 0.010 | 0.719 0.250 0.031 | - 1 1
-1      27 | 0.800 0.000 0.200 | 0.773 0.209 0.018 | 0.654 0.297 0.048 | 1 1 1
-1      28 | 0.667 0.222 0.111 | 0.696 0.271 0.033 | 0.581 0.346 0.073 | 1 1 1
-1      29 | 0.636 0.364 0.000 | 0.603 0.340 0.057 | 0.502 0.392 0.106 | 1 1 1
-1      30 | 0.588 0.235 0.176 | 0.500 0.407 0.093 | 0.420 0.430 0.150 | 1 1 2
-1      31 | 0.391 0.391 0.217 | 0.392 0.462 0.145 | 0.340 0.456 0.205 | 1 2 2
-1      32 | 0.288 0.544 0.167 | 0.291 0.495 0.214 | 0.265 0.465 0.269 | 2 2 2
-1      33 | 0.083 0.639 0.278 | 0.203 0.500 0.297 | 0.199 0.458 0.342 | 2 2 2
-1      34 | 0.150 0.400 0.450 | 0.134 0.477 0.389 | 0.145 0.436 0.419 | 3 2 2
-1      35 | 0.042 0.250 0.708 | 0.084 0.432 0.484 | 0.102 0.401 0.497 | 3 3 3
-1      36 | 0.109 0.345 0.545 | 0.050 0.374 0.576 | 0.069 0.358 0.573 | 3 3 3
-1      37 | 0.000 0.294 0.706 | 0.029 0.311 0.660 | 0.046 0.312 0.642 | 3 3 3
-1      38 | 0.071 0.214 0.714 | 0.016 0.252 0.732 | 0.030 0.265 0.705 | 3 3 3
- 
-Accuracy on training data
-
-Differences between text's predictions and our predictions
-When only one prediction is correct
-female age actual text our occurs
-     0  34      3   2    3      7
-     0  34      2   2    3     13
-     1  30      3   1    2      3
-     1  30      2   1    2      4
-     1  30      1   1    2     10
-     0  34      1   2    3      4
-
-Fraction of text predictions that were correct on training set = 0.552381
-Fraction of our predictions that were correct on training set = 0.374150
- 
-Frequency of each brand in training data
-Brand 1 occurs 0.281633
-Brand 2 occurs 0.417687
-Brand 3 occurs 0.300680
-   --]]
-
--- with 1,000,000 epochs, we have slighlty improved our accuracy relative
--- to always predicting brand 2 but are still not close to the accuracy
--- of the text's model. The good news is that on each combination of
--- female and age in the test set, we return the same value as the text's
--- method.
-
--- TODO: Either delete this run or re-run it to get the additional output.
---[[
-epoch = 1000000 of 1000000 current loss = 0.9571160317243
- 
-summary of data
-    number of brands 3.000000
-           min brand 1.000000
-           max brand 3.000000
-          min female 0.000000
-          max female 1.000000
-             min age 24.000000
-             max age 38.000000
- 
-training variables
-         evalCounter 735000000.000000
-         weightDecay 0.000000
-        learningRate 0.100000
-            momentum 0.000000
-   learningRateDecay 0.000100
-              epochs 1000000.000000
- 
-current loss    0.9571160317243
- 
-          | actual probs      | text probs        | our probs         | best    
-female age| brnd1 brnd2 brnd3 | brnd1 brnd2 brnd3 | brnd1 brnd2 brnd3 | a t o
-0      24 | 1.000 0.000 0.000 | 0.948 0.050 0.002 | 0.934 0.063 0.003 | 1 1 1
-0      25 | 0.000 0.000 0.000 | 0.926 0.071 0.004 | 0.909 0.087 0.005 | - 1 1
-0      26 | 1.000 0.000 0.000 | 0.894 0.099 0.007 | 0.874 0.117 0.009 | 1 1 1
-0      27 | 1.000 0.000 0.000 | 0.851 0.136 0.013 | 0.829 0.155 0.016 | 1 1 1
-0      28 | 0.667 0.000 0.333 | 0.793 0.183 0.024 | 0.770 0.202 0.028 | 1 1 1
-0      29 | 0.875 0.125 0.000 | 0.718 0.240 0.042 | 0.695 0.256 0.048 | 1 1 1
-0      30 | 0.500 0.333 0.167 | 0.625 0.302 0.073 | 0.606 0.314 0.080 | 1 1 1
-0      31 | 0.588 0.294 0.118 | 0.518 0.361 0.121 | 0.505 0.367 0.128 | 1 1 1
-0      32 | 0.407 0.432 0.161 | 0.405 0.408 0.187 | 0.400 0.407 0.193 | 2 2 2
-0      33 | 0.211 0.474 0.316 | 0.296 0.432 0.272 | 0.298 0.426 0.275 | 2 2 2
-0      34 | 0.167 0.542 0.292 | 0.203 0.427 0.370 | 0.210 0.421 0.370 | 2 2 2
-0      35 | 0.000 0.182 0.818 | 0.131 0.397 0.472 | 0.139 0.392 0.469 | 3 3 3
-0      36 | 0.133 0.333 0.533 | 0.080 0.350 0.571 | 0.088 0.347 0.565 | 3 3 3
-0      37 | 0.200 0.200 0.600 | 0.046 0.294 0.660 | 0.053 0.294 0.653 | 3 3 3
-0      38 | 0.000 0.278 0.722 | 0.026 0.239 0.735 | 0.031 0.241 0.728 | 3 3 3
-1      24 | 0.000 0.000 0.000 | 0.915 0.082 0.003 | 0.894 0.102 0.004 | - 1 1
-1      25 | 0.000 0.000 0.000 | 0.881 0.114 0.005 | 0.856 0.137 0.007 | - 1 1
-1      26 | 0.000 0.000 0.000 | 0.834 0.156 0.010 | 0.807 0.181 0.013 | - 1 1
-1      27 | 0.800 0.000 0.200 | 0.773 0.209 0.018 | 0.744 0.234 0.022 | 1 1 1
-1      28 | 0.667 0.222 0.111 | 0.696 0.271 0.033 | 0.668 0.294 0.038 | 1 1 1
-1      29 | 0.636 0.364 0.000 | 0.603 0.340 0.057 | 0.579 0.358 0.063 | 1 1 1
-1      30 | 0.588 0.235 0.176 | 0.500 0.407 0.093 | 0.482 0.418 0.100 | 1 1 1
-1      31 | 0.391 0.391 0.217 | 0.392 0.462 0.145 | 0.383 0.466 0.152 | 1 2 2
-1      32 | 0.288 0.544 0.167 | 0.291 0.495 0.214 | 0.289 0.493 0.219 | 2 2 2
-1      33 | 0.083 0.639 0.278 | 0.203 0.500 0.297 | 0.207 0.495 0.299 | 2 2 2
-1      34 | 0.150 0.400 0.450 | 0.134 0.477 0.389 | 0.140 0.472 0.388 | 3 2 2
-1      35 | 0.042 0.250 0.708 | 0.084 0.432 0.484 | 0.091 0.429 0.480 | 3 3 3
-1      36 | 0.109 0.345 0.545 | 0.050 0.374 0.576 | 0.057 0.374 0.570 | 3 3 3
-1      37 | 0.000 0.294 0.706 | 0.029 0.311 0.660 | 0.034 0.314 0.652 | 3 3 3
-1      38 | 0.071 0.214 0.714 | 0.016 0.252 0.732 | 0.020 0.256 0.724 | 3 3 3
- 
-Accuracy on training data
-Fraction of text predictions that were correct = 0.552381
-Fraction of our predictions that were correct = 0.452041
- 
-Frequency of each brand in training data
-Brand 1 occurs 0.281633
-Brand 2 occurs 0.417687
-Brand 3 occurs 0.300680
---]]
-
-
-
 
