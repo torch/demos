@@ -36,16 +36,16 @@ cmd:option('-network', '', 'reload pretrained network')
 cmd:option('-model', 'convnet', 'type of model to train: convnet | mlp | linear')
 cmd:option('-full', false, 'use full dataset (60,000 samples)')
 cmd:option('-visualize', false, 'visualize input data and weights during training')
+cmd:option('-plot', false, 'plot training and test errors, live')
 cmd:option('-seed', 1, 'fixed input seed for repeatable experiments')
-cmd:option('-optimization', 'SGD', 'optimization method: SGD | ASGD | CG | LBFGS')
+cmd:option('-optimization', 'SGD', 'optimization method: SGD | ASGD | CG | LBFGS | SGD+LBFGS')
 cmd:option('-learningRate', 1e-2, 'learning rate at t=0')
 cmd:option('-batchSize', 1, 'mini-batch size (1 = pure stochastic)')
 cmd:option('-weightDecay', 0, 'weight decay (SGD only)')
 cmd:option('-momentum', 0, 'momentum (SGD only)')
-cmd:option('-t0', 1, 'start averaging at t0 (ASGD only), in nb of epochs')
-cmd:option('-maxIter', 5, 'maximum nb of iterations for CG and LBFGS')
-cmd:option('-openmp', false, 'use OpenMP to //')
-cmd:option('-threads', 2, 'nb of threads to use with OpenMP')
+cmd:option('-t0', 3, 'start averaging (ASGD) or switch methods (SGD+LFBGS) at the t0-th epoch')
+cmd:option('-maxIter', 3, 'maximum nb of iterations for CG and LBFGS')
+cmd:option('-threads', 1, 'nb of threads')
 cmd:text()
 opt = cmd:parse(arg)
 
@@ -53,10 +53,10 @@ opt = cmd:parse(arg)
 torch.manualSeed(opt.seed)
 
 -- openmp
-if opt.openmp then
+if opt.threads > 1 then
    require 'openmp'
    openmp.setDefaultNumThreads(opt.threads)
-   print('<OpenMP> enabled with ' .. opt.threads .. ' threads')
+   print('<openmp> enabled with ' .. opt.threads .. ' threads')
 end
 
 ----------------------------------------------------------------------
@@ -199,6 +199,17 @@ function train(dataset)
    -- epoch tracker
    epoch = epoch or 1
 
+   -- if SGD+LBFGS, change batch size when going from SGD to LBFGS
+   if opt.optimization == 'SGD+LBFGS' then
+      _batchSize = _batchSize or opt.batchSize
+      if epoch < opt.t0 then
+         opt.batchSize = 1  -- SGD
+      else
+         opt.batchSize = _batchSize -- final batch size
+      end
+      print('<trainer> setting batch size to ' .. opt.batchSize)
+   end
+
    -- local vars
    local time = sys.clock()
 
@@ -280,9 +291,22 @@ function train(dataset)
                              learningRateDecay = 5e-7}
          optim.sgd(feval, parameters, config)
 
+      elseif opt.optimization == 'SGD+LBFGS' then
+         if epoch < opt.t0 then
+            config = config or {learningRate = opt.learningRate,
+                                weightDecay = opt.weightDecay,
+                                momentum = opt.momentum,
+                                learningRateDecay = 5e-7}
+            optim.sgd(feval, parameters, config)
+         else
+            config2 = config2 or {maxIter = opt.maxIter,
+                                  lineSearch = optim.lswolfe}
+            optim.lbfgs(feval, parameters, config2)
+         end
+
       elseif opt.optimization == 'ASGD' then
          config = config or {eta0 = opt.learningRate,
-                             t0 = nbTrainingPatches * opt.t0}
+                             t0 = nbTrainingPatches * (opt.t0-1)}
          _,_,average = optim.asgd(feval, parameters, config)
 
       else
@@ -366,8 +390,10 @@ while true do
    test(testData)
 
    -- plot errors
-   trainLogger:style{['% mean class accuracy (train set)'] = '-'}
-   testLogger:style{['% mean class accuracy (test set)'] = '-'}
-   trainLogger:plot()
-   testLogger:plot()
+   if opt.plot then
+      trainLogger:style{['% mean class accuracy (train set)'] = '-'}
+      testLogger:style{['% mean class accuracy (test set)'] = '-'}
+      trainLogger:plot()
+      testLogger:plot()
+   end
 end
