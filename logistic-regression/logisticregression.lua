@@ -24,9 +24,9 @@ if false then
    local function iterTensor(tensor, index)
       index = index + 1
       if index > tensor:size(1) then
-	 return nil
+         return nil
       else
-	 return index, tensor[index]
+         return index, tensor[index]
       end
    end
 
@@ -41,8 +41,8 @@ if false then
       method = 'sgd',
       quiet=false,
       params = {  -- parameters for optim.sgd
-	 learningRate = 1e-3,
-	 learningRateDecay = 1e-4,
+         learningRate = 1e-3,
+         learningRateDecay = 1e-4,
       }
    }
 
@@ -94,7 +94,7 @@ do -- TODO: fix example to match new init code
       assert(features, 'features no supplied')
       assert(pairsFeatures, 'pairsFeatures not supplied')
       assert(type(pairsFeatures) == 'function',
-	     'pairsFeatures not a function; must be an iterator')
+             'pairsFeatures not a function; must be an iterator')
       assert(targets, 'targets not supplied')
 
       -- save the parameters for training
@@ -104,7 +104,7 @@ do -- TODO: fix example to match new init code
 
       -- determine relevant sizes
       self.numFeatures, self.numClasses = 
-	 LogisticRegression.getCounts(features, pairsFeatures, targets)
+         LogisticRegression.getCounts(features, pairsFeatures, targets)
 
       -- build the model
       self.model = nn.Sequential()
@@ -183,82 +183,82 @@ do -- TODO: fix example to match new init code
       assert(opt,'opt not supplied')
       assert(opt.algo, 'opt.algo not supplied')
       assert(opt.algo == 'sgd' or
-	     opt.algo == 'lbfgs', 
-	     'opt.algo must be "sgd" or "lbfgs"')
+             opt.algo == 'lbfgs', 
+             'opt.algo must be "sgd" or "lbfgs"')
 
       -- validate opt.algoParms
       validations.isNotNil(opt.algoParms, 'opt.algoParms')
 
 
       if opt.algo == 'sgd' then
-	 opt.algoParms = opt.algoParms or {numEpochs = 100,
-					   quiet = false,
-					   validate = true}
-	 validations.isIntegerGt0(opt.algoParms.numEpochs,
-				  'opt.algoParms.numEpochs')
-	 validations.isBoolean(opt.algoParms.quiet,
-			       'opt.algoParms.quiet')
-	 validations.isBoolean(opt.algoParms.validate,
-			       'op.algoParms.validate')
-	 validations.isIntegerGt0(opt.algoParms.numEpochs,
-				  'opt.algoParms.numEpochs')
-	 validations.isBoolean(opt.algoParms.quiet,
-			       'opt.algoParms.quiet')
-	 validations.isBoolean(opt.algoParms.validate,
-			       'opt.algoParms.validate')
+         opt.algoParms = opt.algoParms or {numEpochs = 100,
+                                           quiet = false,
+                                           validate = true}
+         validations.isIntegerGt0(opt.algoParms.numEpochs,
+                                  'opt.algoParms.numEpochs')
+         validations.isBoolean(opt.algoParms.quiet,
+                               'opt.algoParms.quiet')
+         validations.isBoolean(opt.algoParms.validate,
+                               'op.algoParms.validate')
+         validations.isIntegerGt0(opt.algoParms.numEpochs,
+                                  'opt.algoParms.numEpochs')
+         validations.isBoolean(opt.algoParms.quiet,
+                               'opt.algoParms.quiet')
+         validations.isBoolean(opt.algoParms.validate,
+                               'opt.algoParms.validate')
 
       elseif opt.algo == 'lbfgs' then
-	 opt.algoParms = opt.algoParms or {validate = true}
-	 validations.isBoolean(opt.algoParms.validate,
-			       'opt.algoParms.validate')
+         opt.algoParms = opt.algoParms or {validate = true}
+         validations.isBoolean(opt.algoParms.validate,
+                               'opt.algoParms.validate')
 
       else
-	 error('logic error; opt.algo=' .. opt.algo)
+         error('logic error; opt.algo=' .. opt.algo)
       end
 
       -- validate opt.optimParms
       if opt.algo == 'sgd' then
-	 validations.isNilOrNumberGt0(opt.optimParms.learningRate,
-			  'opt.optimParms.learningRate')
-	 validations.isNilOrNumberGe0(opt.optimParms.learningRateDecay,
-				      'opt.optimParms.learningRateDecay')
-	 validations.isNilOrNumberGe0(opt.optimParms.weightDecay,
-				      'opt.optimParms.weightDecay')
-	 validations.isNilOrNumberGe0(opt.optimParms.momentum,
-				      'opt.optimParms.momentum')
-	 validations.isNilOrVectorGe0(opt.optimParms.learningRates,
-				      'opt.optimParms.learningRates')
-	 validations.isNilOrIntegerGe0(opt.optimParms.evalCounter,
-				       'opt.optimParms.evalCounter')
+         validations.isNilOrNumberGt0(opt.optimParms.learningRate,
+                          'opt.optimParms.learningRate')
+         validations.isNilOrNumberGe0(opt.optimParms.learningRateDecay,
+                                      'opt.optimParms.learningRateDecay')
+         validations.isNilOrNumberGe0(opt.optimParms.weightDecay,
+                                      'opt.optimParms.weightDecay')
+         validations.isNilOrNumberGe0(opt.optimParms.momentum,
+                                      'opt.optimParms.momentum')
+         validations.isNilOrVectorGe0(opt.optimParms.learningRates,
+                                      'opt.optimParms.learningRates')
+         validations.isNilOrIntegerGe0(opt.optimParms.evalCounter,
+                                       'opt.optimParms.evalCounter')
 
       elseif opt.algo == 'lbfgs' then
-	 validations.isNilOrIntegerGt0(opt.optimParms.maxIter,
-				       'opt.optimParms.maxIter')
-	 validations.isNilOrNumberGt0(opt.optimParms.maxEval,
-				      'opt.optimParms.maxEval')
-	 validations.isNilOrNumberGe0(opt.optimParms.to1Fun,
-				      'opt.optimParms.to1Fun')
-	 validations.isNilOrNumberGe0(opt.optimParms.to1X,
-				      'opt.optimParms.to1X')
-	 validations.isNilOrFunction(opt.optimParms.lineSearch,
-				     'opt.optimParms.lineSearch')
-	 validations.isNilOrIntegerGe0(opt.optimParms.learningRate,
-				       'opt.optimParms.learningRate')
-	 validations.isNilOrBoolean(opt.optimParms.verbose,
-				    'opt.optimParms.verbose')
+         validations.isNilOrIntegerGt0(opt.optimParms.maxIter,
+                                       'opt.optimParms.maxIter')
+         validations.isNilOrNumberGt0(opt.optimParms.maxEval,
+                                      'opt.optimParms.maxEval')
+         validations.isNilOrNumberGe0(opt.optimParms.to1Fun,
+                                      'opt.optimParms.to1Fun')
+         validations.isNilOrNumberGe0(opt.optimParms.to1X,
+                                      'opt.optimParms.to1X')
+         validations.isNilOrFunction(opt.optimParms.lineSearch,
+                                     'opt.optimParms.lineSearch')
+         validations.isNilOrIntegerGe0(opt.optimParms.learningRate,
+                                       'opt.optimParms.learningRate')
+         validations.isNilOrBoolean(opt.optimParms.verbose,
+                                    'opt.optimParms.verbose')
 
       else
-	 error('logic error; opt.algo=' .. opt.algo)
+         error('logic error; opt.algo=' .. opt.algo)
       end
 
 
       -- select training procedure
       if opt.algo == 'sgd' then
-	 return self:trainSgd(opt)
+         return self:trainSgd(opt)
       elseif opt.algo == 'lbfgs' then
-	 return self:trainLbfgs(opt)
+         return self:trainLbfgs(opt)
       else
-	 error('logic error: opt.algo=' .. opt.algo)
+         error('logic error: opt.algo=' .. opt.algo)
       end
    end -- method train
 
@@ -271,37 +271,37 @@ do -- TODO: fix example to match new init code
       x, dl_dx = self.model:getParameters()  -- create view of parameters
       
       function feval(x_new)
-	 if x ~= x_new then
-	    x:copy(x_new)
-	 end
-	 
-	 dl_dx:zero() -- reset gradients
-	 
-	 local numSamples = 0
-	 local loss_x = 0
-	 for sampleIndex, sample in pairsFeatures(self.features) do
-	    numSamples = numSamples + 1
-	    local target = self.targets[sampleIndex]
-	    loss_x = 
-	       loss_x + self.criterion:forward(self.model:forward(sample), 
-					       target)
-	    self.model:backward(sample,
-				self.criterion:backward(self.model.output,
-							target))
-	 end
-	 
-	 -- average over the batch
-	 loss_x = loss_x / numSamples
-	 dl_dx = dl_dx:div(numSamples)
+         if x ~= x_new then
+            x:copy(x_new)
+         end
+         
+         dl_dx:zero() -- reset gradients
+         
+         local numSamples = 0
+         local loss_x = 0
+         for sampleIndex, sample in pairsFeatures(self.features) do
+            numSamples = numSamples + 1
+            local target = self.targets[sampleIndex]
+            loss_x = 
+               loss_x + self.criterion:forward(self.model:forward(sample), 
+                                               target)
+            self.model:backward(sample,
+                                self.criterion:backward(self.model.output,
+                                                        target))
+         end
+         
+         -- average over the batch
+         loss_x = loss_x / numSamples
+         dl_dx = dl_dx:div(numSamples)
 
-	 return loss_x, dl_dx
+         return loss_x, dl_dx
       end -- function eval
 
       _, fs = optim.lbfgs(feval, x, opt.parameters)
 
       if not opt.quiet then
-	 print('history of L-BFGS evaluations:')
-	 print(fs)
+         print('history of L-BFGS evaluations:')
+         print(fs)
       end
    end -- function trainLbfgs
 
@@ -320,41 +320,41 @@ do -- TODO: fix example to match new init code
       -- an epoch is a full cycle over the training samples
       for epochNumber = 1,opt.algoParms.numEpochs do
       
-	 -- determine average loss over entire training set
-	 local numSamples = 0
-	 local cumLoss = 0
-	 for sampleIndex, sample in pairsFeatures(self.features) do
-	    numSamples = numSamples + 1
-	    target = self.targets[sampleIndex]
-	    --print('trainSgd sampleIndex', sampleIndex)
-	    --print('trainSgd sample', sample)
-	    --print('trainSgd target', target)
-	    
-	    -- nest feval so that it can easily access sample and target
-	    function feval(x_new)
-	       if x ~= x_new then
-		  x:copy(x_new)
-	       end
-	       dl_dx:zero()  -- reset gradient in the model
-	       local loss_x =  
-		  self.criterion:forward(self.model:forward(sample), 
-					 target)
-	       self.model:backward(sample,
-				   self.criterion:backward(self.model.output, 
-							   target))
-	       return loss_x, dl_dx
-	    end -- function feval
-	    
-	    _, fs = optim.sgd(feval, x, opt.optimParms)
-	    cumLoss = cumLoss + fs[1]
-	 end -- for sampleIndex, sample
+         -- determine average loss over entire training set
+         local numSamples = 0
+         local cumLoss = 0
+         for sampleIndex, sample in pairsFeatures(self.features) do
+            numSamples = numSamples + 1
+            target = self.targets[sampleIndex]
+            --print('trainSgd sampleIndex', sampleIndex)
+            --print('trainSgd sample', sample)
+            --print('trainSgd target', target)
+            
+            -- nest feval so that it can easily access sample and target
+            function feval(x_new)
+               if x ~= x_new then
+                  x:copy(x_new)
+               end
+               dl_dx:zero()  -- reset gradient in the model
+               local loss_x =  
+                  self.criterion:forward(self.model:forward(sample), 
+                                         target)
+               self.model:backward(sample,
+                                   self.criterion:backward(self.model.output, 
+                                                           target))
+               return loss_x, dl_dx
+            end -- function feval
+            
+            _, fs = optim.sgd(feval, x, opt.optimParms)
+            cumLoss = cumLoss + fs[1]
+         end -- for sampleIndex, sample
 
-	 if not opt.quiet then
-	    print(string.format('epoch %d of %d: average loss = %f',
-				epochNumber, 
-				opt.algoParms.numEpochs, 
-				cumLoss / numSamples))
-	 end
+         if not opt.quiet then
+            print(string.format('epoch %d of %d: average loss = %f',
+                                epochNumber, 
+                                opt.algoParms.numEpochs, 
+                                cumLoss / numSamples))
+         end
       end -- for epochNumber
    end -- function trainSgd
 
@@ -367,16 +367,16 @@ do -- TODO: fix example to match new init code
       local targetSet = {}
       local firstTime = true
       for i, feature in pairsFeatures(features) do
-	 if firstTime then
-	    assert(type(feature) == 'userdata',
-		  'features element is not a Tensor')
-	    assert(feature:nDimension() == 1,
-		   'features element is not a 1D Tensor')
-	    numFeatures = feature:size(1)
-	    assert(numFeatures, 'features element is not a Tensor')
-	    firstTime = false
-	 end
-	 targetSet[targets[i]] = true
+         if firstTime then
+            assert(type(feature) == 'userdata',
+                  'features element is not a Tensor')
+            assert(feature:nDimension() == 1,
+                   'features element is not a 1D Tensor')
+            numFeatures = feature:size(1)
+            assert(numFeatures, 'features element is not a Tensor')
+            firstTime = false
+         end
+         targetSet[targets[i]] = true
       end
 
       -- count the number of elements in targetSet
@@ -384,10 +384,10 @@ do -- TODO: fix example to match new init code
       -- the elements are not necessarily integers or even numeric
       local numClasses = 0
       for _,_ in pairs(targetSet) do
-	 numClasses = numClasses + 1
+         numClasses = numClasses + 1
       end
       print('getCounts results', numFeatures, numClasses)
       return numFeatures, numClasses
    end -- function LogisticRegression.getCounts
 end -- class LogisticRegression
-				     
+                                     

@@ -39,11 +39,11 @@ do
    local header = csvFile:read()
    print('header', header)
    assert(header == '"num","brand","female","age"', 
-	  'header not as expected')
+          'header not as expected')
    -- read and save each data line
    for line in csvFile:lines('*l') do
       local num, brand, female, age = 
-	 string.match(line, '^"(%d+)","(%d+)",(%d+),(%d+)')
+         string.match(line, '^"(%d+)","(%d+)",(%d+),(%d+)')
       -- the "+ 0" arithmetic converts the strings to numbers
       -- store the data in an array (rows) where each element is a 1D tensor
       features[#features + 1] = torch.Tensor({age + 0, female + 0})
@@ -57,7 +57,7 @@ end
 print("brand age female")
 for i=1,10 do
    print(string.format('%5d %3d %6d', 
-		       targets[i], features[i][1], features[i][2]))
+                       targets[i], features[i][1], features[i][2]))
 end
 
 -- WOULD BE NICE TO ELIMINATE THIS CONVERSION
@@ -79,11 +79,11 @@ if false then
    do
       seen = {}
       for i = 1,brands:size(1) do
-	 -- brands[i] yields a 1D tensor
-	 local nextBrand = brands[i][1]  -- extract the integer value
-	 if not seen[nextBrand] then 
-	    seen[nextBrand] = true
-	 end
+         -- brands[i] yields a 1D tensor
+         local nextBrand = brands[i][1]  -- extract the integer value
+         if not seen[nextBrand] then 
+            seen[nextBrand] = true
+         end
       end
       numberOfBrands = #seen
    end
@@ -91,7 +91,7 @@ if false then
    -- summarize the data
    function summarizeData()
       function p(name,value) 
-	 print(string.format('%20s %f', name, value) )
+         print(string.format('%20s %f', name, value) )
       end
       p('number of brands', numberOfBrands)
       p('min brand', torch.min(brands))
@@ -205,10 +205,10 @@ print('Training with SGD')
 opt = {
    algo = 'sgd',
    algoParms = {numEpochs=100,
-		quiet=false,
-		validate=true},
+                quiet=false,
+                validate=true},
    optimParms = {learningRate = 1e-3,
-		 learningRateDecay = 1e-4},
+                 learningRateDecay = 1e-4},
 }
 
 print()
@@ -256,7 +256,7 @@ detailFormat = '%3d %6d %5.3f %5.3f %5.3f %d'
 
 -- print the header
 print(string.format(headerFormat,
-		    'age', 'female', 'prob1', 'prob2', 'prob3', 'b'))
+                    'age', 'female', 'prob1', 'prob2', 'prob3', 'b'))
 -- column b has the best predicted brand
 
 -- print the detail lines
@@ -264,7 +264,7 @@ for female = 0,1 do
   for age = 24,38 do
       local predicted, prob1, prob2, prob3 = predictOur(age, female)
       print(string.format(detailFormat,
-			  age, female, prob1, prob2, prob3, predicted))
+                          age, female, prob1, prob2, prob3, predicted))
    end
 end
 
@@ -281,8 +281,8 @@ opt = {
    algo = 'lbfgs',
    algoParms= {validate=true},
    optimParms = {lineSearch = optim.lswolfe,
-		 verbose = true,
-		 maxIter = 100}
+                 verbose = true,
+                 maxIter = 100}
 }
 
 -- continue training where we left off
@@ -302,8 +302,8 @@ opt = {
    algo = 'lbfgs',
    algoParms={validate=true},
    optimParms = {lineSearch = optim.lswolfe,
-		 verbose = true,
-		 maxIter = 100}
+                 verbose = true,
+                 maxIter = 100}
 }
 
 -- train from a random starting point
