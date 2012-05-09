@@ -88,6 +88,20 @@ do -- TODO: fix example to match new init code
    -- + result_1 : next index, so that features == features[result_1] and
    --              targets[result_1] is a number, the next class number
    -- + result_2 : next feature, a tensor
+
+   -- Example 3: features are tensors and the training proceeds in mini batches
+   -- features is a 2D tensor where features[i] is the i-th sample, a tensor
+   -- targets is a 1D tensor where targets[i] is the i-th label, a number
+   -- pairsFeatures() is a function of two arguments with two results:
+   -- + iArray   : an array of  numbers, 
+   --              each element is an index for a sample
+   -- + features : the 2D tensor with all the samples
+   -- + result_1 : an array of indices; the targets are
+   --              targets[result_1[1]], targets[result_1[2]], ...
+   -- + result_2 : an array of features, each a tensor
+   --              the optimization evalution function
+   --              averages the values from forward and backward 
+   --              propagating each of the features
    function LogisticRegression:__init(features, pairsFeatures, targets)
       
       -- validate parameters
@@ -254,9 +268,9 @@ do -- TODO: fix example to match new init code
 
       -- select training procedure
       if opt.algo == 'sgd' then
-         return self:trainSgd(opt)
+         return self:_trainSgd(opt)
       elseif opt.algo == 'lbfgs' then
-         return self:trainLbfgs(opt)
+         return self:_trainLbfgs(opt)
       else
          error('logic error: opt.algo=' .. opt.algo)
       end
@@ -264,7 +278,7 @@ do -- TODO: fix example to match new init code
 
    -- run L-BFGS algorithm; mutate self.model to contain updated parameters
    -- private method
-   function LogisticRegression:trainLbfgs(opt)
+   function LogisticRegression:_trainLbfgs(opt)
       print('trainLbfgs opt', opt)
       print('trainLbfgs self', self)
 
@@ -311,7 +325,7 @@ do -- TODO: fix example to match new init code
 
    -- run SGD algorithm; mutate self.model to contain updated parameters
    -- private method
-   function LogisticRegression:trainSgd(opt)
+   function LogisticRegression:_trainSgd(opt)
       print('trainSgd opt', opt) 
       print('trainSgd self', self)
 
