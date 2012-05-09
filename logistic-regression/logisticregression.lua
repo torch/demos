@@ -297,7 +297,7 @@ do -- TODO: fix example to match new init code
          return loss_x, dl_dx
       end -- function eval
 
-      _, fs = optim.lbfgs(feval, x, opt.parameters)
+      _, fs = optim.lbfgs(feval, x, opt.optimParms)
 
       if not opt.quiet then
          print('history of L-BFGS evaluations:')
