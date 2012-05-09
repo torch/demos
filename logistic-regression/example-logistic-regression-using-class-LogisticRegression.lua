@@ -310,3 +310,12 @@ opt = {
 newLogisticRegression:train(opt)
 
 print('finished')
+
+--------------------------------------------------------------------------------
+-- 7. Train with L-BFGS in mini batch
+
+print('============================================================')
+print('Restart Training with L-BFGS and mini-batches')
+print()
+
+print("WRITE ME")
