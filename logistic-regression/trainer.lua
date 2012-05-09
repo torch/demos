@@ -1,5 +1,5 @@
--- logisticregression.lua
--- define class LogisticRegression
+-- trainer.lua
+-- define class Trainer
 
 -- torch libraries
 require 'nn'
@@ -9,6 +9,7 @@ require 'optim'
 require 'validations'
 
 -- example: read UCLA data set
+-- TODO: rewrite to use to opt table
 if false then
    -- setup to handle the UCLA data set
    local features = torch.Tensor(735,3)  -- 735 observations of 3 dimensions
@@ -54,14 +55,22 @@ if false then
    -- do something with the estimate
 end
 
+-- example: instead of a single sample, iterate over mini batches
+do
+   -- WRITE ME
+end
+
 do -- TODO: fix example to match new init code
    -- create class object
-   local LogisticRegression = torch.class('LogisticRegression')
+   local Trainer = torch.class('Trainer')
 
    -- initializer: define the data
    -- + features      : an object that is passed to pairsFeatures
    -- + pairsFeatures : a function taking features as an argument an returning
    --                   an iterator; similar to the built-in pairs(table)
+   --                   except that in addition to return an key and value,
+   --                   it can return an array of keys and a corresponding
+   --                   array of values. 
    -- + targets       : an object that when indexed by a key returns a value,
    --                   the target value for the observations with the key
 
@@ -102,32 +111,29 @@ do -- TODO: fix example to match new init code
    --              the optimization evalution function
    --              averages the values from forward and backward 
    --              propagating each of the features
-   function LogisticRegression:__init(features, pairsFeatures, targets)
+   function Trainer:__init(features, pairsFeatures, targets, model, criterion)
       
-      -- validate parameters
+      -- check that parameters are supplied and have plausible types
       assert(features, 'features no supplied')
+
       assert(pairsFeatures, 'pairsFeatures not supplied')
       assert(type(pairsFeatures) == 'function',
-             'pairsFeatures not a function; must be an iterator')
+             'pairsFeatures not a function; must return an iterator')
+
       assert(targets, 'targets not supplied')
+
+      assert(model, 'model not supplied')
+      assert(type(model) == 'table', 'model is not a table')
+
+      assert(criterion, 'criterion not supplied')
+      assert(type(criterion) == 'table', 'criterion is not a table')
 
       -- save the parameters for training
       self.features = features
       self.pairsFeatures = pairsFeatures
       self.targets = targets
-
-      -- determine relevant sizes
-      self.numFeatures, self.numClasses = 
-         LogisticRegression.getCounts(features, pairsFeatures, targets)
-
-      -- build the model
-      self.model = nn.Sequential()
-      print('__init', self.numFeatures, self.numClasses)
-      self.model:add(nn.Linear(self.numFeatures, self.numClasses))
-      self.model:add(nn.LogSoftMax())
-
-      -- build the loss function
-      self.criterion = nn.ClassNLLCriterion()
+      self.model = model
+      self.criterion = criterion
 
       print('__init self', self)
 
@@ -135,7 +141,7 @@ do -- TODO: fix example to match new init code
 
    -- return tensor of log probabilities for each class label 
    -- + query: an object of the same type as a feature
-   function LogisticRegression:estimate(query)
+   function Trainer:estimate(query)
       return self.model:forward(query)
    end
 
@@ -187,7 +193,7 @@ do -- TODO: fix example to match new init code
    -- + opt.optimParms.lineSearch   : nil or a function
    -- + opt.optimParms.learningRate : nil or integer >= 0
    -- + opt.optimParms.verbose      : nil or boolean
-   function LogisticRegression:train(opt)
+   function Trainer:train(opt)
       print('train opt\n', opt)
       print('train self', self)
 
@@ -203,7 +209,8 @@ do -- TODO: fix example to match new init code
       -- validate opt.algoParms
       validations.isNotNil(opt.algoParms, 'opt.algoParms')
 
-
+      -- TODO: verify that each of these parameters is used
+      -- TODO: eliminate one set of parameters if merge works
       if opt.algo == 'sgd' then
          opt.algoParms = opt.algoParms or {numEpochs = 100,
                                            quiet = false,
@@ -265,20 +272,93 @@ do -- TODO: fix example to match new init code
          error('logic error; opt.algo=' .. opt.algo)
       end
 
-
-      -- select training procedure
+      -- attempt to converge the two methods into one block of code
+      
+      local optimization
       if opt.algo == 'sgd' then
-         return self:_trainSgd(opt)
+         optimization = optim.sgd
       elseif opt.algo == 'lbfgs' then
-         return self:_trainLbfgs(opt)
+         optimization = optim.lbfgs
       else
-         error('logic error: opt.algo=' .. opt.algo)
+         error('logic error; opt.algo=' .. opt.algo)
+      end
+      
+      x, dl_dx = self.model:getParameters() -- create view of parameters
+      
+      for epochNumber = 1,opt.algoParms.numEpochs do
+         local numSamples = 0
+         local cumLoss = 0
+         for sampleIndices, samples in pairsFeatures(self.features) do
+            -- determine average loss and gradient over the mini batch
+            -- which may have size one
+
+            -- if samplesIndices and samples are tables, then they define
+            -- the mini batch. If they are not tables, then turn them into
+            -- single entry arrays so that one code base will work on 
+            -- both cases.
+            if (type(sampleIndices) ~= 'table') and
+               (type(samples) ~= 'table') then
+               -- turn each into an array
+               sampleIndices = {sampleIndices}
+               samples = {samples}
+            end
+
+            -- build array of targets
+            targets = {}
+            for _,sampleIndex in ipairs(sampleIndices) do
+               targets[#targets + 1] = self.targets[sampleIndex]
+            end
+
+            if false then
+               -- print the mini batch
+               print('mini batch')
+               for i = 1,#samples do
+                  print(i, samples[i], targets[i])
+               end
+            end
+
+            -- return as values the averages of the mini batch
+            local function feval(x_new)
+               if x ~= x_new then
+                  x:copy(x_new)
+               end
+               dl_dx:zero()
+               local cumLoss = 0
+               for i=1,#samples do
+                  local loss_x =
+                     self.criterion:forward(self.model:forward(samples[i]),
+                                            targets[i])
+                  cumLoss = cumLoss + loss_x
+                  self.model:backward(samples[i],
+                                      self.criterion:backward(self.model.output,
+                                                              targets[i]))
+               end
+
+               return cumLoss / #samples, dl_dx / #samples
+            end -- function feval
+ 
+            _, fs = optimization(feval, x, opt.optimParms)
+            if not opt.algoParms.quiet then
+               print('losses on mini batch:', fs)
+               --print(fs)
+            end
+         end -- for sampleIndices, samples
+      end -- for epochNumber
+
+      if false then -- dead code
+         if opt.algo == 'sgd' then
+            return self:_trainSgd(opt)
+         elseif opt.algo == 'lbfgs' then
+            return self:_trainLbfgs(opt)
+         else
+            error('logic error: opt.algo=' .. opt.algo)
+         end
       end
    end -- method train
 
    -- run L-BFGS algorithm; mutate self.model to contain updated parameters
    -- private method
-   function LogisticRegression:_trainLbfgs(opt)
+   function Trainer:_trainLbfgs(opt)
       print('trainLbfgs opt', opt)
       print('trainLbfgs self', self)
 
@@ -313,19 +393,15 @@ do -- TODO: fix example to match new init code
 
       _, fs = optim.lbfgs(feval, x, opt.optimParms)
 
-      if not opt.quiet then
+      if not optAlgo.quiet then
          print('history of L-BFGS evaluations:')
          print(fs)
       end
    end -- function trainLbfgs
 
-
-
-
-
    -- run SGD algorithm; mutate self.model to contain updated parameters
    -- private method
-   function LogisticRegression:_trainSgd(opt)
+   function Trainer:_trainSgd(opt)
       print('trainSgd opt', opt) 
       print('trainSgd self', self)
 
@@ -375,7 +451,7 @@ do -- TODO: fix example to match new init code
 
    -- return number of features and number of classes
    -- private
-   function LogisticRegression.getCounts(features, pairsFeatures, targets)
+   function Trainer._getCounts(features, pairsFeatures, targets)
       -- determine number of features and all possible target values
       local numFeatures = 0
       local targetSet = {}
@@ -400,8 +476,8 @@ do -- TODO: fix example to match new init code
       for _,_ in pairs(targetSet) do
          numClasses = numClasses + 1
       end
-      print('getCounts results', numFeatures, numClasses)
+      print('_getCounts results', numFeatures, numClasses)
       return numFeatures, numClasses
-   end -- function LogisticRegression.getCounts
-end -- class LogisticRegression
+   end -- function Trainer._getCounts
+end -- class Trainer
                                      
