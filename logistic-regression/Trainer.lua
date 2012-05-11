@@ -116,10 +116,6 @@ do -- TODO: fix example to match new init code
       -- check that parameters are supplied and have plausible types
       assert(features, 'features no supplied')
 
-      assert(pairsFeatures, 'pairsFeatures not supplied')
-      assert(type(pairsFeatures) == 'function',
-             'pairsFeatures not a function; must return an iterator')
-
       assert(targets, 'targets not supplied')
 
       assert(model, 'model not supplied')
@@ -193,13 +189,18 @@ do -- TODO: fix example to match new init code
    -- + opt.optimParms.lineSearch   : nil or a function
    -- + opt.optimParms.learningRate : nil or integer >= 0
    -- + opt.optimParms.verbose      : nil or boolean
-   function Trainer:train(opt)
+   function Trainer:train(opt, pairsFeatures)
       print('train opt\n', opt)
       print('train self', self)
 
       validations = Validations()
+      
+      -- validate pairsFeatures
+      assert(pairsFeatures, 'pairsFeatures not supplied')
+      assert(type(pairsFeatures) == 'function',
+             'pairsFeatures not a function; must return an iterator')
 
-      -- validate opt.algo and set algo
+      -- validate opt.algo
       assert(opt,'opt not supplied')
       assert(opt.algo, 'opt.algo not supplied')
       assert(opt.algo == 'sgd' or
@@ -289,7 +290,9 @@ do -- TODO: fix example to match new init code
       for epochNumber = 1,opt.algoParms.numEpochs do
          local numSamples = 0
          local cumLoss = 0
+         local countMiniBatches = 0
          for sampleIndices, samples in pairsFeatures(self.features) do
+            countMiniBatches = countMiniBatches + 1
             -- determine average loss and gradient over the mini batch
             -- which may have size one
 
@@ -340,8 +343,16 @@ do -- TODO: fix example to match new init code
  
             _, fs = optimization(feval, x, opt.optimParms)
             if not opt.algoParms.quiet then
-               print('losses on mini batch:', fs)
-               --print(fs)
+               if #fs == 1 then
+                  print(
+                     string.format('loss on epoch %d mini batch %d: %.15f', 
+                                   epochNumber, countMiniBatches, fs[1]))
+               else
+                  print(
+                     string.format('losses on epoch %d mini batch %d:', 
+                                   epochNumber, countMiniBatches))
+                  print(fs)
+               end
             end
          end -- for sampleIndices, samples
       end -- for epochNumber

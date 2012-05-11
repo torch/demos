@@ -6,18 +6,15 @@ require 'nn'
 require 'optim'
 
 -- local libraries
-require 'trainer'
-require 'validations'
+require 'Trainer'
+require 'Validations'
 
 do
    local LogisticRegression = torch.class('LogisticRegression')
 
-   function LogisticRegression:__init(features, pairsFeatures, targets)
+   function LogisticRegression:__init(features, targets)
       -- validate parameters
       assert(features, 'features no supplied')
-      assert(pairsFeatures, 'pairsFeatures not supplied')
-      assert(type(pairsFeatures) == 'function',
-             'pairsFeatures not a function; must be an iterator')
       assert(targets, 'targets not supplied')
 
       -- determine size of model
@@ -40,11 +37,22 @@ do
    end
 
    function LogisticRegression:estimate(query)
+      assert(query, 'query not supplied')
       return self.trainer:estimate(query)
    end
 
-   function LogisticRegression:train(opt)
-      self.trainer:train(opt)
+   function LogisticRegression:train(opt, pairsFeatures)
+      -- validate presence of parameters
+      -- more complicated training is done in the Trainer:train method
+      assert(opt, 'opt not supplied')
+
+      assert(pairsFeatures, 'pairsFeatures not supplied')
+      print(type(pairsFeatures))
+      assert(type(pairsFeatures) == 'function',
+             'pairsFeature must be a function returning an iterator')
+   
+
+      self.trainer:train(opt, pairsFeatures)
    end
 
 end -- class LogisticRegression
