@@ -241,7 +241,7 @@ end
 -- for our model
 function predictOur(age, female)
    local input = torch.Tensor({age,female})
-   local logProbsTensor = logisticRegression:estimate(input)  
+   local logProbsTensor = logisticRegression:estimate(input) 
    --print('predictOur', age, female, input)
    local probsTensor = torch.exp(logProbsTensor)
    --print('logProbs', logProbs)

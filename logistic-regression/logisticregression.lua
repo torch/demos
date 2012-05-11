@@ -40,7 +40,7 @@ do
    end
 
    function LogisticRegression:estimate(query)
-      self.trainer:estimate(query)
+      return self.trainer:estimate(query)
    end
 
    function LogisticRegression:train(opt)

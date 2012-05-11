@@ -230,6 +230,7 @@ do -- TODO: fix example to match new init code
 
       elseif opt.algo == 'lbfgs' then
          opt.algoParms = opt.algoParms or {validate = true}
+         opt.algoParms.numEpochs = opt.algoParms.numEpochs or 1
          validations.isBoolean(opt.algoParms.validate,
                                'opt.algoParms.validate')
 
