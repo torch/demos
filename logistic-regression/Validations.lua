@@ -9,16 +9,19 @@ do
    end
 
    function Validations.isBoolean(value, name)
+      if value == nil then error(name .. ' is missing') end
       if type(value) ~= 'boolean' then error(name .. ' is not a boolean') end
    end
 
    function Validations.isIntegerGe0(value, name)
+      if value == nil then error(name .. ' is missing') end
       if type(value) ~= 'number' then error(name..' is not a number') end
       if math.floor(value) ~= value then error(name..' is not an integer') end
       if value < 0 then error(name .. ' is not >= 0') end
    end
 
    function Validations.isIntegerGt0(value, name)
+      if value == nil then error(name .. ' is missing') end
       if type(value) ~= 'number' then error(name..' is not a number') end
       if math.floor(value) ~= value then error(name..' is not an integer')end
       if value <= 0 then error(name .. ' is not > 0') end

@@ -6,112 +6,31 @@ require 'nn'
 require 'optim'
 
 -- local libraries
-require 'validations'
+require 'Validations'
 
--- example: read UCLA data set
--- TODO: rewrite to use to opt table
+-- example 1: features and targets are in parallel arrays, batch size is 1
 if false then
-   -- setup to handle the UCLA data set
-   local features = torch.Tensor(735,3)  -- 735 observations of 3 dimensions
-   local targets = torch.Tensor(735)     -- also 735 observations
-   initialize(features, targets)         -- you supply this function
-   
-   -- this function is an iterator for the elements in the first dimension
-   -- of a tensor
-   -- see PiL version 2, p 59 for details
-   -- + tensor: a 2D tensor in this example, though the function works
-   --   for any dimension
-   -- + index: the previous value returned was tensor[index]
-   local function iterTensor(tensor, index)
-      index = index + 1
-      if index > tensor:size(1) then
-         return nil
-      else
-         return index, tensor[index]
-      end
-   end
-
-   -- like pairs(array) but for a tensor
-   -- + features: a 2D tensor such that each row is an observation
-   local function myPairsFeatures(features)
-      return iterTensor, tensor, 0
-   end
-
-   -- optimize using SGD
-   local optim = {
-      method = 'sgd',
-      quiet=false,
-      params = {  -- parameters for optim.sgd
-         learningRate = 1e-3,
-         learningRateDecay = 1e-4,
-      }
-   }
-
-   local logreg = LogisticRegression()
-   logreg:train(features, myPairsFeatures, targets, optim)
-   
-   local query = makeQuery()  -- you supply this
-   local classEstimate = logreg:estimate(query)
-   -- do something with the estimate
+   -- TODO: Write me
 end
 
--- example: instead of a single sample, iterate over mini batches
-do
-   -- WRITE ME
+-- example: features and arrays are in one table, batch size is 10
+if false then 
+   -- TODO: WRITE ME
 end
 
-do -- TODO: fix example to match new init code
-   -- create class object
+do 
+   -- Create class object.
    local Trainer = torch.class('Trainer')
 
-   -- initializer: define the data
-   -- + features      : an object that is passed to pairsFeatures
-   -- + pairsFeatures : a function taking features as an argument an returning
-   --                   an iterator; similar to the built-in pairs(table)
-   --                   except that in addition to return an key and value,
-   --                   it can return an array of keys and a corresponding
-   --                   array of values. 
-   -- + targets       : an object that when indexed by a key returns a value,
-   --                   the target value for the observations with the key
-
-   -- Example 1: features and targets are in lua arrays
-   -- features[i] for integer i is a tensor
-   -- targets[i] is a number, the class number
-   -- pairFeatures() is a function with two arguments with two results
-   -- + i        : a number, the index of the last returned sample
-   -- + features : the features array
-   -- + result_1 : next index, so that features == features[result_1] and
-   --              targets[result_1] is a number, the next class number
-   -- + result_2 : next feature, a tensor
-
-   -- Note that in this example the class identifiers are integers, but they
-   -- can be any value at all that implements the == test in a way that is
-   -- appropriate for your data
-
-   -- Example 2: features are tensors
-   -- features is a 2D tensor where features[i] is the i-th sample, a tensor
-   -- targets is a 1D tensor where targets[i] is the i-th label, a number
-   -- pairsFeatures() is a function of two arguments with two results:
-   -- + i        : a number, the index of the last returned sample
-   -- + features : the 2D tensor with all the samples
-   -- + result_1 : next index, so that features == features[result_1] and
-   --              targets[result_1] is a number, the next class number
-   -- + result_2 : next feature, a tensor
-
-   -- Example 3: features are tensors and the training proceeds in mini batches
-   -- features is a 2D tensor where features[i] is the i-th sample, a tensor
-   -- targets is a 1D tensor where targets[i] is the i-th label, a number
-   -- pairsFeatures() is a function of two arguments with two results:
-   -- + iArray   : an array of  numbers, 
-   --              each element is an index for a sample
-   -- + features : the 2D tensor with all the samples
-   -- + result_1 : an array of indices; the targets are
-   --              targets[result_1[1]], targets[result_1[2]], ...
-   -- + result_2 : an array of features, each a tensor
-   --              the optimization evalution function
-   --              averages the values from forward and backward 
-   --              propagating each of the features
-   function Trainer:__init(features, pairsFeatures, targets, model, criterion)
+   -- Construct the trainer from: 
+   -- + features  : an object that contains the features from the samples
+   --             : See the description of nextBatch, a parameter of the
+   --             : train method for how specific features and targets are
+   --             : extracted from the "features" and "targets" parameters.
+   -- + targets   : an object that contains the targets from the samples
+   -- + model     : a table that behaves just like an nn model
+   -- + criterion : a table that behaves just like an nn criterion
+   function Trainer:__init(features, targets, model, criterion)
       
       -- check that parameters are supplied and have plausible types
       assert(features, 'features no supplied')
@@ -132,364 +51,260 @@ do -- TODO: fix example to match new init code
       self.criterion = criterion
 
       print('__init self', self)
-
+      
    end
 
-   -- return tensor of log probabilities for each class label 
+   -- Return estimate for the specified query. 
    -- + query: an object of the same type as a feature
    function Trainer:estimate(query)
       return self.model:forward(query)
    end
 
-   -- learn the parameters of the model using one of the optimization method
-   -- from the optim package. Takes one parameter opt, a table, with these
-   -- fields.
-   -- + opt.algo       : string, name of the optim algorithm. One of
-   --                    "sgd" (stochastic gradient descent)
-   --                    "lbfgs" (L-BFGS)
-   -- + opt.algoParms  : table, parameters for the particular algorithm
-   -- + opt.optimParms : table, parameters for the optim function
+   -- Learn the parameters of the model using one of the optimization method
+   -- from the optim package. 
+   -- + nextBatch : a "batch iterator" which is a function of two parameter
+   --             : returning one or two results with the API given below.
+   -- + opt       : a table containing the optimization parameters
 
-   -- if opt.algo == "sgd" these fields and [defaults] in opt.algoParms are used
-   -- + opt.algoParms.numEpochs : integer [100] > 0, number of epochs
-   -- + opt.algoParms.quiet     : boolean [false], if true, the average loss for
-   --                             each epoch is printed
-   -- + opt.algoParms.validate  : boolean [true], if true, the fields in
-   --                             opt.optimParms are checked for type and 
-   --                             reasonable values
+--[[ batch iterator/nextBatch API
 
-   -- if opt.algo == "lbfgs" these fields in opt.algoParms are used.
-   -- + opt.algoParms.validate  : boolean [true], if true, the fields in
-   --                             opt.optimParms are checked for type and 
-   --                             reasonable values
+The API for nextBatch is similar to that of Lua's next function, except that
+the keys are tables of indices and only one value is returned. The
+nextBatch(features, keys) function has this API:
 
-
-   -- The table opt.optimParms is passed directly to the optimization
-   -- function, but first its fields are validated if opt.algoParms.validate =
-   -- true.
-
-   -- Most of the optimParms have default values that are documented 
-   -- in the optim function. We recommend that 
-   -- you do not rely on default values, as the defaults may change when
-   -- algorithms or implementations are enhanced.
++ features : any Torch object (often a table or 2D tensor). This is 
+             the same features object passed to the Trainer's constructor.
++ keys     : either nil or a table of indices for features.
++ result   : if keys == nil then
+               result is a table containing the initial indices of the
+               features. The features and targets are retrieved by
+               the Trainer through this iteration:
+             if keys represents the last portion of the batch then
+               result is nil
+             else
+               result is a table containing the next set of keys
+             end
    
-   -- The validations if opt.algo == 'sgd' are these:
-   -- + opt.optimParms.learningRate      : nil or number > 0
-   -- + opt.optimParms.learningRateDecay : nil or number >= 0 
-   -- + opt.optimParms.weightDecay       : nil or number >= 0
-   -- + opt.optimParms.momentum          : nil or number >= 0
-   -- + opt.optimParms.learningRates     : nil or vector of number >= 0
-   -- + opt.optimParms.evalCounter       : nil or integer >= 0
-  
-   -- The validations if opt.algo == 'lbfgs' are these:
-   -- + opt.optimParms.maxIter      : nil or integer > 0
-   -- + opt.optimParms.maxEval      : nil or number > 0
-   -- + opt.optimParms.to1Fun       : nil or number >= 0
-   -- + opt.optimParms.to1X         : nil or number >= 0
-   -- + opt.optimParms.lineSearch   : nil or a function
-   -- + opt.optimParms.learningRate : nil or integer >= 0
-   -- + opt.optimParms.verbose      : nil or boolean
-   function Trainer:train(opt, pairsFeatures)
-      print('train opt\n', opt)
-      print('train self', self)
+The iteration employed in the training loop works like this:
 
+   local batchIndices = nextBatch(features, nil)
+   while batchIndices do
+      for _,index in ipairs(batchIndices) do
+          local feature = features[index]
+          local target = targets[index]
+          <learn using feature (a 1D tensor)  and target (a number)>
+      end -- iteration over elements of the batch
+      batchIndices = nextBatch(features, batchIndices)                 
+   end -- iteration over batches               
+              
+--]]
+
+--[[ opt table structure
+
+opt is a table with these fields and [default] values
+
++ opt.algo         : string, name of the optim algorithm. One of
+                     "sgd" (stochastic gradient descent)
+                     "lbfgs" (L-BFGS)
++ opt.numEpochs    : integer [100] > 0, number of epochs
++ opt.optimParams  : table, parameters for the optim function
+                     described below
++ opt.validate     : boolean [true], if true, the fields in
+                     opt.optimParams are checked for type and 
+                     reasonable values
++ opt.verboseBatch : boolean[true], if true, loss of
+                     at each point in the batch is printed
++ opt.verboseEpoch : boolean [true], if true, loss for
+                     each epoch is printed
+
+The table opt.optimParams is passed directly to the optimization
+function, but first its fields are validated if opt.algoParms.validate
+== true.
+
+Most of the optimParams have default values that are documented in the
+optim function. We recommend that you do not rely on default values,
+as the defaults may change when algorithms or implementations are
+enhanced.
+   
+The validations if opt.algo == 'sgd' are these:
+
++ opt.optimParams.learningRate      : nil or number > 0
++ opt.optimParams.learningRateDecay : nil or number >= 0 
++ opt.optimParams.weightDecay       : nil or number >= 0
++ opt.optimParams.momentum          : nil or number >= 0
++ opt.optimParams.learningRates     : nil or vector of number >= 0
++ opt.optimParams.evalCounter       : nil or integer >= 0
+  
+The validations if opt.algo == 'lbfgs' are these:
+
++ opt.optimParams.maxIter      : nil or integer > 0
++ opt.optimParams.maxEval      : nil or number > 0
++ opt.optimParams.tolFun       : nil or number >= 0
++ opt.optimParams.tolX         : nil or number >= 0
++ opt.optimParams.lineSearch   : nil or a function
++ opt.optimParams.learningRate : nil or integer >= 0
++ opt.optimParams.verbose      : nil or boolean
+
+--]]
+
+   -- Train the model using the criterion specified in construction,
+   -- the samples accessed through the nextBatch function, and the
+   -- options in table opt.
+   function Trainer:train(nextBatch, opt)
+      print('Trainer:train nextBatch', nextBatch)
+      print('Trainer:train opt\n', opt)
+      print('Trainer:train self', self)
+      
       validations = Validations()
       
-      -- validate pairsFeatures
-      assert(pairsFeatures, 'pairsFeatures not supplied')
-      assert(type(pairsFeatures) == 'function',
-             'pairsFeatures not a function; must return an iterator')
-
-      -- validate opt.algo
+      -- validate nextBatch
+      assert(nextBatch, 'nextBatch not supplied')
+      assert(type(nextBatch) == 'function',
+             'nextBatch not a function')
+      
+      -- validate opt
       assert(opt,'opt not supplied')
-      assert(opt.algo, 'opt.algo not supplied')
-      assert(opt.algo == 'sgd' or
-             opt.algo == 'lbfgs', 
-             'opt.algo must be "sgd" or "lbfgs"')
-
-      -- validate opt.algoParms
-      validations.isNotNil(opt.algoParms, 'opt.algoParms')
-
-      -- TODO: verify that each of these parameters is used
-      -- TODO: eliminate one set of parameters if merge works
-      if opt.algo == 'sgd' then
-         opt.algoParms = opt.algoParms or {numEpochs = 100,
-                                           quiet = false,
-                                           validate = true}
-         validations.isIntegerGt0(opt.algoParms.numEpochs,
-                                  'opt.algoParms.numEpochs')
-         validations.isBoolean(opt.algoParms.quiet,
-                               'opt.algoParms.quiet')
-         validations.isBoolean(opt.algoParms.validate,
-                               'op.algoParms.validate')
-         validations.isIntegerGt0(opt.algoParms.numEpochs,
-                                  'opt.algoParms.numEpochs')
-         validations.isBoolean(opt.algoParms.quiet,
-                               'opt.algoParms.quiet')
-         validations.isBoolean(opt.algoParms.validate,
-                               'opt.algoParms.validate')
-
-      elseif opt.algo == 'lbfgs' then
-         opt.algoParms = opt.algoParms or {validate = true}
-         opt.algoParms.numEpochs = opt.algoParms.numEpochs or 1
-         validations.isBoolean(opt.algoParms.validate,
-                               'opt.algoParms.validate')
-
-      else
-         error('logic error; opt.algo=' .. opt.algo)
-      end
-
-      -- validate opt.optimParms
-      if opt.algo == 'sgd' then
-         validations.isNilOrNumberGt0(opt.optimParms.learningRate,
-                          'opt.optimParms.learningRate')
-         validations.isNilOrNumberGe0(opt.optimParms.learningRateDecay,
-                                      'opt.optimParms.learningRateDecay')
-         validations.isNilOrNumberGe0(opt.optimParms.weightDecay,
-                                      'opt.optimParms.weightDecay')
-         validations.isNilOrNumberGe0(opt.optimParms.momentum,
-                                      'opt.optimParms.momentum')
-         validations.isNilOrVectorGe0(opt.optimParms.learningRates,
-                                      'opt.optimParms.learningRates')
-         validations.isNilOrIntegerGe0(opt.optimParms.evalCounter,
-                                       'opt.optimParms.evalCounter')
-
-      elseif opt.algo == 'lbfgs' then
-         validations.isNilOrIntegerGt0(opt.optimParms.maxIter,
-                                       'opt.optimParms.maxIter')
-         validations.isNilOrNumberGt0(opt.optimParms.maxEval,
-                                      'opt.optimParms.maxEval')
-         validations.isNilOrNumberGe0(opt.optimParms.to1Fun,
-                                      'opt.optimParms.to1Fun')
-         validations.isNilOrNumberGe0(opt.optimParms.to1X,
-                                      'opt.optimParms.to1X')
-         validations.isNilOrFunction(opt.optimParms.lineSearch,
-                                     'opt.optimParms.lineSearch')
-         validations.isNilOrIntegerGe0(opt.optimParms.learningRate,
-                                       'opt.optimParms.learningRate')
-         validations.isNilOrBoolean(opt.optimParms.verbose,
-                                    'opt.optimParms.verbose')
-
-      else
-         error('logic error; opt.algo=' .. opt.algo)
-      end
-
-      -- attempt to converge the two methods into one block of code
-      
-      local optimization
-      if opt.algo == 'sgd' then
-         optimization = optim.sgd
-      elseif opt.algo == 'lbfgs' then
-         optimization = optim.lbfgs
-      else
-         error('logic error; opt.algo=' .. opt.algo)
+      if opt.validate == nil or opt.validate then
+         Trainer._validateOpt(opt)
       end
       
+      -- determine which optimization function to use
+      local optimize
+      if opt.algo == 'sgd' then
+         optimize = optim.sgd
+      elseif opt.algo == 'lbfgs' then
+         optimize = optim.lbfgs
+      else
+         error('logic error; opt.algo=' .. opt.algo)
+      end
+
+      -- TODO: make these locals after all else works
       x, dl_dx = self.model:getParameters() -- create view of parameters
       
-      for epochNumber = 1,opt.algoParms.numEpochs do
-         local numSamples = 0
-         local cumLoss = 0
-         local countMiniBatches = 0
-         for sampleIndices, samples in pairsFeatures(self.features) do
-            countMiniBatches = countMiniBatches + 1
-            -- determine average loss and gradient over the mini batch
-            -- which may have size one
+      for epochNumber =1,opt.numEpochs do
+         currentLoss = 0  -- TODO: make this local after all else works
+         local numBatches = 0
+         -- for each batch
+         local batchIndices = nextBatch(self.features, nil)
+         while batchIndices do
+            assert(type(batchIndices) == 'table',
+                   'nextBatch must return a table or nil')
+            numBatches = numBatches + 1
 
-            -- if samplesIndices and samples are tables, then they define
-            -- the mini batch. If they are not tables, then turn them into
-            -- single entry arrays so that one code base will work on 
-            -- both cases.
-            if (type(sampleIndices) ~= 'table') and
-               (type(samples) ~= 'table') then
-               -- turn each into an array
-               sampleIndices = {sampleIndices}
-               samples = {samples}
-            end
-
-            -- build array of targets
-            targets = {}
-            for _,sampleIndex in ipairs(sampleIndices) do
-               targets[#targets + 1] = self.targets[sampleIndex]
-            end
-
-            if false then
-               -- print the mini batch
-               print('mini batch')
-               for i = 1,#samples do
-                  print(i, samples[i], targets[i])
-               end
-            end
-
-            -- return as values the averages of the mini batch
-            local function feval(x_new)
-               if x ~= x_new then
-                  x:copy(x_new)
-               end
-               dl_dx:zero()
+            -- API: Take a single point of evaluation (the parameter vector)
+            -- and return loss at that point and the gradient at that point
+            -- This implementation returns the average function value and
+            -- average gradient over the current batch at the parameter.
+            function feval(x_new)
+               if x ~= x_new then x:copy(x_new) end
+               dl_dx:zero()  -- reset gradient in model
                local cumLoss = 0
-               for i=1,#samples do
-                  local loss_x =
-                     self.criterion:forward(self.model:forward(samples[i]),
-                                            targets[i])
-                  cumLoss = cumLoss + loss_x
-                  self.model:backward(samples[i],
-                                      self.criterion:backward(self.model.output,
-                                                              targets[i]))
+               local numInBatch = 0
+               -- iterate over the indices in the batch
+               for _,nextIndex in pairs(batchIndices) do
+                  numInBatch = numInBatch + 1
+                  local lossOnSample = 
+                     self.criterion:forward(
+                         self.model:forward(self.features[nextIndex]),
+                         self.targets[nextIndex])
+                     --print('feval loss', loss, self.targets[nextIndex],
+                     --      self.features[nextIndex])
+                  cumLoss = cumLoss + lossOnSample
+                  self.model:backward(self.features[nextIndex],
+                                      self.criterion:backward(
+                                         self.model.output,
+                                         self.targets[nextIndex]))
                end
-
-               return cumLoss / #samples, dl_dx / #samples
+               return cumLoss / numInBatch, dl_dx / numInBatch
             end -- function feval
- 
-            _, fs = optimization(feval, x, opt.optimParms)
-            if not opt.algoParms.quiet then
-               if #fs == 1 then
-                  print(
-                     string.format('loss on epoch %d mini batch %d: %.15f', 
-                                   epochNumber, countMiniBatches, fs[1]))
-               else
-                  print(
-                     string.format('losses on epoch %d mini batch %d:', 
-                                   epochNumber, countMiniBatches))
-                  print(fs)
-               end
-            end
-         end -- for sampleIndices, samples
-      end -- for epochNumber
 
-      if false then -- dead code
-         if opt.algo == 'sgd' then
-            return self:_trainSgd(opt)
-         elseif opt.algo == 'lbfgs' then
-            return self:_trainLbfgs(opt)
-         else
-            error('logic error: opt.algo=' .. opt.algo)
+            _, fs = optimize(feval, x, opt.optimParams)
+            if opt.verboseBatch then
+               print('loss values during optimization procedure', fs)
+            end
+            -- the last value in fs is the value at the optimimum x*
+            currentLoss = currentLoss + fs[#fs]
+            batchIndices = nextBatch(self.features, batchIndices)
+         end -- loop over batches
+
+         -- finished with all the batches
+         currentLoss = currentLoss / numBatches --?
+         if opt.verboseEpoch then
+            print(string.format('epoch %d of %d; current loss = %.15f',
+                                epochNumber, opt.numEpochs,
+                                currentLoss))
          end
-      end
+         --if epochNumber == 1 then print('epochNumber', epochNumber) halt() end
+      end -- for epochNumber
+         
    end -- method train
 
-   -- run L-BFGS algorithm; mutate self.model to contain updated parameters
-   -- private method
-   function Trainer:_trainLbfgs(opt)
-      print('trainLbfgs opt', opt)
-      print('trainLbfgs self', self)
-
-      x, dl_dx = self.model:getParameters()  -- create view of parameters
-      
-      function feval(x_new)
-         if x ~= x_new then
-            x:copy(x_new)
-         end
+function Trainer._validateOpt(opt)
          
-         dl_dx:zero() -- reset gradients
+         -- validate opt.algo
+         assert(opt.algo, 'opt.algo not supplied')
+         assert(opt.algo == 'sgd' or opt.algo == 'lbfgs', 
+                'opt.algo must be "sgd" or "lbfgs"')
          
-         local numSamples = 0
-         local loss_x = 0
-         for sampleIndex, sample in pairsFeatures(self.features) do
-            numSamples = numSamples + 1
-            local target = self.targets[sampleIndex]
-            loss_x = 
-               loss_x + self.criterion:forward(self.model:forward(sample), 
-                                               target)
-            self.model:backward(sample,
-                                self.criterion:backward(self.model.output,
-                                                        target))
+         -- validate opt.numEpochs and supply default
+         opt.numEpochs = opt.numEpochs or 100
+         validations.isIntegerGt0(opt.numEpochs,
+                                  'opt.numEpochs')
+
+         -- validate opt.verboseBatch and supply default
+         if opt.verboseBatch == nil then
+            opt.verboseBatch = true
          end
-         
-         -- average over the batch
-         loss_x = loss_x / numSamples
-         dl_dx = dl_dx:div(numSamples)
+         validations.isBoolean(opt.verboseBatch,
+                               'opt.verboseBatch')
 
-         return loss_x, dl_dx
-      end -- function eval
-
-      _, fs = optim.lbfgs(feval, x, opt.optimParms)
-
-      if not optAlgo.quiet then
-         print('history of L-BFGS evaluations:')
-         print(fs)
-      end
-   end -- function trainLbfgs
-
-   -- run SGD algorithm; mutate self.model to contain updated parameters
-   -- private method
-   function Trainer:_trainSgd(opt)
-      print('trainSgd opt', opt) 
-      print('trainSgd self', self)
-
-      x, dl_dx = self.model:getParameters()  -- create view of parameters
-  
-      -- an epoch is a full cycle over the training samples
-      for epochNumber = 1,opt.algoParms.numEpochs do
-      
-         -- determine average loss over entire training set
-         local numSamples = 0
-         local cumLoss = 0
-         for sampleIndex, sample in pairsFeatures(self.features) do
-            numSamples = numSamples + 1
-            target = self.targets[sampleIndex]
-            --print('trainSgd sampleIndex', sampleIndex)
-            --print('trainSgd sample', sample)
-            --print('trainSgd target', target)
-            
-            -- nest feval so that it can easily access sample and target
-            function feval(x_new)
-               if x ~= x_new then
-                  x:copy(x_new)
-               end
-               dl_dx:zero()  -- reset gradient in the model
-               local loss_x =  
-                  self.criterion:forward(self.model:forward(sample), 
-                                         target)
-               self.model:backward(sample,
-                                   self.criterion:backward(self.model.output, 
-                                                           target))
-               return loss_x, dl_dx
-            end -- function feval
-            
-            _, fs = optim.sgd(feval, x, opt.optimParms)
-            cumLoss = cumLoss + fs[1]
-         end -- for sampleIndex, sample
-
-         if not opt.quiet then
-            print(string.format('epoch %d of %d: average loss = %f',
-                                epochNumber, 
-                                opt.algoParms.numEpochs, 
-                                cumLoss / numSamples))
+         -- validate opt.verboseEpoch and supply default
+         if opt.verboseEpoch == nil then
+            opt.verboseEpoch = true
          end
-      end -- for epochNumber
-   end -- function trainSgd
+         validations.isBoolean(opt.verboseEpoch,
+                               'op.verboseEpoch')
 
-
-   -- return number of features and number of classes
-   -- private
-   function Trainer._getCounts(features, pairsFeatures, targets)
-      -- determine number of features and all possible target values
-      local numFeatures = 0
-      local targetSet = {}
-      local firstTime = true
-      for i, feature in pairsFeatures(features) do
-         if firstTime then
-            assert(type(feature) == 'userdata',
-                  'features element is not a Tensor')
-            assert(feature:nDimension() == 1,
-                   'features element is not a 1D Tensor')
-            numFeatures = feature:size(1)
-            assert(numFeatures, 'features element is not a Tensor')
-            firstTime = false
+         -- validate opt.optimParams types and values 
+         -- because the function in optim do not do much validation
+         -- the optimization function have defaults so don't set defaults here
+         if opt.optimParams == nil then
+            error('Must supply opt.optimParams even if its nil')
          end
-         targetSet[targets[i]] = true
-      end
+         if opt.algo == 'sgd' then
+            validations.isNilOrNumberGt0(opt.optimParams.learningRate,
+                                         'opt.optimParams.learningRate')
+            validations.isNilOrNumberGe0(opt.optimParams.learningRateDecay,
+                                         'opt.optimParams.learningRateDecay')
+            validations.isNilOrNumberGe0(opt.optimParams.weightDecay,
+                                         'opt.optimParams.weightDecay')
+            validations.isNilOrNumberGe0(opt.optimParams.momentum,
+                                         'opt.optimParams.momentum')
+            validations.isNilOrVectorGe0(opt.optimParams.learningRates,
+                                         'opt.optimParams.learningRates')
+            validations.isNilOrIntegerGe0(opt.optimParams.evalCounter,
+                                          'opt.optimParams.evalCounter')
 
-      -- count the number of elements in targetSet
-      -- the elements are not necessarily adjacent to each other
-      -- the elements are not necessarily integers or even numeric
-      local numClasses = 0
-      for _,_ in pairs(targetSet) do
-         numClasses = numClasses + 1
-      end
-      print('_getCounts results', numFeatures, numClasses)
-      return numFeatures, numClasses
-   end -- function Trainer._getCounts
+         elseif opt.algo == 'lbfgs' then
+            validations.isNilOrIntegerGt0(opt.optimParams.maxIter,
+                                          'opt.optimParams.maxIter')
+            validations.isNilOrNumberGt0(opt.optimParams.maxEval,
+                                         'opt.optimParams.maxEval')
+            validations.isNilOrNumberGe0(opt.optimParams.tolFun,
+                                         'opt.optimParams.tolFun')
+            validations.isNilOrNumberGe0(opt.optimParams.tolX,
+                                         'opt.optimParams.tolX')
+            validations.isNilOrFunction(opt.optimParams.lineSearch,
+                                        'opt.optimParams.lineSearch')
+            validations.isNilOrIntegerGe0(opt.optimParams.learningRate,
+                                          'opt.optimParams.learningRate')
+            validations.isNilOrBoolean(opt.optimParams.verbose,
+                                       'opt.optimParams.verbose')
+
+         else
+            error('logic error; opt.algo=' .. opt.algo)
+         end
+      end -- of validations
+
 end -- class Trainer
                                      

@@ -12,27 +12,25 @@ require 'Validations'
 do
    local LogisticRegression = torch.class('LogisticRegression')
 
-   function LogisticRegression:__init(features, targets)
+   function LogisticRegression:__init(features, targets, 
+                                      numClasses, numDimensions)
       -- validate parameters
+      validations = Validations()
       assert(features, 'features no supplied')
       assert(targets, 'targets not supplied')
-
-      -- determine size of model
-      local numFeatures, numClasses = 
-         Trainer._getCounts(features, pairsFeatures, targets)
-      print('LogisticRegression numFeatures', numFeatures)
-      print('LogisticRegression numClasses', numClasses)
+      validations.isIntegerGt0(numClasses, 'numClasses')
+      validations.isIntegerGt0(numDimensions, 'numDimensions')
 
       -- define model
       self.model = nn.Sequential()
-      self.model:add(nn.Linear(numFeatures, numClasses))
+      self.model:add(nn.Linear(numDimensions, numClasses))
       self.model:add(nn.LogSoftMax())
 
       -- define loss function
       self.criterion = nn.ClassNLLCriterion()
 
       -- initialize a trainer object
-      self.trainer = Trainer(features, pairsFeatures, targets, 
+      self.trainer = Trainer(features, targets, 
                              self.model, self.criterion)
    end
 
@@ -41,18 +39,18 @@ do
       return self.trainer:estimate(query)
    end
 
-   function LogisticRegression:train(opt, pairsFeatures)
+   function LogisticRegression:train(nextBatch, opt)
       -- validate presence of parameters
-      -- more complicated training is done in the Trainer:train method
+      -- more complicated validation is done in the Trainer:train method
+      assert(nextBatch, 'nextBatch not supplied')
+      assert(type(nextBatch) == 'function',
+             'nextBatch must be a function')
+
       assert(opt, 'opt not supplied')
 
-      assert(pairsFeatures, 'pairsFeatures not supplied')
-      print(type(pairsFeatures))
-      assert(type(pairsFeatures) == 'function',
-             'pairsFeature must be a function returning an iterator')
    
 
-      self.trainer:train(opt, pairsFeatures)
+      self.trainer:train(nextBatch, opt)
    end
 
 end -- class LogisticRegression
