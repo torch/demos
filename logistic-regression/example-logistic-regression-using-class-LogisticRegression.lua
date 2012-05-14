@@ -269,7 +269,7 @@ end
 -- define the options L-BFGS
 opt = {
    algo = 'lbfgs',                -- use limited memory BFGS
-   numEpochs = 2,               -- for 100 epochs STOP EARLY FOR DEBUGGING
+   numEpochs = 1,               -- for 100 epochs STOP EARLY FOR DEBUGGING
    validate=true,                 -- check the opt table for correctness
    verboseBatch = true,           -- print results for each batch ...
    verboseEpochs = true,          -- .. and for each epoch
