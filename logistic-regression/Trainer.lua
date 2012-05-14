@@ -56,118 +56,10 @@ do
 
    -- Learn the parameters of the model using one of the optimization method
    -- from the optim package. 
-   -- + nextBatch : a "batch iterator" (described below) that defines how
+   -- + nextBatch : a "batch iterator" that defines how 
    --             : to iterate over the inputs and targets in batches
    -- + opt       : a table containing the optimization parameters
-
---[[ Description of batch iterators.
-
-The constructor for Trainer requires a parameter called nextBatch. It's 
-a "batch iterator." This section explains what a batch iterator is and
-how to write one.
-
-The purposes of nextBatch are to 
-
-- Define to the optimization procedure how to pull individual inputs
-  and targets out of the inputs and targets parameters. This allows
-  you to use many different data structures. For example, you can use
-  parallel arrays for inputs and targets. In that case, inputs[i]
-  corresponds to targets[i]. As another example, you can use a 2D
-  tensor to hold both the inputs and targets. In that case, you
-  might have a rows correspond to a sample where the first column is
-  the target. Or you might decided that a column corresponds to a
-  sample and the target is in the last row.
-
-- Define batches, which are sequences of training samples (inputs and 
-  targets that are used in one stage of optimization. Some optimization
-  procedures do not use batch and some require batches.
-
-The batch iterator nextBatch defines both the data structures and
-batches.
-
-The API for nextBatch is similar to that of Lua's next function, except that
-the keys are tables of indices and only one value is returned. The
-nextBatch(inputs, keys) function has this API:
-
-+ inputs : any Torch object (often a table or 2D tensor). This is 
-             the same inputs object passed to the Trainer's constructor.
-+ keys   : either nil or a table of indices for inputs.
-+ result : if keys == nil then
-             result is a table containing the initial indices of the
-             inputs. The inputs and targets are retrieved by
-             the Trainer through this iteration:
-           if keys represents the last portion of the batch then
-             result is nil
-           else
-             result is a table containing the next set of keys
-           end
-   
-The iteration employed in the training loop works like this:
-
-   local batchIndices = nextBatch(inputs, nil)
-   while batchIndices do
-      for _,index in ipairs(batchIndices) do
-          local input = inputs[index]
-          local target = targets[index]
-          <learn using feature (a 1D tensor)  and target (a number)>
-      end -- iteration over elements of the batch
-      batchIndices = nextBatch(inputs, batchIndices)                 
-   end -- iteration over batches               
-
---]]
-
---[[ opt table structure
-
-opt is a table with these fields and [default] values
-
-+ opt.algo         : string, name of the optim algorithm. One of
-                     "sgd" (stochastic gradient descent)
-                     "lbfgs" (L-BFGS)
-+ opt.numEpochs    : integer [100] > 0, number of epochs
-+ opt.optimParams  : table, parameters for the optim function
-                     described below
-+ opt.validate     : boolean [true], if true, the fields in
-                     opt.optimParams are checked for type and 
-                     reasonable values
-+ opt.verboseBatch : boolean[true], if true, loss of
-                     at each point in the batch is printed
-+ opt.verboseEpoch : boolean [true], if true, loss for
-                     each epoch is printed
-
-The table opt.optimParams is passed directly to the optimization
-function, but first its fields are validated if opt.algoParms.validate
-== true.
-
-Most of the optimParams have default values that are documented in the
-optim function. We recommend that you do not rely on default values,
-as the defaults may change when algorithms or implementations are
-enhanced.
-   
-The validations if opt.algo == 'sgd' are these:
-
-+ opt.optimParams.learningRate      : nil or number > 0
-+ opt.optimParams.learningRateDecay : nil or number >= 0 
-+ opt.optimParams.weightDecay       : nil or number >= 0
-+ opt.optimParams.momentum          : nil or number >= 0
-+ opt.optimParams.learningRates     : nil or vector of number >= 0
-+ opt.optimParams.evalCounter       : nil or integer >= 0
-  
-The validations if opt.algo == 'lbfgs' are these:
-
-+ opt.optimParams.maxIter      : nil or integer > 0
-+ opt.optimParams.maxEval      : nil or number > 0
-+ opt.optimParams.tolFun       : nil or number >= 0
-+ opt.optimParams.tolX         : nil or number >= 0
-+ opt.optimParams.lineSearch   : nil or a function
-+ opt.optimParams.learningRate : nil or integer >= 0
-+ opt.optimParams.verbose      : nil or boolean
-
---]]
-
-   -- Train the model using the criterion specified in construction,
-   -- the samples accessed through the nextBatch function, and the
-   -- options in table opt.
-   -- + opt       : table of optimization parameters
+   -- both of these parameters are described at the end of this file
    function Trainer:train(nextBatch, opt)
       print('Trainer:train opt\n', opt)
       print('Trainer:train self', self)
@@ -322,6 +214,110 @@ function Trainer._validateOpt(opt)
             error('logic error; opt.algo=' .. opt.algo)
          end
       end -- of validations
+
+--[[ Description of batch iterators.
+
+The constructor for Trainer requires a parameter called nextBatch. It's 
+a "batch iterator." This section explains what a batch iterator is and
+how to write one.
+
+The purposes of nextBatch are to 
+
+- Define to the optimization procedure how to pull individual inputs
+  and targets out of the inputs and targets parameters. This allows
+  you to use many different data structures. For example, you can use
+  parallel arrays for inputs and targets. In that case, inputs[i]
+  corresponds to targets[i]. As another example, you can use a 2D
+  tensor to hold both the inputs and targets. In that case, you
+  might have a rows correspond to a sample where the first column is
+  the target. Or you might decided that a column corresponds to a
+  sample and the target is in the last row.
+
+- Define batches, which are sequences of training samples (inputs and 
+  targets that are used in one stage of optimization. Some optimization
+  procedures do not use batch and some require batches.
+
+The batch iterator nextBatch defines both the data structures and
+batches.
+
+The API for nextBatch is similar to that of Lua's next function, except that
+the keys are tables of indices and only one value is returned. The
+nextBatch(inputs, keys) function has this API:
+
++ inputs : any Torch object (often a table or 2D tensor). This is 
+             the same inputs object passed to the Trainer's constructor.
++ keys   : either nil or a table of indices for inputs.
++ result : if keys == nil then
+             result is a table containing the initial indices of the
+             inputs. The inputs and targets are retrieved by
+             the Trainer through this iteration:
+           if keys represents the last portion of the batch then
+             result is nil
+           else
+             result is a table containing the next set of keys
+           end
+   
+The iteration employed in the training loop works like this:
+
+   local batchIndices = nextBatch(inputs, nil)
+   while batchIndices do
+      for _,index in ipairs(batchIndices) do
+          local input = inputs[index]
+          local target = targets[index]
+          <learn using feature (a 1D tensor)  and target (a number)>
+      end -- iteration over elements of the batch
+      batchIndices = nextBatch(inputs, batchIndices)                 
+   end -- iteration over batches               
+
+--]]
+
+--[[ opt table structure
+
+opt is a table with these fields and [default] values
+
++ opt.algo         : string, name of the optim algorithm. One of
+                     "sgd" (stochastic gradient descent)
+                     "lbfgs" (L-BFGS)
++ opt.numEpochs    : integer [100] > 0, number of epochs
++ opt.optimParams  : table, parameters for the optim function
+                     described below
++ opt.validate     : boolean [true], if true, the fields in
+                     opt.optimParams are checked for type and 
+                     reasonable values
++ opt.verboseBatch : boolean[true], if true, loss of
+                     at each point in the batch is printed
++ opt.verboseEpoch : boolean [true], if true, loss for
+                     each epoch is printed
+
+The table opt.optimParams is passed directly to the optimization
+function, but first its fields are validated if opt.algoParms.validate
+== true.
+
+Most of the optimParams have default values that are documented in the
+optim function. We recommend that you do not rely on default values,
+as the defaults may change when algorithms or implementations are
+enhanced.
+   
+The validations if opt.algo == 'sgd' are these:
+
++ opt.optimParams.learningRate      : nil or number > 0
++ opt.optimParams.learningRateDecay : nil or number >= 0 
++ opt.optimParams.weightDecay       : nil or number >= 0
++ opt.optimParams.momentum          : nil or number >= 0
++ opt.optimParams.learningRates     : nil or vector of number >= 0
++ opt.optimParams.evalCounter       : nil or integer >= 0
+  
+The validations if opt.algo == 'lbfgs' are these:
+
++ opt.optimParams.maxIter      : nil or integer > 0
++ opt.optimParams.maxEval      : nil or number > 0
++ opt.optimParams.tolFun       : nil or number >= 0
++ opt.optimParams.tolX         : nil or number >= 0
++ opt.optimParams.lineSearch   : nil or a function
++ opt.optimParams.learningRate : nil or integer >= 0
++ opt.optimParams.verbose      : nil or boolean
+
+--]]
 
 end -- class Trainer
                                      
