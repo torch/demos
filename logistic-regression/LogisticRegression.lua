@@ -15,11 +15,11 @@ do
    function LogisticRegression:__init(features, targets,  
                                       numClasses, numDimensions)
       -- validate parameters
-      validations = Validations()
-      assert(features, 'features no supplied')
-      assert(targets, 'targets not supplied')
-      validations.isIntegerGt0(numClasses, 'numClasses')
-      validations.isIntegerGt0(numDimensions, 'numDimensions')
+      Validations.isTable(self, 'self')
+      Validations.isNotNil(features, 'features')
+      Validations.isNotNil(targets, 'targets')
+      Validations.isIntegerGt0(numClasses, 'numClasses')
+      Validations.isIntegerGt0(numDimensions, 'numDimensions')
 
       -- define model
       self.model = nn.Sequential()
@@ -35,14 +35,18 @@ do
    end
 
    function LogisticRegression:estimate(query)
-      assert(query, 'query not supplied')
+      -- validate parameters
+      Validations.isFunction(self, 'self')
+      Validations.isNotNil(query, 'query')
+
       return self.trainer:estimate(query)
    end
 
    function LogisticRegression:train(nextBatch, opt)
 
       -- validate parameters
-      validations.isFunction(nextBatch, 'nextBatch')
+      Validations.isTable(self, 'self')
+      Validations.isFunction(nextBatch, 'nextBatch')
       assert(opt, 'opt not supplied') -- more validation is done in Trainer
 
       self.trainer:train(nextBatch, opt)

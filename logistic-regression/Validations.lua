@@ -8,26 +8,31 @@ do
    function Validations:__init()
    end
 
+   local function isType(value, name, expected)
+      if type(value) == expected then return end
+      error(name .. ' is a ' .. type(value) .. ' not a ' .. expected)
+   end
+
    function Validations.isBoolean(value, name)
       if value == nil then error(name .. ' is missing') end
-      if type(value) ~= 'boolean' then error(name .. ' is not a boolean') end
+      isType(value, name, 'boolean')
    end
 
    function Validations.isFunction(value, name)
       if value == nil then error(name .. ' is missing') end
-      if type(value) ~= 'function' then error(name .. ' is not a function') end
+      isType(value, name, 'function')
    end
 
    function Validations.isIntegerGe0(value, name)
       if value == nil then error(name .. ' is missing') end
-      if type(value) ~= 'number' then error(name..' is not a number') end
+      isType(value, name, 'number')
       if math.floor(value) ~= value then error(name..' is not an integer') end
       if value < 0 then error(name .. ' is not >= 0') end
    end
 
    function Validations.isIntegerGt0(value, name)
       if value == nil then error(name .. ' is missing') end
-      if type(value) ~= 'number' then error(name..' is not a number') end
+      isType(value, name, 'number')
       if math.floor(value) ~= value then error(name..' is not an integer')end
       if value <= 0 then error(name .. ' is not > 0') end
    end
@@ -75,25 +80,25 @@ do
 
    function Validations.isNumberGe0(value, name)
       if value == nil then error(name .. ' is missing') end
-      if type(value) ~= 'number' then error(name .. ' is not a number') end
+      isType(value, name, 'number')
       if value < 0 then error(name .. ' is not >= 0') end
    end
 
    function Validations.isNumberGt0(value, name)
       if value == nil then error(name .. ' is mising') end
-      if type(value) ~= 'number' then error(name .. ' is not a number') end
+      isType(value, name, 'number')
       if value <= 0 then error(name .. ' is not > 0') end
    end
 
    function Validations.isTable(value, name)
       if value == nil then error(name .. ' is missing') end
-      if type(value) ~= 'table' then error(name .. ' is not a table') end
+      isType(value, name, 'table')
    end
 
    -- each element >= 0
    function Validations.isVectorGe0(value, name)
       if value == nil then error(name .. ' is missing') end
-      if type(value) ~= 'userdata' then error(name .. ' is not a Tensor') end
+      isType(value, name, 'userdata')
       if value:nDimension() ~= 1 then 
 	 error(name .. ' is not a 1D Tensor') 
       end

@@ -34,31 +34,25 @@ do
 
    function Trainer:__init(features, targets, model, criterion)
       
-      -- check that parameters are supplied and have plausible types
-      validations = Validations()
-
-      assert(features, 'features no supplied')
-
-      assert(targets, 'targets not supplied')
-
-      validations.isTable(model, 'model')
-
-      validations.isTable(criterion, 'criterion')
-
+      -- validations
+      Validations.isNotNil(features, 'features')
+      Validations.isNotNil(targets, 'targets')
+      Validations.isTable(model, 'model')
+      Validations.isTable(criterion, 'criterion')
 
       -- save the parameters for training
       self.features = features
       self.targets = targets
       self.model = model
       self.criterion = criterion
-
-      print('__init self', self)
-      
    end
 
    -- Return estimate for the specified query. 
    -- + query: an object of the same type as a feature
    function Trainer:estimate(query)
+      Validations.isFunction(self, 'self')
+      Validations.isNotNil(query, 'query')
+
       return self.model:forward(query)
    end
 
@@ -181,12 +175,10 @@ The validations if opt.algo == 'lbfgs' are these:
       print('Trainer:train self', self)
 
       -- validate parameters
-      validations = Validations()
+      Validations.isNotNil(self, 'self')
+      Validations.isFunction(nextBatch, 'nextBatch')
+      Validations.isNotNil(opt, 'opt')
 
-      assert(nextBatch, 'nextBatch not supplied')
-      assert(type(nextBatch) == 'function', 'nextBatch is not a function')
-
-      assert(opt,'opt not supplied')
       if opt.validate == nil or opt.validate then
          Trainer._validateOpt(opt)
       end
@@ -271,21 +263,21 @@ function Trainer._validateOpt(opt)
          
          -- validate opt.numEpochs and supply default
          opt.numEpochs = opt.numEpochs or 100
-         validations.isIntegerGt0(opt.numEpochs,
+         Validations.isIntegerGt0(opt.numEpochs,
                                   'opt.numEpochs')
 
          -- validate opt.verboseBatch and supply default
          if opt.verboseBatch == nil then
             opt.verboseBatch = true
          end
-         validations.isBoolean(opt.verboseBatch,
+         Validations.isBoolean(opt.verboseBatch,
                                'opt.verboseBatch')
 
          -- validate opt.verboseEpoch and supply default
          if opt.verboseEpoch == nil then
             opt.verboseEpoch = true
          end
-         validations.isBoolean(opt.verboseEpoch,
+         Validations.isBoolean(opt.verboseEpoch,
                                'op.verboseEpoch')
 
          -- validate opt.optimParams types and values 
@@ -295,33 +287,33 @@ function Trainer._validateOpt(opt)
             error('Must supply opt.optimParams even if its nil')
          end
          if opt.algo == 'sgd' then
-            validations.isNilOrNumberGt0(opt.optimParams.learningRate,
+            Validations.isNilOrNumberGt0(opt.optimParams.learningRate,
                                          'opt.optimParams.learningRate')
-            validations.isNilOrNumberGe0(opt.optimParams.learningRateDecay,
+            Validations.isNilOrNumberGe0(opt.optimParams.learningRateDecay,
                                          'opt.optimParams.learningRateDecay')
-            validations.isNilOrNumberGe0(opt.optimParams.weightDecay,
+            Validations.isNilOrNumberGe0(opt.optimParams.weightDecay,
                                          'opt.optimParams.weightDecay')
-            validations.isNilOrNumberGe0(opt.optimParams.momentum,
+            Validations.isNilOrNumberGe0(opt.optimParams.momentum,
                                          'opt.optimParams.momentum')
-            validations.isNilOrVectorGe0(opt.optimParams.learningRates,
+            Validations.isNilOrVectorGe0(opt.optimParams.learningRates,
                                          'opt.optimParams.learningRates')
-            validations.isNilOrIntegerGe0(opt.optimParams.evalCounter,
+            Validations.isNilOrIntegerGe0(opt.optimParams.evalCounter,
                                           'opt.optimParams.evalCounter')
 
          elseif opt.algo == 'lbfgs' then
-            validations.isNilOrIntegerGt0(opt.optimParams.maxIter,
+            Validations.isNilOrIntegerGt0(opt.optimParams.maxIter,
                                           'opt.optimParams.maxIter')
-            validations.isNilOrNumberGt0(opt.optimParams.maxEval,
+            Validations.isNilOrNumberGt0(opt.optimParams.maxEval,
                                          'opt.optimParams.maxEval')
-            validations.isNilOrNumberGe0(opt.optimParams.tolFun,
+            Validations.isNilOrNumberGe0(opt.optimParams.tolFun,
                                          'opt.optimParams.tolFun')
-            validations.isNilOrNumberGe0(opt.optimParams.tolX,
+            Validations.isNilOrNumberGe0(opt.optimParams.tolX,
                                          'opt.optimParams.tolX')
-            validations.isNilOrFunction(opt.optimParams.lineSearch,
+            Validations.isNilOrFunction(opt.optimParams.lineSearch,
                                         'opt.optimParams.lineSearch')
-            validations.isNilOrIntegerGe0(opt.optimParams.learningRate,
+            Validations.isNilOrIntegerGe0(opt.optimParams.learningRate,
                                           'opt.optimParams.learningRate')
-            validations.isNilOrBoolean(opt.optimParams.verbose,
+            Validations.isNilOrBoolean(opt.optimParams.verbose,
                                        'opt.optimParams.verbose')
 
          else
