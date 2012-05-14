@@ -90,6 +90,7 @@ indexing will work. So we can pass the targets variable directly.
 
 --]]
 
+
 -- define the LogisticRegression object
 local numDimensions = 2
 local numClasses = 3
@@ -106,40 +107,18 @@ print('Training with SGD')
 
 --[[
 
-To train the model, we need to:
+To train the model, we need to 
 
-a. Define the parameters used to control the training procedure.
+3a. Define how to find the training samples in the features and targets
+   object.
 
-b. Tell the training procedure how to interpret the features and targets
-   variables passed during contruction.
+3b. Name the optimization procedure and define the parameters it uses.
 
 --]]
 
--- 3a. Defining the parameters.
+--[[ Define how to find the training samples.
 
-opt = {
-   algo = 'sgd',              -- use stochastic gradient descent
-   numEpochs = 100,           -- for 100 epochs
-   validate = true,           -- check the opt table for correctness
-   verboseBatch = false,      -- don't print results for each batch
-   verboseEpoch = true,       -- do print results for each epoch
-   optimParams = {learningRate = 1e-3,       -- initial learning rate
-                  learningRateDecay = 1e-4}, -- how initial rate decays
-}
-
-function printOptimizationParameters(opt)
-   print()
-   print('optimization parameters')
-   for k,v in pairs(opt) do
-      print(k,v)
-   end
-end
-
-printOptimizationParameters(opt)
-
---[[ 3b. Define how to find the training samples.
-
-We have defined how to do the optimization. Now we need to define how
+We have decide how to store our training samples. Now we need to define how
 the training procedure can find our samples. Each sample is made up of
 a feature (which must be a 1D tensor) and a target (which must be a
 Lua number). When we constructed logisticRegression, we passed
@@ -230,6 +209,29 @@ function nextBatchSgd(features, prevIndices)
       end
    end
 end
+
+
+-- 3b. Define the optimization approach and its parameters
+opt = {
+   algo = 'sgd',              -- use stochastic gradient descent
+   numEpochs = 100,           -- for 100 epochs
+   validate = true,           -- check the opt table for correctness
+   verboseBatch = false,      -- don't print results for each batch
+   verboseEpoch = true,       -- do print results for each epoch
+   optimParams = {learningRate = 1e-3,       -- initial learning rate
+                  learningRateDecay = 1e-4}, -- how initial rate decays
+}
+
+function printOptimizationParameters(opt)
+   print()
+   print('optimization parameters')
+   for k,v in pairs(opt) do
+      print(k,v)
+   end
+end
+
+printOptimizationParameters(opt)
+
 
 -- Train the model. The printout will contain the loss function values
 logisticRegression:train(nextBatchSgd, opt)

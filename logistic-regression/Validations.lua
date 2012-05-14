@@ -13,6 +13,11 @@ do
       if type(value) ~= 'boolean' then error(name .. ' is not a boolean') end
    end
 
+   function Validations.isFunction(value, name)
+      if value == nil then error(name .. ' is missing') end
+      if type(value) ~= 'function' then error(name .. ' is not a function') end
+   end
+
    function Validations.isIntegerGe0(value, name)
       if value == nil then error(name .. ' is missing') end
       if type(value) ~= 'number' then error(name..' is not a number') end
@@ -35,11 +40,10 @@ do
 
    function Validations.isNilOrFunction(value, name)
       if value == nil then return end
-      if type(value) ~= 'function' then error(name..' is not a function') end
+      Validations.isFunction(value, name)
    end
 
    function Validations.isNotNil(value, name)
-      print('Validations.isNotNil value name', value, name)
       if not (value == nil) then return end
       error(name .. ' is nil')
    end
@@ -70,16 +74,25 @@ do
    end
 
    function Validations.isNumberGe0(value, name)
+      if value == nil then error(name .. ' is missing') end
       if type(value) ~= 'number' then error(name .. ' is not a number') end
       if value < 0 then error(name .. ' is not >= 0') end
    end
 
    function Validations.isNumberGt0(value, name)
+      if value == nil then error(name .. ' is mising') end
       if type(value) ~= 'number' then error(name .. ' is not a number') end
       if value <= 0 then error(name .. ' is not > 0') end
    end
 
+   function Validations.isTable(value, name)
+      if value == nil then error(name .. ' is missing') end
+      if type(value) ~= 'table' then error(name .. ' is not a table') end
+   end
+
+   -- each element >= 0
    function Validations.isVectorGe0(value, name)
+      if value == nil then error(name .. ' is missing') end
       if type(value) ~= 'userdata' then error(name .. ' is not a Tensor') end
       if value:nDimension() ~= 1 then 
 	 error(name .. ' is not a 1D Tensor') 
@@ -88,6 +101,6 @@ do
 	 if value[i] < 0 then error(name .. ' is not element wise >= 0') end
       end
    end
-
+     
 
 end -- definition of class Validations

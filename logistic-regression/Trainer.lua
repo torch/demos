@@ -30,22 +30,24 @@ do
    -- + targets   : an object that contains the targets from the samples
    -- + model     : a table that behaves just like an nn model
    -- + criterion : a table that behaves just like an nn criterion
+
+
    function Trainer:__init(features, targets, model, criterion)
       
       -- check that parameters are supplied and have plausible types
+      validations = Validations()
+
       assert(features, 'features no supplied')
 
       assert(targets, 'targets not supplied')
 
-      assert(model, 'model not supplied')
-      assert(type(model) == 'table', 'model is not a table')
+      validations.isTable(model, 'model')
 
-      assert(criterion, 'criterion not supplied')
-      assert(type(criterion) == 'table', 'criterion is not a table')
+      validations.isTable(criterion, 'criterion')
+
 
       -- save the parameters for training
       self.features = features
-      self.pairsFeatures = pairsFeatures
       self.targets = targets
       self.model = model
       self.criterion = criterion
@@ -62,11 +64,34 @@ do
 
    -- Learn the parameters of the model using one of the optimization method
    -- from the optim package. 
-   -- + nextBatch : a "batch iterator" which is a function of two parameter
-   --             : returning one or two results with the API given below.
+   -- + nextBatch : a "batch iterator" (described below) that defines how
+   --             : to iterate over the features and targets in batches
    -- + opt       : a table containing the optimization parameters
 
---[[ batch iterator/nextBatch API
+--[[ Description of batch iterators.
+
+The constructor for Trainer requires a parameter called nextBatch. It's 
+a "batch iterator." This section explains what a batch iterator is and
+how to write one.
+
+The purposes of nextBatch are to 
+
+- Define to the optimization procedure how to pull individual features
+  and targets out of the features and targets parameters. This allows
+  you to use many different data structures. For example, you can use
+  parallel arrays for features and targets. In that case, features[i]
+  corresponds to targets[i]. As another example, you can use a 2D
+  tensor to hold both the features and targets. In that case, you
+  might have a rows correspond to a sample where the first column is
+  the target. Or you might decided that a column corresponds to a
+  sample and the target is in the last row.
+
+- Define batches, which are sequences of training samples (features and 
+  targets that are used in one stage of optimization. Some optimization
+  procedures do not use batch and some require batches.
+
+The batch iterator nextBatch defines both the data structures and
+batches.
 
 The API for nextBatch is similar to that of Lua's next function, except that
 the keys are tables of indices and only one value is returned. The
@@ -96,7 +121,7 @@ The iteration employed in the training loop works like this:
       end -- iteration over elements of the batch
       batchIndices = nextBatch(features, batchIndices)                 
    end -- iteration over batches               
-              
+
 --]]
 
 --[[ opt table structure
@@ -150,19 +175,17 @@ The validations if opt.algo == 'lbfgs' are these:
    -- Train the model using the criterion specified in construction,
    -- the samples accessed through the nextBatch function, and the
    -- options in table opt.
+   -- + opt       : table of optimization parameters
    function Trainer:train(nextBatch, opt)
-      print('Trainer:train nextBatch', nextBatch)
       print('Trainer:train opt\n', opt)
       print('Trainer:train self', self)
-      
+
+      -- validate parameters
       validations = Validations()
-      
-      -- validate nextBatch
+
       assert(nextBatch, 'nextBatch not supplied')
-      assert(type(nextBatch) == 'function',
-             'nextBatch not a function')
-      
-      -- validate opt
+      assert(type(nextBatch) == 'function', 'nextBatch is not a function')
+
       assert(opt,'opt not supplied')
       if opt.validate == nil or opt.validate then
          Trainer._validateOpt(opt)
