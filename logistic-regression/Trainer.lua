@@ -23,25 +23,23 @@ do
    local Trainer = torch.class('Trainer')
 
    -- Construct the trainer from: 
-   -- + features  : an object that contains the features from the samples
+   -- + inputs    : an object that contains the features from the samples
    --             : See the description of nextBatch, a parameter of the
-   --             : train method for how specific features and targets are
-   --             : extracted from the "features" and "targets" parameters.
+   --             : train method for how specific inputs and targets are
+   --             : extracted from the "inputss" and "targets" parameters.
    -- + targets   : an object that contains the targets from the samples
    -- + model     : a table that behaves just like an nn model
    -- + criterion : a table that behaves just like an nn criterion
-
-
-   function Trainer:__init(features, targets, model, criterion)
+   function Trainer:__init(inputs, targets, model, criterion)
       
       -- validations
-      Validations.isNotNil(features, 'features')
+      Validations.isNotNil(inputs, 'inputs')
       Validations.isNotNil(targets, 'targets')
       Validations.isTable(model, 'model')
       Validations.isTable(criterion, 'criterion')
 
       -- save the parameters for training
-      self.features = features
+      self.inputs = inputs
       self.targets = targets
       self.model = model
       self.criterion = criterion
@@ -59,7 +57,7 @@ do
    -- Learn the parameters of the model using one of the optimization method
    -- from the optim package. 
    -- + nextBatch : a "batch iterator" (described below) that defines how
-   --             : to iterate over the features and targets in batches
+   --             : to iterate over the inputs and targets in batches
    -- + opt       : a table containing the optimization parameters
 
 --[[ Description of batch iterators.
@@ -70,17 +68,17 @@ how to write one.
 
 The purposes of nextBatch are to 
 
-- Define to the optimization procedure how to pull individual features
-  and targets out of the features and targets parameters. This allows
+- Define to the optimization procedure how to pull individual inputs
+  and targets out of the inputs and targets parameters. This allows
   you to use many different data structures. For example, you can use
-  parallel arrays for features and targets. In that case, features[i]
+  parallel arrays for inputs and targets. In that case, inputs[i]
   corresponds to targets[i]. As another example, you can use a 2D
-  tensor to hold both the features and targets. In that case, you
+  tensor to hold both the inputs and targets. In that case, you
   might have a rows correspond to a sample where the first column is
   the target. Or you might decided that a column corresponds to a
   sample and the target is in the last row.
 
-- Define batches, which are sequences of training samples (features and 
+- Define batches, which are sequences of training samples (inputs and 
   targets that are used in one stage of optimization. Some optimization
   procedures do not use batch and some require batches.
 
@@ -89,31 +87,31 @@ batches.
 
 The API for nextBatch is similar to that of Lua's next function, except that
 the keys are tables of indices and only one value is returned. The
-nextBatch(features, keys) function has this API:
+nextBatch(inputs, keys) function has this API:
 
-+ features : any Torch object (often a table or 2D tensor). This is 
-             the same features object passed to the Trainer's constructor.
-+ keys     : either nil or a table of indices for features.
-+ result   : if keys == nil then
-               result is a table containing the initial indices of the
-               features. The features and targets are retrieved by
-               the Trainer through this iteration:
-             if keys represents the last portion of the batch then
-               result is nil
-             else
-               result is a table containing the next set of keys
-             end
++ inputs : any Torch object (often a table or 2D tensor). This is 
+             the same inputs object passed to the Trainer's constructor.
++ keys   : either nil or a table of indices for inputs.
++ result : if keys == nil then
+             result is a table containing the initial indices of the
+             inputs. The inputs and targets are retrieved by
+             the Trainer through this iteration:
+           if keys represents the last portion of the batch then
+             result is nil
+           else
+             result is a table containing the next set of keys
+           end
    
 The iteration employed in the training loop works like this:
 
-   local batchIndices = nextBatch(features, nil)
+   local batchIndices = nextBatch(inputs, nil)
    while batchIndices do
       for _,index in ipairs(batchIndices) do
-          local feature = features[index]
+          local input = inputs[index]
           local target = targets[index]
           <learn using feature (a 1D tensor)  and target (a number)>
       end -- iteration over elements of the batch
-      batchIndices = nextBatch(features, batchIndices)                 
+      batchIndices = nextBatch(inputs, batchIndices)                 
    end -- iteration over batches               
 
 --]]
@@ -200,10 +198,11 @@ The validations if opt.algo == 'lbfgs' are these:
          currentLoss = 0  -- TODO: make this local after all else works
          local numBatches = 0
          -- for each batch
-         local batchIndices = nextBatch(self.features, nil)
+         local batchIndices = nextBatch(self.inputs, nil)
          while batchIndices do
             assert(type(batchIndices) == 'table',
                    'nextBatch must return a table or nil')
+            --print('train batchIndices', batchIndices)
             numBatches = numBatches + 1
 
             -- API: Take a single point of evaluation (the parameter vector)
@@ -218,17 +217,20 @@ The validations if opt.algo == 'lbfgs' are these:
                -- iterate over the indices in the batch
                for _,nextIndex in pairs(batchIndices) do
                   numInBatch = numInBatch + 1
+                  local input = self.inputs[nextIndex]
+                  local target = self.targets[nextIndex]
+                  assert(input, 'self.inputs[nextIndex] is nil')
+                  assert(target, 'self.targets[nextIndex] is nil')
                   local lossOnSample = 
                      self.criterion:forward(
-                         self.model:forward(self.features[nextIndex]),
-                         self.targets[nextIndex])
-                     --print('feval loss', loss, self.targets[nextIndex],
-                     --      self.features[nextIndex])
+                         self.model:forward(input),
+                         target)
+                  --print('feval loss', loss, target, input)
                   cumLoss = cumLoss + lossOnSample
-                  self.model:backward(self.features[nextIndex],
+                  self.model:backward(input,
                                       self.criterion:backward(
                                          self.model.output,
-                                         self.targets[nextIndex]))
+                                         target))
                end
                return cumLoss / numInBatch, dl_dx / numInBatch
             end -- function feval
@@ -239,7 +241,7 @@ The validations if opt.algo == 'lbfgs' are these:
             end
             -- the last value in fs is the value at the optimimum x*
             currentLoss = currentLoss + fs[#fs]
-            batchIndices = nextBatch(self.features, batchIndices)
+            batchIndices = nextBatch(self.inputs, batchIndices)
          end -- loop over batches
 
          -- finished with all the batches
