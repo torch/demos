@@ -111,12 +111,11 @@ do
                   numInBatch = numInBatch + 1
                   local input = self.inputs[nextIndex]
                   local target = self.targets[nextIndex]
-                  assert(input, 'self.inputs[nextIndex] is nil')
-                  assert(target, 'self.targets[nextIndex] is nil')
+                  Validations.isTensor(input, 'inputs[nextIndex]')
+                  Validations.isNumber(target, 'targets[nextIndex]')
                   local lossOnSample = 
-                     self.criterion:forward(
-                         self.model:forward(input),
-                         target)
+                     self.criterion:forward(self.model:forward(input),
+                                            target)
                   --print('feval loss', loss, target, input)
                   cumLoss = cumLoss + lossOnSample
                   self.model:backward(input,
