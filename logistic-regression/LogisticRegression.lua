@@ -36,10 +36,20 @@ do
 
    function LogisticRegression:estimate(query)
       -- validate parameters
-      Validations.isFunction(self, 'self')
+      Validations.isTable(self, 'self')
       Validations.isNotNil(query, 'query')
 
       return self.trainer:estimate(query)
+   end
+
+   function LogisticRegression:getCriterion()
+      Validations.isTable(self, 'self')
+      return self.trainer:getCriterion()
+   end
+
+   function LogisticRegression:getModel()
+      Validations.isTable(self, 'self')
+      return self.trainer:getModel()
    end
 
    function LogisticRegression:train(nextBatch, opt)

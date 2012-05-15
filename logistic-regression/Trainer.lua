@@ -48,10 +48,22 @@ do
    -- Return estimate for the specified query. 
    -- + query: an object of the same type as a feature
    function Trainer:estimate(query)
-      Validations.isFunction(self, 'self')
+      Validations.isTable(self, 'self')
       Validations.isNotNil(query, 'query')
 
       return self.model:forward(query)
+   end
+
+   -- Return the criterion 
+   function Trainer:getCriterion()
+      Validations.isTable(self, 'self')
+      return self.criterion
+   end
+
+   -- Return the model
+   function Trainer:getModel()
+      Validations.isTable(self, 'self')
+      return self.model
    end
 
    -- Learn the parameters of the model using one of the optimization method
