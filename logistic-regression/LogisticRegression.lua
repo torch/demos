@@ -12,11 +12,11 @@ require 'Validations'
 do
    local LogisticRegression = torch.class('LogisticRegression')
 
-   function LogisticRegression:__init(features, targets,  
+   function LogisticRegression:__init(inputs, targets,  
                                       numClasses, numDimensions)
       -- validate parameters
       Validations.isTable(self, 'self')
-      Validations.isNotNil(features, 'features')
+      Validations.isNotNil(inputs, 'inputs')
       Validations.isNotNil(targets, 'targets')
       Validations.isIntegerGt0(numClasses, 'numClasses')
       Validations.isIntegerGt0(numDimensions, 'numDimensions')
@@ -30,7 +30,7 @@ do
       self.criterion = nn.ClassNLLCriterion()
 
       -- initialize a trainer object
-      self.trainer = Trainer(features, targets,
+      self.trainer = Trainer(inputs, targets,
                              self.model, self.criterion)
    end
 

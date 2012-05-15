@@ -87,10 +87,9 @@ do
       
       -- determine which optimization function to use
       local optimize
-      if opt.algo == 'sgd' then
-         optimize = optim.sgd
-      elseif opt.algo == 'lbfgs' then
-         optimize = optim.lbfgs
+      if     opt.algo == 'cg'    then optimize = optim.cg
+      elseif opt.algo == 'lbfgs' then optimize = optim.lbfgs
+      elseif opt.algo == 'sgd'   then optimize = optim.sgd
       else
          error('logic error; opt.algo=' .. opt.algo)
       end
@@ -163,8 +162,8 @@ function Trainer._validateOpt(opt)
          
          -- validate opt.algo
          assert(opt.algo, 'opt.algo not supplied')
-         assert(opt.algo == 'sgd' or opt.algo == 'lbfgs', 
-                'opt.algo must be "sgd" or "lbfgs"')
+         assert(opt.algo == 'sgd' or opt.algo == 'lbfgs' or opt.algo == "cg", 
+                'opt.algo must be "cg", "lbfgs", or "sgd"')
          
          -- validate opt.numEpochs and supply default
          opt.numEpochs = opt.numEpochs or 100
@@ -191,20 +190,21 @@ function Trainer._validateOpt(opt)
          if opt.optimParams == nil then
             error('Must supply opt.optimParams even if its nil')
          end
-         if opt.algo == 'sgd' then
-            Validations.isNilOrNumberGt0(opt.optimParams.learningRate,
-                                         'opt.optimParams.learningRate')
-            Validations.isNilOrNumberGe0(opt.optimParams.learningRateDecay,
-                                         'opt.optimParams.learningRateDecay')
-            Validations.isNilOrNumberGe0(opt.optimParams.weightDecay,
-                                         'opt.optimParams.weightDecay')
-            Validations.isNilOrNumberGe0(opt.optimParams.momentum,
-                                         'opt.optimParams.momentum')
-            Validations.isNilOrVectorGe0(opt.optimParams.learningRates,
-                                         'opt.optimParams.learningRates')
-            Validations.isNilOrIntegerGe0(opt.optimParams.evalCounter,
-                                          'opt.optimParams.evalCounter')
-
+         if opt.algo == 'cg' then
+            Validations.iSNilOrNumberGt0(opt.optimParams.rho,
+                                         'opt.optimParams.rho')
+            Validations.isNilOrNumberGt0(opt.optimParams.sig,
+                                         'opt.optimParams.sig')
+            Validations.isNilOrNumberGt0(opt.optimParams.int,
+                                         'opt.optimParams.int')
+            Validations.isNilOrNumberGt0(opt.optimParams.ext,
+                                         'opt.optimParams.ext')
+            Validations.isNilOrIntegerGt0(opt.optimParams.maxIter,
+                                          'opt.optimParams.maxIter')
+            Validations.isNilOrIntegerGt0(opt.optimParams.ratio,
+                                          'opt.optimParams.ratio')
+            Validations.isNilOrNumberGt0(opt.optimParams.maxEval,
+                                         'opt.optimParams.maxEval')
          elseif opt.algo == 'lbfgs' then
             Validations.isNilOrIntegerGt0(opt.optimParams.maxIter,
                                           'opt.optimParams.maxIter')
@@ -220,6 +220,20 @@ function Trainer._validateOpt(opt)
                                           'opt.optimParams.learningRate')
             Validations.isNilOrBoolean(opt.optimParams.verbose,
                                        'opt.optimParams.verbose')
+         elseif opt.algo == 'sgd' then
+            Validations.isNilOrNumberGt0(opt.optimParams.learningRate,
+                                         'opt.optimParams.learningRate')
+            Validations.isNilOrNumberGe0(opt.optimParams.learningRateDecay,
+                                         'opt.optimParams.learningRateDecay')
+            Validations.isNilOrNumberGe0(opt.optimParams.weightDecay,
+                                         'opt.optimParams.weightDecay')
+            Validations.isNilOrNumberGe0(opt.optimParams.momentum,
+                                         'opt.optimParams.momentum')
+            Validations.isNilOrVectorGe0(opt.optimParams.learningRates,
+                                         'opt.optimParams.learningRates')
+            Validations.isNilOrIntegerGe0(opt.optimParams.evalCounter,
+                                          'opt.optimParams.evalCounter')
+
 
          else
             error('logic error; opt.algo=' .. opt.algo)
