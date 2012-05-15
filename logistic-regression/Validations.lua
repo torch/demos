@@ -37,6 +37,18 @@ do
       isType(value, name, 'userdata')
    end
 
+   function Validations.is1DTensor(value, name)
+      Validations.isTensor(value, name)
+      assert(value:nDimension() == 1, 
+             name .. ' has ' .. value:nDimension() .. ' dimensions, not 1')
+   end
+
+   function Validations.is2DTensor(value, name)
+      Validations.isTensor(value, name)
+      assert(value:nDimension() == 2, 
+             name .. ' has ' .. value:nDimension() .. ' dimensions, not 2')
+   end
+
    function Validations.isIntegerGe0(value, name)
       isNotNil(value, name)
       isType(value, name, 'number')
@@ -110,11 +122,7 @@ do
 
    -- each element >= 0
    function Validations.isVectorGe0(value, name)
-      isNotNil(value, name)
-      isType(value, name, 'userdata')
-      if value:nDimension() ~= 1 then 
-	 error(name .. ' is not a 1D Tensor') 
-      end
+      Validations.is1DTensor(value, name)
       for i=1,value:size(1) do
 	 if value[i] < 0 then error(name .. ' is not element wise >= 0') end
       end
