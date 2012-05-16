@@ -142,13 +142,7 @@ do
                print('loss values during optimization procedure', fs)
             end
             -- the last value in fs is the value at the optimimum x*
-            -- some optimization functions sometimes return a number
-            -- instead of an array
-            if type(fs) == 'number' then
-               currentLoss = currentLoss + fs
-            else
-               currentLoss = currentLoss + fs[#fs]
-            end
+            currentLoss = currentLoss + fs[#fs]
             batchIndices = nextBatch(self.inputs, batchIndices)
          end -- loop over batches
 
