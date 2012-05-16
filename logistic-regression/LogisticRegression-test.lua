@@ -20,7 +20,7 @@ end
 -- prob(1) propTo exp(10*feature1 + 20*feature2)
 -- prob(2) propTo exp(20*feature1 + 10*feature2)
 -- prob(3) propTo exp( 1*feature1 +  1*feature2)
--- feature ~ N(0,1)
+-- feature ~ Uniform[0,1)
 -- 1000 observations
 function generateData()
 
@@ -79,7 +79,7 @@ function runTest(nextBatch, opt, requiredAccuracy)
    print(' Starting training of', opt.algo)
    lr:train(nextBatch, opt)
 
-   local accuracy = testEstimates('cg', lr, inputs, targets)
+   local accuracy = testEstimates(opt.algo, lr, inputs, targets)
    tester:assertge(accuracy, 
                    requiredAccuracy, 
                    opt.algo .. ' result not expected')
