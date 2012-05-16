@@ -191,7 +191,7 @@ function Trainer._validateOpt(opt)
             error('Must supply opt.optimParams even if its nil')
          end
          if opt.algo == 'cg' then
-            Validations.iSNilOrNumberGt0(opt.optimParams.rho,
+            Validations.isNilOrNumberGt0(opt.optimParams.rho,
                                          'opt.optimParams.rho')
             Validations.isNilOrNumberGt0(opt.optimParams.sig,
                                          'opt.optimParams.sig')
@@ -199,14 +199,14 @@ function Trainer._validateOpt(opt)
                                          'opt.optimParams.int')
             Validations.isNilOrNumberGt0(opt.optimParams.ext,
                                          'opt.optimParams.ext')
-            Validations.isNilOrIntegerGt0(opt.optimParams.maxIter,
+            Validations.isNilOrNumberGt0(opt.optimParams.maxIter,
                                           'opt.optimParams.maxIter')
-            Validations.isNilOrIntegerGt0(opt.optimParams.ratio,
+            Validations.isNilOrNumberGt0(opt.optimParams.ratio,
                                           'opt.optimParams.ratio')
             Validations.isNilOrNumberGt0(opt.optimParams.maxEval,
                                          'opt.optimParams.maxEval')
          elseif opt.algo == 'lbfgs' then
-            Validations.isNilOrIntegerGt0(opt.optimParams.maxIter,
+            Validations.isNilOrNumberGt0(opt.optimParams.maxIter,
                                           'opt.optimParams.maxIter')
             Validations.isNilOrNumberGt0(opt.optimParams.maxEval,
                                          'opt.optimParams.maxEval')
@@ -216,7 +216,7 @@ function Trainer._validateOpt(opt)
                                          'opt.optimParams.tolX')
             Validations.isNilOrFunction(opt.optimParams.lineSearch,
                                         'opt.optimParams.lineSearch')
-            Validations.isNilOrIntegerGe0(opt.optimParams.learningRate,
+            Validations.isNilOrNumberGe0(opt.optimParams.learningRate,
                                           'opt.optimParams.learningRate')
             Validations.isNilOrBoolean(opt.optimParams.verbose,
                                        'opt.optimParams.verbose')
