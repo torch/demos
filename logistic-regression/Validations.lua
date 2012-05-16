@@ -12,9 +12,10 @@ do
       if type(value) == nil then error(name .. ' is nil and should not be') end
    end
         
-   local function isType(value, name, expected)
+   local function isType(value, name, expected, userExpected)
       if type(value) == expected then return end
-      error(name .. ' is a ' .. type(value) .. ' not a ' .. expected)
+      userExpected = userExpected or expected
+      error(name .. ' is a ' .. type(value) .. ' not a ' .. userExpected)
    end
 
    function Validations.isBoolean(value, name)
@@ -32,9 +33,15 @@ do
       isType(value, name, 'number')
    end
 
+   function Validations.isNumberOrTensor(value, name)
+      isNotNil(value, name)
+      if type(value) == 'number' or type(value) == 'userdata' then return end
+      error(name .. ' is a ' .. type(value) .. ' not a number or Tensor')
+   end
+
    function Validations.isTensor(value, name)
       isNotNil(value, name)
-      isType(value, name, 'userdata')
+      isType(value, name, 'userdata', 'Tensor')
    end
 
    function Validations.is1DTensor(value, name)
