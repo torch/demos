@@ -123,12 +123,13 @@ do
                   local input = self.inputs[nextIndex]
                   local target = self.targets[nextIndex]
                   Validations.isTensor(input, 'inputs[nextIndex]')
-                  Validations.isNumber(target, 'targets[nextIndex]')
+                  Validations.isNumberOrTensor(target, 'targets[nextIndex]')
                   local lossOnSample = 
                      self.criterion:forward(self.model:forward(input),
                                             target)
                   --print('feval loss', loss, target, input)
                   cumLoss = cumLoss + lossOnSample
+                  -- print('Trainer:train target', target)
                   self.model:backward(input,
                                       self.criterion:backward(
                                          self.model.output,
@@ -136,7 +137,8 @@ do
                end
                return cumLoss / numInBatch, dl_dx / numInBatch
             end -- function feval
-
+            
+            --print('Trainer:train optimParams', optimParams)
             _, fs = optimize(feval, x, opt.optimParams)
             if opt.verboseBatch then
                print('loss values during optimization procedure', fs)
