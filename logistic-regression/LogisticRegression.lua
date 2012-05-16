@@ -21,6 +21,10 @@ do
       Validations.isIntegerGt0(numClasses, 'numClasses')
       Validations.isIntegerGt0(numDimensions, 'numDimensions')
 
+      -- save data for type validations
+      self.inputs = inputs
+      self.targets = targets
+
       -- define model
       self.model = nn.Sequential()
       self.model:add(nn.Linear(numDimensions, numClasses))
@@ -58,6 +62,14 @@ do
       Validations.isTable(self, 'self')
       Validations.isFunction(nextBatch, 'nextBatch')
       assert(opt, 'opt not supplied') -- more validation is done in Trainer
+
+      -- validate that an input is a Tensor and a target is a number
+      local indices = nextBatch(self.inputs, nil)
+      for k, index in pairs(indices) do
+         Validations.isTensor(self.inputs[index], '1st input')
+         Validations.isNumber(self.targets[index], '1st target')
+         break
+      end
 
       self.trainer:train(nextBatch, opt)
    end
