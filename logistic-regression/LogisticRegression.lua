@@ -1,4 +1,4 @@
--- logisticregression.lua
+-- LogisticRegression.lua
 -- define class LogisticRegression
 
 -- torch libraries
