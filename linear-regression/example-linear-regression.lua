@@ -142,7 +142,7 @@ feval = function(x_new)
    -- select a new training sample
    _nidx_ = (_nidx_ or 0) + 1
    if _nidx_ > (#data)[1] then _nidx_ = 1 end
-   --local idx = torch.random(1,(#data)[1])   -- (#data)[1] is the number of samples
+
    local sample = data[_nidx_]
    local target = sample[{ {1} }]      -- this funny looking syntax allows
    local inputs = sample[{ {2,3} }]    -- slicing of arrays.
