@@ -25,15 +25,13 @@ function next()
    print ''
 end
 
-next()
 print '----------------------------------------------------------------------'
 print 'creating a few tensors'
 
-t1 = torch.Tensor(3,5,5):zero()
-t1 = torch.zeros(3,5,5)
-print 't1 = torch.zeros(3,5,5)'
+t1 = torch.range(1,75):resize(3,5,5)
+print 't1 = torch.range(1,75):resize(3,5,5)'
 print 't1 = '
-print(t2)
+print(t1)
 
 t2 = torch.range(1,25):resize(5,5)
 print 't2 = torch.range(1,25):resize(5,5)'
@@ -48,13 +46,11 @@ print '----------------------------------------------------------------------'
 print 'the most basic slicing is done using the [] operator'
 print ''
 
-t1_1 = t1[2]
-
 print 't1 ='
 print( t1 )
 
-print 't1[1] ='
-print( t1_1 )
+print 't1[2] ='
+print( t1[2] )
 
 next()
 print '----------------------------------------------------------------------'
@@ -62,11 +58,11 @@ print 't1_1 is a view in the existing t1 tensor: changing the values'
 print 'in t1_1 directly affects t1:'
 print ''
 
-t1_1:fill(7)
-print 't1_1:fill(7)'
+t1[2]:fill(7)
+print 't1[2]:fill(7)'
 
-print 't1[1] ='
-print( t1_1 )
+print 't1[2] ='
+print( t1[2] )
 
 print 't1 ='
 print( t1 )
