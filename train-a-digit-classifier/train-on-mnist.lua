@@ -53,7 +53,10 @@ opt = cmd:parse(arg)
 torch.manualSeed(opt.seed)
 
 -- openmp
-if opt.threads > 1 then
+if torch.setnumthreads then
+   torch.setnumthreads(opt.threads)
+   print('<torch> set nb of threads to ' .. torch.getnumthreads())
+elseif opt.threads > 1 then
    require 'openmp'
    openmp.setDefaultNumThreads(opt.threads)
    print('<openmp> enabled with ' .. opt.threads .. ' threads')
