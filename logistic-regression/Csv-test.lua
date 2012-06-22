@@ -4,7 +4,7 @@
 require 'vardump'
 
 -- if instead use require, will not reload if edited during testing
-dofile 'csv.lua' 
+dofile 'Csv.lua' 
 
 
 tempfilename = "csv-test-delete-me.csv"

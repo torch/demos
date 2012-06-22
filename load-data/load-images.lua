@@ -18,7 +18,6 @@ require 'torch'
 require 'xlua'
 require 'image'
 
-
 ----------------------------------------------------------------------
 -- 1. Parse command-line arguments
 
@@ -27,7 +26,6 @@ op:option{'-d', '--dir', action='store', dest='dir', help='directory to load', r
 op:option{'-e', '--ext', action='store', dest='ext', help='only load files of this extension', default='jpg'}
 opt = op:parse()
 op:summarize()
-
 
 ----------------------------------------------------------------------
 -- 2. Load all files in directory
@@ -51,7 +49,6 @@ end
 if #files == 0 then
    error('given directory doesnt contain any files of type: ' .. opt.ext)
 end
-
 
 ----------------------------------------------------------------------
 -- 3. Sort file names

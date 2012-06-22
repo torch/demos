@@ -21,7 +21,7 @@ op:option{'-c', '--camera', action='store', dest='camidx',
           help='camera index: /dev/videoIDX', default=0}
 op:option{'-n', '--network', action='store', dest='network', 
           help='path to existing [trained] network',
-          default='face.net'}
+          default='face.net.ascii'}
 opt,args = op:parse()
 
 torch.setdefaulttensortype('torch.FloatTensor')
@@ -68,7 +68,7 @@ parse = inline.load [[
 
 -- load pre-trained network from disk
 network = nn.Sequential()
-network = torch.load(opt.network):float()
+network = torch.load(opt.network,'ascii'):float()
 network_fov = 32
 network_sub = 4
 
