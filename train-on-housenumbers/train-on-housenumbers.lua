@@ -36,6 +36,7 @@ cmd:option('-save', fname:gsub('.lua',''), 'subdirectory to save/log experiments
 cmd:option('-network', '', 'reload pretrained network')
 cmd:option('-model', 'convnet', 'type of model to train: convnet | mlp | linear')
 cmd:option('-full', false, 'use full dataset (~70,000 training samples)')
+cmd:option('-extra', false, 'use extra training samples dataset (~500,000 extra training samples)')
 cmd:option('-visualize', false, 'visualize input data and weights during training')
 cmd:option('-seed', 1, 'fixed input seed for repeatable experiments')
 cmd:option('-optimization', 'SGD', 'optimization method: SGD | ASGD | CG | LBFGS')
@@ -97,14 +98,16 @@ if opt.network == '' then
       local table = torch.Tensor{ {1,1},{1,2},{1,3},{1,4},{1,5},{1,6},{1,7},{1,8},{2,9},{2,10},{3,11},{3,12} }
       model:add(nn.SpatialConvolutionMap(table, 5, 5))
       model:add(nn.Tanh())
-      model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
+      --model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
+      model:add(nn.SpatialLPPooling(12,2,2,2,2,2))
       -- stage 2 : filter bank -> squashing -> max pooling
-      model:add(nn.SpatialConvolutionMap(nn.tables.random(12, 32, 4), 5, 5))
+      model:add(nn.SpatialConvolutionMap(nn.tables.random(12, 64, 4), 5, 5))
       model:add(nn.Tanh())
-      model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
+      --model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
+      model:add(nn.SpatialLPPooling(64,2,2,2,2,2))
       -- stage 3 : standard 2-layer neural network
-      model:add(nn.Reshape(32*5*5))
-      model:add(nn.Linear(32*5*5, 128))
+      model:add(nn.Reshape(64*5*5))
+      model:add(nn.Linear(64*5*5, 128))
       model:add(nn.Tanh())
       model:add(nn.Linear(128,#classes))
       ------------------------------------------------------------
@@ -152,7 +155,10 @@ criterion = nn.ClassNLLCriterion()
 ----------------------------------------------------------------------
 -- get/create dataset
 --
-if opt.full then
+if opt.extra then
+   trsize = 73257 + 531131
+   tesize = 26032
+elseif opt.full then
    trsize = 73257
    tesize = 26032
 else
@@ -163,9 +169,13 @@ end
 www = 'http://ufldl.stanford.edu/housenumbers/'
 train_file = 'train_32x32.mat'
 test_file = 'test_32x32.mat'
+extra_file = 'extra_32x32.mat'
 if not paths.filep(train_file) or not paths.filep(test_file) then
    os.execute('wget ' .. www .. train_file)
    os.execute('wget ' .. www .. test_file)
+end
+if opt.extra and not paths.filep(extra_file) then
+   os.execute('wget ' .. www .. extra_file)   
 end
 
 loaded = mattorch.load(train_file)
@@ -174,6 +184,21 @@ trainData = {
    labels = loaded.y[1],
    size = function() return trsize end
 }
+
+if opt.extra then
+   loaded = mattorch.load(extra_file)
+   trdata = torch.Tensor(trsize,3*32*32)
+   trdata[{ {1,(#trainData.data)[1]} }] = trainData.data
+   trdata[{ {(#trainData.data)[1]+1,-1} }] = loaded.X:reshape( (#loaded.X)[1],3*32*32 ):double():div(255)
+   trlabels = torch.Tensor(trsize)
+   trlabels[{ {1,(#trainData.labels)[1]} }] = trainData.labels
+   trlabels[{ {(#trainData.labels)[1]+1,-1} }] = loaded.y[1]
+   trainData = {
+      data = trdata,
+      labels = trlabels,
+      size = function() return trsize end
+   }
+end
 
 loaded = mattorch.load(test_file)
 testData = {
