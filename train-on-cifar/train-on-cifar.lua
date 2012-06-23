@@ -44,7 +44,7 @@ cmd:option('-weightDecay', 0, 'weight decay (SGD only)')
 cmd:option('-momentum', 0, 'momentum (SGD only)')
 cmd:option('-t0', 1, 'start averaging at t0 (ASGD only), in nb of epochs')
 cmd:option('-maxIter', 5, 'maximum nb of iterations for CG and LBFGS')
-cmd:option('-openmp', false, 'use OpenMP to //')
+cmd:option('-threads', false, 'nb of // threads')
 cmd:option('-threads', 2, 'nb of threads to use with OpenMP')
 cmd:text()
 opt = cmd:parse(arg)
@@ -52,12 +52,9 @@ opt = cmd:parse(arg)
 -- fix seed
 torch.manualSeed(opt.seed)
 
--- openmp
-if opt.openmp then
-   require 'openmp'
-   openmp.setDefaultNumThreads(opt.threads)
-   print('<OpenMP> enabled with ' .. opt.threads .. ' threads')
-end
+-- threads
+torch.setnumhtreads(opt.threads)
+print('<torch> set nb of threads to ' .. opt.threads)
 
 ----------------------------------------------------------------------
 -- define model to train

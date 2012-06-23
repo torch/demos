@@ -26,6 +26,8 @@ opt,args = op:parse()
 
 torch.setdefaulttensortype('torch.FloatTensor')
 
+torch.setnumthreads(4)
+
 -- blob parser
 parse = inline.load [[
       // get args
@@ -166,7 +168,6 @@ qt.connect(timer,
               p:start('display','fps')
               display()
               p:lap('display')
-              require 'openmp'
               timer:start()
               p:lap('full loop')
               p:printAll()

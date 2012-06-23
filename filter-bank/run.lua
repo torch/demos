@@ -12,7 +12,6 @@ require 'qtwidget'
 require 'qtuiloader'
 require 'qttorch'
 require 'camera'
-require 'openmp'
 require 'nn'
 
 -- parse args
@@ -27,6 +26,9 @@ win = qt.QtLuaPainter(widget.frame)
 
 -- setup camera
 camera = image.Camera(opt.camidx)
+
+-- threads
+torch.setnumthreads(4)
 
 -- filters
 filters = nn.SpatialConvolutionMap(nn.tables.random(3,16,1),5,5)
