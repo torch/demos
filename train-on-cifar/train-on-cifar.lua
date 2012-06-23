@@ -52,7 +52,7 @@ opt = cmd:parse(arg)
 torch.manualSeed(opt.seed)
 
 -- threads
-torch.setnumhtreads(opt.threads)
+torch.setnumthreads(opt.threads)
 print('<torch> set nb of threads to ' .. opt.threads)
 
 ----------------------------------------------------------------------
