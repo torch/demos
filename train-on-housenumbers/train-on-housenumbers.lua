@@ -35,7 +35,7 @@ cmd:text('Options:')
 cmd:option('-save', fname:gsub('.lua',''), 'subdirectory to save/log experiments in')
 cmd:option('-network', '', 'reload pretrained network')
 cmd:option('-model', 'convnet', 'type of model to train: convnet | mlp | linear')
-cmd:option('-full', false, 'use full dataset (50,000 samples)')
+cmd:option('-full', false, 'use full dataset (~70,000 training samples)')
 cmd:option('-visualize', false, 'visualize input data and weights during training')
 cmd:option('-seed', 1, 'fixed input seed for repeatable experiments')
 cmd:option('-optimization', 'SGD', 'optimization method: SGD | ASGD | CG | LBFGS')
@@ -53,7 +53,7 @@ opt = cmd:parse(arg)
 torch.manualSeed(opt.seed)
 
 -- threads
-torch.setnumhtreads(opt.threads)
+torch.setnumthreads(opt.threads)
 print('<torch> set nb of threads to ' .. opt.threads)
 
 ----------------------------------------------------------------------
@@ -169,17 +169,17 @@ if not paths.filep(train_file) or not paths.filep(test_file) then
 end
 
 loaded = mattorch.load(train_file)
-trainData.data {
-   data = loaded.X:reshape( (#loaded.X)[1],3*32*32 ),
-   labels = loaded.y,
+trainData = {
+   data = loaded.X:reshape( (#loaded.X)[1],3*32*32 ):double():div(255),
+   labels = loaded.y[1],
    size = function() return trsize end
 }
 
 loaded = mattorch.load(test_file)
-testData.data {
-   data = loaded.X:reshape( (#loaded.X)[1],3*32*32 ),
-   labels = loaded.y,
-   size = function() return trsize end
+testData = {
+   data = loaded.X:reshape( (#loaded.X)[1],3*32*32 ):double():div(255),
+   labels = loaded.y[1],
+   size = function() return tesize end
 }
 
 trainData.data = trainData.data[{ {1,trsize} }]
