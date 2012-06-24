@@ -46,6 +46,7 @@ cmd:option('-full', false, 'use full dataset (~70,000 training samples)')
 cmd:option('-extra', false, 'use extra training samples dataset (~500,000 extra training samples)')
 cmd:option('-visualize', false, 'visualize input data and weights during training')
 cmd:option('-seed', 1, 'fixed input seed for repeatable experiments')
+cmd:option('-plot', false, 'live plot')
 cmd:option('-optimization', 'SGD', 'optimization method: SGD | ASGD | CG | LBFGS')
 cmd:option('-learningRate', 1e-3, 'learning rate at t=0')
 cmd:option('-batchSize', 1, 'mini-batch size (1 = pure stochastic)')
@@ -79,12 +80,11 @@ if opt.network == '' then
       -- convolutional network 
       -- this is a typical convolutional network for vision:
       --   1/ the image is transformed into Y-UV space
-      --   2/ the Y (luminance) channel is locally normalized
-      --   3/ the first layer allocates for filters to the Y
-      --      channels, and just a few to the U and V channels
-      --   4/ the first two stages features are locally pooled
-      --      using a max-operator
-      --   5/ a two-layer neural network is applied on the
+      --   2/ the Y (luminance) channel is locally normalized,
+      --      while the U/V channels are more loosely normalized
+      --   3/ the first two stages features are locally pooled
+      --      using LP-pooling (P=2)
+      --   4/ a two-layer neural network is applied on the
       --      representation
       ------------------------------------------------------------
       -- reshape vector into a 3-channel image (RGB)
@@ -99,10 +99,10 @@ if opt.network == '' then
          -- normalize U+V (mean)
          unormer = nn.Sequential()
          unormer:add(nn.Narrow(1,2,1))
-         unormer:add(nn.SpatialSubtractiveNormalization(1, image.gaussian1D(21)))
+         unormer:add(nn.SpatialContrastiveNormalization(1, image.gaussian1D(31)))
          vnormer = nn.Sequential()
          vnormer:add(nn.Narrow(1,3,1))
-         vnormer:add(nn.SpatialSubtractiveNormalization(1, image.gaussian1D(21)))
+         vnormer:add(nn.SpatialContrastiveNormalization(1, image.gaussian1D(31)))
          -- package all modules
          normer = nn.ConcatTable()
          normer:add(ynormer)
@@ -111,22 +111,21 @@ if opt.network == '' then
       end
       model:add(normer)
       model:add(nn.JoinTable(1))
-      -- stage 1 : mean+std normalization -> filter bank -> squashing -> max pooling
-      local table = torch.Tensor{ {1,1},{1,2},{1,3},{1,4},{1,5},{1,6},{1,7},{1,8},{2,9},{2,10},{3,11},{3,12} }
-      model:add(nn.SpatialConvolutionMap(table, 5, 5))
+      -- stage 1 : filter bank -> squashing -> max pooling
+      model:add(nn.SpatialConvolutionMap(nn.tables.random(3,64,1), 5, 5))
       model:add(nn.Tanh())
-      model:add(nn.SpatialLPPooling(12,2,2,2,2,2))
+      model:add(nn.SpatialLPPooling(64,2,2,2,2,2))
       -- stage 2 : filter bank -> squashing -> max pooling
-      model:add(nn.SpatialSubtractiveNormalization(12, image.gaussian1D(7)))
-      model:add(nn.SpatialConvolutionMap(nn.tables.random(12, 512, 4), 5, 5))
+      model:add(nn.SpatialSubtractiveNormalization(64, image.gaussian1D(7)))
+      model:add(nn.SpatialConvolutionMap(nn.tables.random(64, 256, 4), 5, 5))
       model:add(nn.Tanh())
-      model:add(nn.SpatialLPPooling(512,2,2,2,2,2))
+      model:add(nn.SpatialLPPooling(256,2,2,2,2,2))
       -- stage 3 : standard 2-layer neural network
-      model:add(nn.SpatialSubtractiveNormalization(512, image.gaussian1D(7)))
-      model:add(nn.Reshape(512*5*5))
-      model:add(nn.Linear(512*5*5, 128))
+      model:add(nn.SpatialSubtractiveNormalization(256, image.gaussian1D(7)))
+      model:add(nn.Reshape(256*5*5))
+      model:add(nn.Linear(256*5*5, 20))
       model:add(nn.Tanh())
-      model:add(nn.Linear(128,#classes))
+      model:add(nn.Linear(20,#classes))
       ------------------------------------------------------------
 
    elseif opt.model == 'mlp' then
@@ -152,8 +151,7 @@ if opt.network == '' then
    end
 else
    print('<trainer> reloading previously trained network')
-   model = nn.Sequential()
-   model:read(torch.DiskFile(opt.network))
+   model = torch.load(opt.network)
 end
 
 -- retrieve parameters and gradients
@@ -355,9 +353,6 @@ function train(dataset)
    -- save/log current net
    local filename = paths.concat(opt.save, 'house.net')
    os.execute('mkdir -p ' .. sys.dirname(filename))
-   if sys.filep(filename) then
-      os.execute('mv ' .. filename .. ' ' .. filename .. '.old')
-   end
    print('<trainer> saving network to '..filename)
    torch.save(filename, model)
 
@@ -419,6 +414,8 @@ while true do
    -- plot errors
    trainLogger:style{['% mean class accuracy (train set)'] = '-'}
    testLogger:style{['% mean class accuracy (test set)'] = '-'}
-   trainLogger:plot()
-   testLogger:plot()
+   if opt.plot then
+      trainLogger:plot()
+      testLogger:plot()
+   end
 end
