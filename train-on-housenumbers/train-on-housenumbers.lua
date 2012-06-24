@@ -61,7 +61,7 @@ print('<torch> set nb of threads to ' .. opt.threads)
 -- define model to train
 -- on the 10-class classification problem
 --
-classes = {1,2,3,4,5,6,7,8,9,10}
+classes = {'1','2','3','4','5','6','7','8','9','0'}
 
 if opt.network == '' then
    -- define model to train
@@ -85,12 +85,22 @@ if opt.network == '' then
       -- stage 0 : RGB -> YUV -> normalize(Y)
       model:add(nn.SpatialColorTransform('rgb2yuv'))
       do
+         -- normalize Y
          ynormer = nn.Sequential()
          ynormer:add(nn.Narrow(1,1,1))
          ynormer:add(nn.SpatialContrastiveNormalization(1, image.gaussian1D(7)))
+         -- normalize U+V (mean)
+         unormer = nn.Sequential()
+         unormer:add(nn.Narrow(1,2,1))
+         unormer:add(nn.SpatialSubtractiveNormalization(1, image.gaussian1D(21)))
+         vnormer = nn.Sequential()
+         vnormer:add(nn.Narrow(1,3,1))
+         vnormer:add(nn.SpatialSubtractiveNormalization(1, image.gaussian1D(21)))
+         -- package all modules
          normer = nn.ConcatTable()
          normer:add(ynormer)
-         normer:add(nn.Narrow(1,2,2))
+         normer:add(unormer)
+         normer:add(vnormer)
       end
       model:add(normer)
       model:add(nn.JoinTable(1))
@@ -98,16 +108,16 @@ if opt.network == '' then
       local table = torch.Tensor{ {1,1},{1,2},{1,3},{1,4},{1,5},{1,6},{1,7},{1,8},{2,9},{2,10},{3,11},{3,12} }
       model:add(nn.SpatialConvolutionMap(table, 5, 5))
       model:add(nn.Tanh())
-      --model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
       model:add(nn.SpatialLPPooling(12,2,2,2,2,2))
       -- stage 2 : filter bank -> squashing -> max pooling
-      model:add(nn.SpatialConvolutionMap(nn.tables.random(12, 64, 4), 5, 5))
+      model:add(nn.SpatialSubtractiveNormalization(12, image.gaussian1D(7)))
+      model:add(nn.SpatialConvolutionMap(nn.tables.random(12, 512, 4), 5, 5))
       model:add(nn.Tanh())
-      --model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
-      model:add(nn.SpatialLPPooling(64,2,2,2,2,2))
+      model:add(nn.SpatialLPPooling(512,2,2,2,2,2))
       -- stage 3 : standard 2-layer neural network
-      model:add(nn.Reshape(64*5*5))
-      model:add(nn.Linear(64*5*5, 128))
+      model:add(nn.SpatialSubtractiveNormalization(512, image.gaussian1D(7)))
+      model:add(nn.Reshape(512*5*5))
+      model:add(nn.Linear(512*5*5, 128))
       model:add(nn.Tanh())
       model:add(nn.Linear(128,#classes))
       ------------------------------------------------------------
@@ -162,6 +172,8 @@ elseif opt.full then
    trsize = 73257
    tesize = 26032
 else
+   print '<trainer> WARNING: using reduced subset for quick experiments'
+   print '          (use -full or -extra to use complete training sets)'
    trsize = 2000
    tesize = 1000
 end
@@ -180,7 +192,7 @@ end
 
 loaded = mattorch.load(train_file)
 trainData = {
-   data = loaded.X:reshape( (#loaded.X)[1],3*32*32 ):double():div(255),
+   data = loaded.X:transpose(3,4):reshape( (#loaded.X)[1],3*32*32 ):double():div(255),
    labels = loaded.y[1],
    size = function() return trsize end
 }
@@ -189,7 +201,7 @@ if opt.extra then
    loaded = mattorch.load(extra_file)
    trdata = torch.Tensor(trsize,3*32*32)
    trdata[{ {1,(#trainData.data)[1]} }] = trainData.data
-   trdata[{ {(#trainData.data)[1]+1,-1} }] = loaded.X:reshape( (#loaded.X)[1],3*32*32 ):double():div(255)
+   trdata[{ {(#trainData.data)[1]+1,-1} }] = loaded.X:transpose(3,4):reshape( (#loaded.X)[1],3*32*32 ):double():div(255)
    trlabels = torch.Tensor(trsize)
    trlabels[{ {1,(#trainData.labels)[1]} }] = trainData.labels
    trlabels[{ {(#trainData.labels)[1]+1,-1} }] = loaded.y[1]
@@ -202,7 +214,7 @@ end
 
 loaded = mattorch.load(test_file)
 testData = {
-   data = loaded.X:reshape( (#loaded.X)[1],3*32*32 ):double():div(255),
+   data = loaded.X:transpose(3,4):reshape( (#loaded.X)[1],3*32*32 ):double():div(255),
    labels = loaded.y[1],
    size = function() return tesize end
 }
@@ -224,31 +236,13 @@ confusion = optim.ConfusionMatrix(classes)
 trainLogger = optim.Logger(paths.concat(opt.save, 'train.log'))
 testLogger = optim.Logger(paths.concat(opt.save, 'test.log'))
 
--- display function
-function display(input)
-   iter = iter or 0
+-- display
+if opt.visualize then
    require 'image'
-   win_input = image.display{image=input, win=win_input, zoom=2, legend='input'}
-   if iter%10 == 0 then
-      if opt.model == 'convnet' then
-         win_w1 = image.display{image=model:get(2).weight, zoom=4, nrow=10,
-                                min=-1, max=1,
-                                win=win_w1, legend='stage 1: weights', padding=1}
-         win_w2 = image.display{image=model:get(6).weight, zoom=4, nrow=30,
-                                min=-1, max=1,
-                                win=win_w2, legend='stage 2: weights', padding=1}
-      elseif opt.model == 'mlp' then
-         local W1 = torch.Tensor(model:get(2).weight):resize(2048,1024)
-         win_w1 = image.display{image=W1, zoom=0.5,
-                                min=-1, max=1,
-                                win=win_w1, legend='W1 weights'}
-         local W2 = torch.Tensor(model:get(2).weight):resize(10,2048)
-         win_w2 = image.display{image=W2, zoom=0.5,
-                                min=-1, max=1,
-                                win=win_w2, legend='W2 weights'}
-      end
-   end
-   iter = iter + 1
+   local trset = trainData.data[{ {1,100} }]:reshape(100,3,32,32)
+   local teset = testData.data[{ {1,100} }]:reshape(100,3,32,32)
+   image.display{image=trset, legend='training set', nrow=10, padding=1}
+   image.display{image=teset, legend='test set', nrow=10, padding=1}
 end
 
 -- training function
@@ -303,11 +297,6 @@ function train(dataset)
 
                           -- update confusion
                           confusion:add(output, targets[i])
-
-                          -- visualize?
-                          if opt.visualize then
-                             display(inputs[i])
-                          end
                        end
 
                        -- normalize gradients and f(X)
