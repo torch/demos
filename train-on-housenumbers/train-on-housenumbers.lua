@@ -13,6 +13,13 @@
 -- 3/ creation of a dataset as a simple Lua table
 -- 4/ description of training and test procedures
 --
+-- Note: the architecture of the convnet is based on Pierre Sermanet's
+-- work on this dataset (http://arxiv.org/abs/1204.3968). In particular
+-- the use of LP-pooling (with P=2) has a very positive impact on
+-- generalization. Normalization is not done exactly as proposed in
+-- the paper, and low-level (first layer) features are not fed to
+-- the classifier.
+--
 -- Clement Farabet
 ----------------------------------------------------------------------
 
