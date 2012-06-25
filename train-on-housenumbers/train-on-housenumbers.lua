@@ -173,7 +173,7 @@ trainData = {
 
 if opt.extra then
    loaded = mattorch.load(extra_file)
-   trdata = torch.Tensor(trsize,3*32*32)
+   trdata = torch.Tensor(trsize,3,32,32)
    trdata[{ {1,(#trainData.data)[1]} }] = trainData.data
    trdata[{ {(#trainData.data)[1]+1,-1} }] = loaded.X:transpose(3,4)
    trlabels = torch.Tensor(trsize)
