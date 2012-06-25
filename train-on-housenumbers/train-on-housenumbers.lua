@@ -298,7 +298,7 @@ function train(dataset)
 
       elseif opt.optimization == 'ASGD' then
          config = config or {eta0 = opt.learningRate,
-                             t0 = nbTrainingPatches * opt.t0}
+                             t0 = trsize * opt.t0}
          _,_,average = optim.asgd(feval, parameters, config)
 
       else
