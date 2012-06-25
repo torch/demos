@@ -173,7 +173,7 @@ trainData = {
 
 if opt.extra then
    loaded = mattorch.load(extra_file)
-   trdata = torch.Tensor(trsize,3*32*32)
+   trdata = torch.Tensor(trsize,3,32,32)
    trdata[{ {1,(#trainData.data)[1]} }] = trainData.data
    trdata[{ {(#trainData.data)[1]+1,-1} }] = loaded.X:transpose(3,4)
    trlabels = torch.Tensor(trsize)
@@ -298,7 +298,7 @@ function train(dataset)
 
       elseif opt.optimization == 'ASGD' then
          config = config or {eta0 = opt.learningRate,
-                             t0 = nbTrainingPatches * opt.t0}
+                             t0 = trsize * opt.t0}
          _,_,average = optim.asgd(feval, parameters, config)
 
       else
