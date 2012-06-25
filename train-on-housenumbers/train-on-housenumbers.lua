@@ -41,8 +41,6 @@ cmd:text()
 cmd:text('Options:')
 cmd:option('-save', fname:gsub('.lua',''), 'subdirectory to save/log experiments in')
 cmd:option('-network', '', 'reload pretrained network')
-cmd:option('-model', 'convnet', 'type of model to train: convnet | mlp | linear')
-cmd:option('-full', false, 'use full dataset (~70,000 training samples)')
 cmd:option('-extra', false, 'use extra training samples dataset (~500,000 extra training samples)')
 cmd:option('-visualize', false, 'visualize input data and weights during training')
 cmd:option('-seed', 1, 'fixed input seed for repeatable experiments')
@@ -53,7 +51,7 @@ cmd:option('-batchSize', 1, 'mini-batch size (1 = pure stochastic)')
 cmd:option('-weightDecay', 0, 'weight decay (SGD only)')
 cmd:option('-momentum', 0, 'momentum (SGD only)')
 cmd:option('-t0', 1, 'start averaging at t0 (ASGD only), in nb of epochs')
-cmd:option('-maxIter', 5, 'maximum nb of iterations for CG and LBFGS')
+cmd:option('-maxIter', 2, 'maximum nb of iterations for CG and LBFGS')
 cmd:option('-threads', 2, 'nb of threads to use')
 cmd:text()
 opt = cmd:parse(arg)
@@ -72,83 +70,57 @@ print('<torch> set nb of threads to ' .. opt.threads)
 classes = {'1','2','3','4','5','6','7','8','9','0'}
 
 if opt.network == '' then
-   -- define model to train
+   ------------------------------------------------------------
+   -- convolutional network 
+   -- this is a typical convolutional network for vision:
+   --   1/ the image is transformed into Y-UV space
+   --   2/ the Y (luminance) channel is locally normalized,
+   --      while the U/V channels are more loosely normalized
+   --   3/ the first two stages features are locally pooled
+   --      using LP-pooling (P=2)
+   --   4/ a two-layer neural network is applied on the
+   --      representation
+   ------------------------------------------------------------
+   -- top container
    model = nn.Sequential()
-
-   if opt.model == 'convnet' then
-      ------------------------------------------------------------
-      -- convolutional network 
-      -- this is a typical convolutional network for vision:
-      --   1/ the image is transformed into Y-UV space
-      --   2/ the Y (luminance) channel is locally normalized,
-      --      while the U/V channels are more loosely normalized
-      --   3/ the first two stages features are locally pooled
-      --      using LP-pooling (P=2)
-      --   4/ a two-layer neural network is applied on the
-      --      representation
-      ------------------------------------------------------------
-      -- reshape vector into a 3-channel image (RGB)
-      model:add(nn.Reshape(3,32,32))
-      -- stage 0 : RGB -> YUV -> normalize(Y)
-      model:add(nn.SpatialColorTransform('rgb2yuv'))
-      do
-         -- normalize Y
-         ynormer = nn.Sequential()
-         ynormer:add(nn.Narrow(1,1,1))
-         ynormer:add(nn.SpatialContrastiveNormalization(1, image.gaussian1D(7)))
-         -- normalize U+V (mean)
-         unormer = nn.Sequential()
-         unormer:add(nn.Narrow(1,2,1))
-         unormer:add(nn.SpatialContrastiveNormalization(1, image.gaussian1D(31)))
-         vnormer = nn.Sequential()
-         vnormer:add(nn.Narrow(1,3,1))
-         vnormer:add(nn.SpatialContrastiveNormalization(1, image.gaussian1D(31)))
-         -- package all modules
-         normer = nn.ConcatTable()
-         normer:add(ynormer)
-         normer:add(unormer)
-         normer:add(vnormer)
-      end
-      model:add(normer)
-      model:add(nn.JoinTable(1))
-      -- stage 1 : filter bank -> squashing -> max pooling
-      model:add(nn.SpatialConvolutionMap(nn.tables.random(3,64,1), 5, 5))
-      model:add(nn.Tanh())
-      model:add(nn.SpatialLPPooling(64,2,2,2,2,2))
-      -- stage 2 : filter bank -> squashing -> max pooling
-      model:add(nn.SpatialSubtractiveNormalization(64, image.gaussian1D(7)))
-      model:add(nn.SpatialConvolutionMap(nn.tables.random(64, 256, 4), 5, 5))
-      model:add(nn.Tanh())
-      model:add(nn.SpatialLPPooling(256,2,2,2,2,2))
-      -- stage 3 : standard 2-layer neural network
-      model:add(nn.SpatialSubtractiveNormalization(256, image.gaussian1D(7)))
-      model:add(nn.Reshape(256*5*5))
-      model:add(nn.Linear(256*5*5, 20))
-      model:add(nn.Tanh())
-      model:add(nn.Linear(20,#classes))
-      ------------------------------------------------------------
-
-   elseif opt.model == 'mlp' then
-      ------------------------------------------------------------
-      -- regular 2-layer MLP
-      ------------------------------------------------------------
-      model:add(nn.Linear(3*32*32, 1*32*32))
-      model:add(nn.Tanh())
-      model:add(nn.Linear(1*32*32, #classes))
-      ------------------------------------------------------------
-
-   elseif opt.model == 'linear' then
-      ------------------------------------------------------------
-      -- simple linear model: logistic regression
-      ------------------------------------------------------------
-      model:add(nn.Linear(3*32*32,#classes))
-      ------------------------------------------------------------
-
-   else
-      print('Unknown model type')
-      cmd:text()
-      error()
+   -- stage 0 : RGB -> YUV -> normalize(Y)
+   model:add(nn.SpatialColorTransform('rgb2yuv'))
+   do
+      -- normalize Y
+      ynormer = nn.Sequential()
+      ynormer:add(nn.Narrow(1,1,1))
+      ynormer:add(nn.SpatialContrastiveNormalization(1, image.gaussian1D(7)))
+      -- normalize U+V
+      unormer = nn.Sequential()
+      unormer:add(nn.Narrow(1,2,1))
+      unormer:add(nn.SpatialContrastiveNormalization(1, image.gaussian1D(15)))
+      vnormer = nn.Sequential()
+      vnormer:add(nn.Narrow(1,3,1))
+      vnormer:add(nn.SpatialContrastiveNormalization(1, image.gaussian1D(15)))
+      -- package all modules
+      normer = nn.ConcatTable()
+      normer:add(ynormer)
+      normer:add(unormer)
+      normer:add(vnormer)
    end
+   model:add(normer)
+   model:add(nn.JoinTable(1))
+   -- stage 1 : filter bank -> squashing -> max pooling
+   model:add(nn.SpatialConvolutionMap(nn.tables.random(3,16,1), 5, 5))
+   model:add(nn.Tanh())
+   model:add(nn.SpatialLPPooling(16,2,2,2,2,2))
+   -- stage 2 : filter bank -> squashing -> max pooling
+   model:add(nn.SpatialSubtractiveNormalization(16, image.gaussian1D(7)))
+   model:add(nn.SpatialConvolutionMap(nn.tables.random(16, 256, 4), 5, 5))
+   model:add(nn.Tanh())
+   model:add(nn.SpatialLPPooling(256,2,2,2,2,2))
+   -- stage 3 : standard 2-layer neural network
+   model:add(nn.SpatialSubtractiveNormalization(256, image.gaussian1D(7)))
+   model:add(nn.Reshape(256*5*5))
+   model:add(nn.Linear(256*5*5, 128))
+   model:add(nn.Tanh())
+   model:add(nn.Linear(128,#classes))
+   ------------------------------------------------------------
 else
    print('<trainer> reloading previously trained network')
    model = torch.load(opt.network)
@@ -173,14 +145,11 @@ criterion = nn.ClassNLLCriterion()
 if opt.extra then
    trsize = 73257 + 531131
    tesize = 26032
-elseif opt.full then
+else
+   print '<trainer> WARNING: using reduced trian set'
+   print '(use -extra to use complete training set, with extra samples)'
    trsize = 73257
    tesize = 26032
-else
-   print '<trainer> WARNING: using reduced subset for quick experiments'
-   print '          (use -full or -extra to use complete training sets)'
-   trsize = 2000
-   tesize = 1000
 end
 
 www = 'http://ufldl.stanford.edu/housenumbers/'
@@ -197,7 +166,7 @@ end
 
 loaded = mattorch.load(train_file)
 trainData = {
-   data = loaded.X:transpose(3,4):reshape( (#loaded.X)[1],3*32*32 ):double():div(255),
+   data = loaded.X:transpose(3,4),
    labels = loaded.y[1],
    size = function() return trsize end
 }
@@ -206,7 +175,7 @@ if opt.extra then
    loaded = mattorch.load(extra_file)
    trdata = torch.Tensor(trsize,3*32*32)
    trdata[{ {1,(#trainData.data)[1]} }] = trainData.data
-   trdata[{ {(#trainData.data)[1]+1,-1} }] = loaded.X:transpose(3,4):reshape( (#loaded.X)[1],3*32*32 ):double():div(255)
+   trdata[{ {(#trainData.data)[1]+1,-1} }] = loaded.X:transpose(3,4)
    trlabels = torch.Tensor(trsize)
    trlabels[{ {1,(#trainData.labels)[1]} }] = trainData.labels
    trlabels[{ {(#trainData.labels)[1]+1,-1} }] = loaded.y[1]
@@ -219,16 +188,10 @@ end
 
 loaded = mattorch.load(test_file)
 testData = {
-   data = loaded.X:transpose(3,4):reshape( (#loaded.X)[1],3*32*32 ):double():div(255),
+   data = loaded.X:transpose(3,4),
    labels = loaded.y[1],
    size = function() return tesize end
 }
-
-trainData.data = trainData.data[{ {1,trsize} }]
-trainData.labels = trainData.labels[{ {1,trsize} }]
-
-testData.data = testData.data[{ {1,tesize} }]
-testData.labels = testData.labels[{ {1,tesize} }]
 
 ----------------------------------------------------------------------
 -- define training and testing functions
@@ -244,8 +207,8 @@ testLogger = optim.Logger(paths.concat(opt.save, 'test.log'))
 -- display
 if opt.visualize then
    require 'image'
-   local trset = trainData.data[{ {1,100} }]:reshape(100,3,32,32)
-   local teset = testData.data[{ {1,100} }]:reshape(100,3,32,32)
+   local trset = trainData.data[{ {1,100} }]
+   local teset = testData.data[{ {1,100} }]
    image.display{image=trset, legend='training set', nrow=10, padding=1}
    image.display{image=teset, legend='test set', nrow=10, padding=1}
 end
@@ -257,6 +220,9 @@ function train(dataset)
 
    -- local vars
    local time = sys.clock()
+
+   -- shuffle at each epoch
+   shuffle = torch.randperm(trsize)
 
    -- do one epoch
    print('<trainer> on training set:')
@@ -270,8 +236,8 @@ function train(dataset)
       local targets = {}
       for i = t,math.min(t+opt.batchSize-1,dataset:size()) do
          -- load new sample
-         local input = dataset.data[i]
-         local target = dataset.labels[i]
+         local input = dataset.data[shuffle[i]]:double()
+         local target = dataset.labels[shuffle[i]]
          table.insert(inputs, input)
          table.insert(targets, target)
       end
@@ -378,7 +344,7 @@ function test(dataset)
       xlua.progress(t, dataset:size())
 
       -- get new sample
-      local input = dataset.data[t]
+      local input = dataset.data[t]:double()
       local target = dataset.labels[t]
 
       -- test sample
