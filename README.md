@@ -1,67 +1,43 @@
 # Demos & Turorials for Torch7.
 
-All the demos/tutorials provided in this package
-require the following dependencies to be installed, in
-order to work.
+All the demos/tutorials provided in this repo require Torch7 to be installed,
+as well as some extra (3rd-party) packages.
 
-## Install dependencies on Linux (Ubuntu > 9.04):
+## Install
 
-1/ Basic tools
+### Torch7
+Follow instructions on: [Torch7's homepage](http://www.torch.ch/).
 
-``` sh
-$ apt-get install gcc g++ git libreadline-dev cmake wget
-```
+### 3rd-party packages
 
-2/ QT4 (at least 4.4)
-
-``` sh
-$ apt-get install libqt4-core libqt4-gui libqt4-dev
-```
-
-3/ Extras
-
-``` sh
-$ apt-get install ffmpeg gnuplot
-```
-
-## Install dependencies on Mac OS X > 10.5:
-
-0/ Install the dev tools (gcc/g++ from Apple),
-   and we highly recommend to get Homebrew
-   (http://mxcl.github.com/homebrew/) as a replacement
-   for MacPorts.
-
-1/ Basic tools, using Homebrew:
-
-``` sh
-$ brew install git readline cmake wget
-```
-
-2/ Install QT4 (at least 4.4)
-
-``` sh
-$ brew install qt
-```
-
-3/ Extras
-
-``` sh
-$ brew install ffmpeg gnuplot
-```
-
-## Install Torch7 (full instructions on torch.ch) and extra packages
-
-``` sh
-$ git clone git://github.com/andresy/torch.git
-$ cd torch
-$ mkdir build; cd build
-$ cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local
-$ make install
-```
+Different demos/tutorials rely on different 3rd-party packages. If a demo
+crashes because it can't find a package then simply try to install it using 
+torch-pkg:
 
 ``` sh
 $ torch-pkg install image    # an image library for Torch7
 $ torch-pkg install nnx      # lots of extra neural-net modules
 $ torch-pkg install camera   # a camera interface for Linux/MacOS
 $ torch-pkg install ffmpeg   # a video decoder for most formats
+$ ...
 ```
+
+A complete list of packages can be obtained by doing:
+
+``` sh
+$ torch-pkg list
+```
+
+or checking out [this page](http://data.neuflow.org/torch).
+
+## Tutorials
+
+Each directory provides a tutorial or a demo, with no particular order.
+It's a good idea to have [Torch's documentation](http://www.torch.ch/)
+open on the side, for reference. As Torch is based on the Lua language,
+it's also a good idea to go through the [Lua 5.1](http://www.lua.org/manual/5.1/)
+book.
+
+## Credits
+
+These demos were slowly put together by: Clement Farabet & Roy Lowrance.
