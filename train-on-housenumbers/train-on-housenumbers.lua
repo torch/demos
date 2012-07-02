@@ -120,6 +120,7 @@ if opt.network == '' then
    model:add(nn.Linear(256*5*5, 128))
    model:add(nn.Tanh())
    model:add(nn.Linear(128,#classes))
+   model:add(nn.LogSoftMax())
    ------------------------------------------------------------
 else
    print('<trainer> reloading previously trained network')
@@ -136,7 +137,6 @@ print(model)
 ----------------------------------------------------------------------
 -- loss function: negative log-likelihood
 --
-model:add(nn.LogSoftMax())
 criterion = nn.ClassNLLCriterion()
 
 ----------------------------------------------------------------------
