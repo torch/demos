@@ -1,0 +1,9 @@
+====== Graphical models ======
+{{anchor:tutorials.graphical}}
+
+In this tutorial, we're going to learn how to define a graphical model,
+using the gm package, and do several things withe the model:
+
+	* inference
+	* decoding
+	* training

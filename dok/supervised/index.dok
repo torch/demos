@@ -1,0 +1,5 @@
+====== Supervised learning ======
+{{anchor:tutorials.supervised}}
+
+In this tutorial, we're going to learn how to define a model, and train
+it using a supervised approach.

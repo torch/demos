@@ -17,3 +17,7 @@ log/
 
 # Ignore emacs saved files
 *.*~
+
+# ignore datasets
+*.mat
+*.t7
