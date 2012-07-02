@@ -34,8 +34,8 @@ or checking out [this page](http://data.neuflow.org/torch).
 ### Documentation
 
 Torch's main documentation gets installed when you install Torch, and should
-be available in /usr/local/share/torch/html/index.html, or wherever you installed
-Torch.
+be available [here](file:///usr/local/share/torch/html/index.html), or wherever 
+you installed Torch.
 
 This repo also comes with documentation, in the form of tutorials. To make
 them available, simply issue the following command in this directory:
@@ -49,8 +49,9 @@ After that, a list of tutorials will be available in the documentation.
 ## Tutorials
 
 Each directory provides a tutorial or a demo, with no particular order.
-It's a good idea to have the local Torch documentation open on the side, for
-reference. As Torch is based on the Lua language,
+It's a good idea to have the local
+[Torch documentation](file:///usr/local/share/torch/html/index.html) open
+on the side, for reference. As Torch is based on the Lua language,
 it's also a good idea to go through the [Lua 5.1](http://www.lua.org/manual/5.1/)
 book.
 
