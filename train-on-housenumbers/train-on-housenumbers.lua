@@ -28,7 +28,6 @@ require 'nn'
 require 'nnx'
 require 'optim'
 require 'image'
-require 'mattorch'
 
 ----------------------------------------------------------------------
 -- parse command-line options
@@ -152,19 +151,21 @@ else
    tesize = 26032
 end
 
-www = 'http://ufldl.stanford.edu/housenumbers/'
-train_file = 'train_32x32.mat'
-test_file = 'test_32x32.mat'
-extra_file = 'extra_32x32.mat'
-if not paths.filep(train_file) or not paths.filep(test_file) then
+www = 'http://data.neuflow.org/data/housenumbers/'
+train_file = 'train_32x32.t7'
+test_file = 'test_32x32.t7'
+extra_file = 'extra_32x32.t7'
+if not paths.filep(train_file) then
    os.execute('wget ' .. www .. train_file)
+end
+if not paths.filep(test_file) then
    os.execute('wget ' .. www .. test_file)
 end
 if opt.extra and not paths.filep(extra_file) then
    os.execute('wget ' .. www .. extra_file)   
 end
 
-loaded = mattorch.load(train_file)
+loaded = torch.load(train_file,'ascii')
 trainData = {
    data = loaded.X:transpose(3,4),
    labels = loaded.y[1],
@@ -172,7 +173,7 @@ trainData = {
 }
 
 if opt.extra then
-   loaded = mattorch.load(extra_file)
+   loaded = torch.load(extra_file,'ascii')
    trdata = torch.Tensor(trsize,3,32,32)
    trdata[{ {1,(#trainData.data)[1]} }] = trainData.data
    trdata[{ {(#trainData.data)[1]+1,-1} }] = loaded.X:transpose(3,4)
@@ -186,7 +187,7 @@ if opt.extra then
    }
 end
 
-loaded = mattorch.load(test_file)
+loaded = torch.load(test_file,'ascii')
 testData = {
    data = loaded.X:transpose(3,4),
    labels = loaded.y[1],
