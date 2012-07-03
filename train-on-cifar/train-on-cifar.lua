@@ -20,7 +20,6 @@ require 'nn'
 require 'nnx'
 require 'optim'
 require 'image'
-require 'mattorch'
 
 ----------------------------------------------------------------------
 -- parse command-line options
@@ -160,8 +159,8 @@ else
    tesize = 1000
 end
 
-if not paths.dirp('cifar-10-batches-mat') then
-   local www = 'http://www.cs.toronto.edu/~kriz/cifar-10-matlab.tar.gz'
+if not paths.dirp('cifar-10-batches-t7') then
+   local www = 'http://data.neuflow.org/data/cifar-10-torch.tar.gz'
    local tar = sys.basename(www)
    os.execute('wget ' .. www .. '; '.. 'tar xvf ' .. tar)
 end
@@ -172,13 +171,13 @@ trainData = {
    size = function() return trsize end
 }
 for i = 0,4 do
-   subset = mattorch.load('cifar-10-batches-mat/data_batch_' .. (i+1) .. '.mat')
+   subset = torch.load('cifar-10-batches-t7/data_batch_' .. (i+1) .. '.t7', 'ascii')
    trainData.data[{ {i*10000+1, (i+1)*10000} }] = subset.data:t()
    trainData.labels[{ {i*10000+1, (i+1)*10000} }] = subset.labels
 end
 trainData.labels = trainData.labels + 1
 
-subset = mattorch.load('cifar-10-batches-mat/test_batch.mat')
+subset = torch.load('cifar-10-batches-t7/test_batch.t7', 'ascii')
 testData = {
    data = subset.data:t():double(),
    labels = subset.labels[1]:double(),
