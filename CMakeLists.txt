@@ -7,3 +7,12 @@ ADD_TORCH_DOK(dok/supervised tutorials_supervised "Tutorials" "Supervised Learni
 ADD_TORCH_DOK(dok/unsupervised tutorials_unsupervised "Tutorials" "Unsupervised Learning" 1.1)
 ADD_TORCH_DOK(dok/graphicalmodels tutorials_graphical "Tutorials" "Graphical Models" 1.2)
 ADD_TORCH_DOK(dok/gui tutorials_gui "Tutorials" "Graphical User Interfaces" 1.3)
+
+SET(luasrc linear-regression/example-linear-regression.lua
+		   logistic-regression/example-logistic-regression.lua
+		   train-a-digit-classifier/train-on-mnist.lua
+		   train-a-digit-classifier/dataset.lua
+		   train-on-cifar/train-on-cifar.lua
+		   train-on-housenumbers/train-on-housenumbers.lua)
+
+ADD_TORCH_PACKAGE(tutorials "" "${luasrc}" "Tutorials")
