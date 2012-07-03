@@ -26,13 +26,9 @@ print('')
 --  age: a positive integer
 
 -- The data are stored in a csv file 'example-logistic-regression.csv'
--- and read through the class Csv (required from ./csv.lua)
+-- and read with the csv package (torch-pkg install csv)
 
 require 'csv'
-
--- Build a table with one row for each observation
--- Each row will contain {brand, female, age}
-rows = {}
 
 -- The data are in a comma separated values (CSV) file. The first record
 -- contains field names and subsequent records contain data. The fields and
@@ -42,60 +38,29 @@ rows = {}
 -- - female: indicator for is-female: 1 if female, 0 otherwise; no quote chars
 -- - age: age of the person; no quote characters
 
--- Reading CSV files can be tricky. This code uses the Csv class for this.
+-- Reading CSV files can be tricky. This code uses the csv package for this:
+loaded = csv.load('example-logistic-regression.csv')
 
--- establish a scope to keep the global name space clean
-do 
-   local csv = Csv('example-logistic-regression.csv', 'r') -- r means read mode
-   -- read and check the header
-   local header = csv:read()  -- header is an array of strings
-   assert(header[1] == 'num', 'num not found where expected')
-   assert(header[2] == 'brand', 'brand not found where expected')
-   assert(header[3] == 'female', 'female not found where expected')
-   assert(header[4] == 'age', 'age not found where expected')
-   -- read and save each data line
-   while true do
-      local dataLine = csv:read()
-      -- dataLine is null if we have reached the end of file
-      if not dataLine then break end
-      -- the values are strings, so convert them to numbers by adding 0
-      rows[#rows+1] = {dataLine[2] + 0,
-		       dataLine[3] + 0,
-		       dataLine[4] + 0}
-   end
-   csv:close()
-end
-
--- print the first few rows
-print("brand female age")
-for i=1,10 do
-   print(string.format('%5d %6d %3d', rows[i][1], rows[i][2], rows[i][3]))
-end
-
--- Convert the rows table into a 2D Torch Tensor. The tensor form has the
+-- Convert the CSV table into dense tensors. The tensor form has the
 -- advantage that it stores its elements continguously (which leads to
 -- better performance) and a tensor allows one to select columns and rows
 -- easily, using slicing methods.
 
-data = torch.Tensor(rows)
+-- first convert each variable list to a tensor:
+brands = torch.Tensor(loaded.brand)
+females = torch.Tensor(loaded.female)
+ages = torch.Tensor(loaded.age)
 
-brands  = data[{ {}, {1} }]  -- the entire first column
-females = data[{ {}, {2} }]  -- the entire second column
-ages    = data[{ {}, {3} }]  -- the entire third column
+-- copy all the input variables into a single tensor:
+dataset_inputs = torch.Tensor( (#brands)[1],2 )
+dataset_inputs[{ {},1 }] = females
+dataset_inputs[{ {},2 }] = ages
+
+-- the outputs are just the brands
+dataset_outputs = brands
 
 -- To implement the model, we need to know how many categories there are.
-numberOfBrands = 0
-do
-   seen = {}
-   for i = 1,brands:size(1) do
-      -- brands[i] yields a 1D tensor
-      local nextBrand = brands[i][1]  -- extract the integer value
-      if not seen[nextBrand] then 
-         seen[nextBrand] = true
-      end
-   end
-   numberOfBrands = #seen
-end
+numberOfBrands = torch.max(dataset_outputs) - torch.min(dataset_outputs) + 1
 
 -- summarize the data
 function summarizeData()
@@ -112,13 +77,7 @@ function summarizeData()
    p('min age', torch.min(ages))
    p('max age', torch.max(ages))
 end
-
 summarizeData()
-
--- check that the number of brands is exactly equal to the max brand value
-if torch.max(brands) ~= numberOfBrands then
-   error('number of brands is off')
-end
 
 
 ----------------------------------------------------------------------
@@ -221,11 +180,10 @@ feval = function(x_new)
 
    -- select a new training sample
    _nidx_ = (_nidx_ or 0) + 1
-   if _nidx_ > (#data)[1] then _nidx_ = 1 end
+   if _nidx_ > (#dataset_inputs)[1] then _nidx_ = 1 end
 
-   local sample = data[_nidx_]
-   local target = sample[{ 1 }]        -- this funny looking syntax allows
-   local inputs = sample[{ {2,3} }]    -- slicing of arrays.
+   local inputs = dataset_inputs[_nidx_]
+   local target = dataset_outputs[_nidx_]
 
    -- reset gradients (gradients are always accumulated, to accomodate 
    -- batch methods)
@@ -234,15 +192,6 @@ feval = function(x_new)
    -- evaluate the loss function and its derivative wrt x, for that sample
    local loss_x = criterion:forward(model:forward(inputs), target)
    model:backward(inputs, criterion:backward(model.output, target))
-   
-   -- report on the parameters, which should be converging
-   if false then
-      local p = model:getParameters()
-      print(string.format(
-	    "parameters %0.2f %0.2f %0.2f %0.2f %0.2f %0.2f %0.2f %0.2f %0.2f", 
-	    p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9])
-	   )
-   end
 
    -- return loss(x) and dloss/dx
    return loss_x, dl_dx
@@ -282,7 +231,7 @@ for i = 1,epochs do
    current_loss = 0
 
    -- an epoch is a full loop over our training data
-   for i = 1,(#data)[1] do
+   for i = 1,(#dataset_inputs)[1] do
 
       -- optim contains several optimization algorithms. 
       -- All of these algorithms assume the same parameters:
@@ -303,7 +252,7 @@ for i = 1,epochs do
    end
 
    -- report average error on epoch
-   current_loss = current_loss / (#data)[1]
+   current_loss = current_loss / (#dataset_inputs)[1]
    print('epoch = ' .. i .. 
 	 ' of ' .. epochs .. 
 	 ' current loss = ' .. current_loss)
@@ -343,14 +292,13 @@ feval = function(x_new)
 
    -- and batch over the whole training dataset:
    local loss_x = 0
-   for i = 1,(#data)[1] do
+   for i = 1,(#dataset_inputs)[1] do
       -- select a new training sample
       _nidx_ = (_nidx_ or 0) + 1
-      if _nidx_ > (#data)[1] then _nidx_ = 1 end
+      if _nidx_ > (#dataset_inputs)[1] then _nidx_ = 1 end
 
-      local sample = data[_nidx_]
-      local target = sample[{ 1 }]        -- this funny looking syntax allows
-      local inputs = sample[{ {2,3} }]    -- slicing of arrays.
+      local inputs = dataset_inputs[_nidx_]
+      local target = dataset_outputs[_nidx_]
 
       -- evaluate the loss function and its derivative wrt x, for that sample
       loss_x = loss_x + criterion:forward(model:forward(inputs), target)
@@ -358,8 +306,8 @@ feval = function(x_new)
    end
 
    -- normalize with batch size
-   loss_x = loss_x / (#data)[1]
-   dl_dx = dl_dx:div( (#data)[1] )
+   loss_x = loss_x / (#dataset_inputs)[1]
+   dl_dx = dl_dx:div( (#dataset_inputs)[1] )
 
    -- return loss(x) and dloss/dx
    return loss_x, dl_dx
@@ -481,10 +429,10 @@ function makeKey(age, brand, female)
    return string.format('%2d%1d%1f', age, brand, female)
 end
 
-for _,row in pairs(rows) do
-   local brand = row[1]
-   local female = row[2]
-   local age = row[3]
+for i = 1,(#brands)[1] do
+   local brand = brands[i]
+   local female = females[i]
+   local age = ages[i]
    local key = makeKey (age, brand, female)
    counts[key] = (counts[key] or 0) + 1
 end
@@ -582,109 +530,3 @@ for female = 0,1 do
 	   )
    end
 end
-
-
-----------------------------------------------------------------------
--- 6. Assess accuracy on the training data.
-
--- We can compare our model with the UCLA model.
-
--- The table generated just above shows the brand that each model would
--- have predicted if it were to predict the brand that it estimated had
--- the highest probability. It also shows the distribution of actual
--- brand choices. All these results are conditioned on a specific value
--- for the female and age variables. The predictions are in the last
--- 3 columns of the table, where 'a' means the value predicted from the 
--- actual data, 't' means the value predicted from the text, and 'o' means
--- the value predicted from our model.
-
--- One can see that when our estimate differs from that implied by the 
--- actual data, our predicted probabilities are very different from the
--- actual probabilities. Also on (female,age) pairings where our model
--- differs from the actual, the text model is often correct.
-
--- Both the text model and our model use the same cost function and the
--- same parameters. The text model finds the parameters by using BFGS 
--- whereas our model uses stochastic gradient descent.
-
-print('')
-print('============================================================')
-print('Accuracy on training data')
-print('')
-
-countOfDifferences = {}
-function makeKey(female, age, actualBrand, textPrediction, ourPrediction)
-   return string.format('%6d %3d %6d %3d %4d',
-			female, age, 
-			actualBrand, textPrediction, ourPrediction)
-end
-
-for _,row in pairs(rows) do
-   local actualBrand = row[1]
-   local female = row[2]
-   local age = row[3]
-   local textPrediction = predictText(age, female)
-   local ourPrediction = predictOur(age, female)
-   if actualBrand == textPrediction then
-      numberCorrect = (numberCorrect or 0) + 1
-      countTextCorrect = (countTextCorrect or 0) + 1
-   end
-   if actualBrand == ourPrediction then
-      numberCorrect = (numberCorrect or 0) + 1
-      countOurCorrect = (countOurCorrect or 0) + 1
-   end
-   if (numberCorrect ~= 2) and (textPrediction ~= ourPrediction) then
-      local key = makeKey(female,age,actualBrand,textPrediction,ourPrediction)
-      countOfDifferences[key] = (countOfDifferences[key] or 0) + 1
-   end
-   countObservations = (countObservations or 0) + 1
-end
-
-print()
-print("Differences between text's predictions and our predictions")
-print("When only one prediction is correct")
-print('female age actual text our occurs')
-accuracyLine = '%-26s %6d'
-table.sort(countOfDifferences)
-for k,v in pairs(countOfDifferences) do
-   print(string.format('%-26s %6d', k, v))
-end
-
-print()
-function printCorrectFraction(name, numCorrect)
-   print(
-      string.format(
-	 'Fraction of %s predictions that were correct on training set = %f',
-	 name, numCorrect / countObservations))
-end
-
-printCorrectFraction('text', countTextCorrect)
-printCorrectFraction('our', countOurCorrect)
-
-print(' ')
-print('Frequency of each brand in training data')
-
-function countBrand(brandNumber)
-   local count = 0
-   for _,row in pairs(rows) do
-      local actualBrand = row[1]
-      if actualBrand == brandNumber then
-	 count = count + 1
-      end
-   end
-   return count
-end
-
-function printFrequency(brandNumber)
-   print(string.format('Brand %d occurs %f',
-		       brandNumber, countBrand(brandNumber) / #rows))
-end
-
-printFrequency(1)
-printFrequency(2)
-printFrequency(3)
-
-
--- Note that our predictions are less accurate than simply predicting
--- brand 2 no matter what age and female are!
-

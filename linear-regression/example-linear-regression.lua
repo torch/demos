@@ -129,7 +129,7 @@ x, dl_dx = model:getParameters()
 -- the value of the loss function at a given point x, and the gradient of
 -- that function with respect to x. x is the vector of trainable weights,
 -- which, in this example, are all the weights of the linear matrix of
--- our mode, plus one bias.
+-- our model, plus one bias.
 
 feval = function(x_new)
    -- set x to x_new, if differnt
@@ -177,7 +177,7 @@ sgd_params = {
 -- We're now good to go... all we have left to do is run over the dataset
 -- for a certain number of iterations, and perform a stochastic update 
 -- at each iteration. The number of iterations is found empirically here,
--- but should typically be determinined using cross-correlation.
+-- but should typically be determinined using cross-validation.
 
 -- we cycle 1e4 times over our training data
 for i = 1,1e4 do

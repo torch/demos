@@ -2,4 +2,661 @@
 {{anchor:tutorials.supervised}}
 
 In this tutorial, we're going to learn how to define a model, and train
-it using a supervised approach.
+it using a supervised approach. We're going to present and solve multiple problems of
+increasing complexity.
+
+
+
+
+
+===== Linear Regression =====
+
+This first example provides a very simple step-by-step example
+of linear regression, using ''Torch7'' 's neural network ([[..:nn:index|nn]]) package,
+and the optimization package ([[..:optim:index|optim]]).
+
+The code associated to this example can be found in linear-regression/example-linear-regression.lua .
+
+In this example, we consider a very simple regression problem, where we want to 
+predict the amount of corn produced by a farm, given the amount of fertilizer and
+intesticide used. In other words, we have two input variables, and one output variable.
+
+==== Definition of the model ====
+
+Linear regression is the simplest type of model. It is parametrized by a weight matrix ''W'', 
+and a bias vector ''b''. Mathematically, it can be written as:
+
+{{linear_regression.png}}
+
+To implement this model, we will use a [[..:nn#nn.Linear|Linear]] module, 
+which takes two inputs (fertilizer and insecticide) and produces one output
+(corn).
+
+Note that this linear model has 3 trainable parameters:
+  * 1 for the weight assigned to fertilizer
+  * 1 for the weight assigned to insecticide
+  * 1 for the weight assigned to the bias term
+
+<file lua>
+require 'nn'
+ninputs = 2
+noutputs = 1
+model = nn.Linear(ninputs, noutputs)
+</file>
+
+In the ''nn'' package, all the modules are self-contained building blocks, which might contain
+a set of trainable parameters, and if so, a set of similarily-sized matrices that are used to
+hold the gradients.
+
+At this stage, we can make predictions:
+
+<file lua>
+input = torch.randn(2)
+output = model:forward(input)
+</file>
+
+Also, the gradients wrt to all the parameters in the model, as well as wrt to the input of the model,
+can be computed this way:
+
+<file lua>
+input = torch.randn(2)
+grad_wrt_output = torch.randn(1)
+grad_wrt_input = model:backward(input, grad_wrt_output)
+</file>
+
+Given arbitrary trainable (nn) models, trainable parameters, and gradients can be obtained
+this way:
+
+<file lua>
+parameters,gradients = model:getParameters()
+</file>
+
+We will come back to this later, when we start training the model.
+
+==== Definition of a loss function ====
+
+Now that we have a model, we need to define a loss function to be minimized. In this
+regression example, what we want to do is minimize the mean-square error between
+the predictions (outputs of the model), and the groundtruth labels, across the entire
+dataset, which is defined as:
+
+{{loss.png}}
+
+With the per-sample loss defined as:
+
+{{mse_loss.png}}
+
+Torch7 provides a couple of standard loss functions, we will use
+[[..:nn#nn.MSECriterion|nn.MSECriterion]], which provides a readily-usable mean-square
+loss:
+
+<file lua>
+criterion = nn.MSECriterion()
+</file>
+
+Given a loss function and a model, we can now completely estimate the loss for a given
+sample/target pair, and also compute the gradients of this loss function wrt to the internal
+parameters of the model:
+
+<file lua>
+input = torch.randn(2)   -- a random input
+target = torch.randn(1)  -- a random target
+output = model:forward(input) -- estimate prediction
+loss = criterion:forward(output, target)  -- estimate loss
+
+grad_wrt_output = criterion:backward(output, target) -- estimate gradient wrt to model's output
+model:backward(input, grad_wrt_output) -- estimate gradients wrt to models' parameters
+</file>
+
+==== Creating the training data ====
+
+In all regression problems, some training data needs to be 
+provided. In a realistic scenarios, data comes from some database
+or file system, and needs to be loaded from disk. In that 
+tutorial, we create the data source as a Lua table.
+
+In general, the data can be stored in arbitrary forms, and using
+Lua's flexible table data structure is usually a good idea. 
+Here we store the data as a 2D Tensor, where each
+row represents a training sample, and each column a variable. The
+first column is the target variable, and the others are the
+input variables.
+
+The data are from an example in Schaum's Outline:
+Dominick Salvator and Derrick Reagle
+Shaum's Outline of Theory and Problems of Statistics and Economics
+2nd edition
+McGraw-Hill
+2002
+
+The data relate the amount of corn produced, given certain amounts
+of fertilizer and insecticide. See p 157 of the text.
+
+In this example, we want to be able to predict the amount of
+corn produced, given the amount of fertilizer and intesticide used.
+In other words: fertilizer & insecticide are our two input variables,
+and corn is our target value.
+
+The data entries have this format: ''{corn, fertilizer, insecticide}''.
+
+Here's how to initialize a Tensor with the data:
+
+<file lua>
+data = torch.Tensor{
+   {40,  6,  4},
+   {44, 10,  4},
+   {46, 12,  5},
+   {48, 14,  7},
+   {52, 16,  9},
+   {58, 18, 12},
+   {60, 22, 14},
+   {68, 24, 20},
+   {74, 26, 21},
+   {80, 32, 24}
+}
+</file>
+
+==== Training the model ====
+
+To minimize the loss function defined above, using the linear model defined
+in ''model'', we follow a stochastic gradient descent procedure (SGD).
+
+SGD is a good optimization algorithm when the amount of training data
+is large, and estimating the gradient of the loss function over the 
+entire training set is too costly (which is not the case in this example,
+but we'll be dealing with online problems across the entire tutorial,
+so better to start with the right tools).
+
+Given an arbitrarily complex model, we can retrieve its trainable
+parameters, and the gradients of our loss function wrt these 
+parameters by doing so:
+
+<file lua>
+x, dl_dx = model:getParameters()
+</file>
+
+We then need to define a closure, ''feval'', which computes
+the value of the loss function at a given point ''x'', and the gradient of
+that function with respect to ''x''. ''x'' is the vector of trainable weights,
+which, in this example, are all the weights of the linear matrix of
+our model, plus one bias. The form of this closure is imposed by the ''optim''
+package, in which all optimization methods require the ability to evaluate
+the value of a function and its derivatives wrt to the trainable ''x'', at
+any point ''x''.
+
+<file lua>
+feval = function(x_new)
+   -- set x to x_new, if differnt
+   -- (in this simple example, x_new will typically always point to x,
+   -- so the copy is really useless)
+   if x ~= x_new then
+      x:copy(x_new)
+   end
+
+   -- select a new training sample
+   _nidx_ = (_nidx_ or 0) + 1
+   if _nidx_ > (#data)[1] then _nidx_ = 1 end
+
+   local sample = data[_nidx_]
+   local target = sample[{ {1} }]      -- this funny looking syntax allows
+   local inputs = sample[{ {2,3} }]    -- slicing of arrays.
+
+   -- reset gradients (gradients are always accumulated, to accomodate 
+   -- batch methods)
+   dl_dx:zero()
+
+   -- evaluate the loss function and its derivative wrt x, for that sample
+   local loss_x = criterion:forward(model:forward(inputs), target)
+   model:backward(inputs, criterion:backward(model.output, target))
+
+   -- return loss(x) and dloss/dx
+   return loss_x, dl_dx
+end
+</file>
+
+Given the function above, we can now easily train the model using SGD.
+For that, we need to define four key parameters:
+  * a learning rate: the size of the step taken at each stochastic 
+    estimate of the gradient
+  * a weight decay, to regularize the solution (L2 regularization)
+  * a momentum term, to average steps over time
+  * a learning rate decay, to let the algorithm converge more precisely
+
+<file lua>
+sgd_params = {
+   learningRate = 1e-3,
+   learningRateDecay = 1e-4,
+   weightDecay = 0,
+   momentum = 0
+}
+</file>
+
+We're now good to go... all we have left to do is run over the dataset
+for a certain number of iterations, and perform a stochastic update 
+at each iteration. The number of iterations is found empirically here,
+but should typically be determinined using cross-validation.
+
+<file lua>
+-- we cycle 1e4 times over our training data
+for i = 1,1e4 do
+
+   -- this variable is used to estimate the average loss
+   current_loss = 0
+
+   -- an epoch is a full loop over our training data
+   for i = 1,(#data)[1] do
+
+      -- optim contains several optimization algorithms. 
+      -- All of these algorithms assume the same parameters:
+      --   + a closure that computes the loss, and its gradient wrt to x, 
+      --     given a point x
+      --   + a point x
+      --   + some parameters, which are algorithm-specific
+      
+      _,fs = optim.sgd(feval,x,sgd_params)
+
+      -- Functions in optim all return two things:
+      --   + the new x, found by the optimization method (here SGD)
+      --   + the value of the loss functions at all points that were used by
+      --     the algorithm. SGD only estimates the function once, so
+      --     that list just contains one value.
+
+      current_loss = current_loss + fs[1]
+   end
+
+   -- report average error on epoch
+   current_loss = current_loss / (#data)[1]
+   print('current loss = ' .. current_loss)
+
+end
+</file>
+
+Running this produces the following output:
+
+<file bash>
+current loss = 446.52843167045
+current loss = 209.72667362749
+current loss = 190.12634223999
+current loss = 174.55385751715
+current loss = 161.66828948384
+current loss = 150.98450667711
+current loss = 142.1093935021
+current loss = 134.72182736708
+current loss = 128.55920125807
+current loss = 123.40652701895
+current loss = 119.08760675586
+current loss = 115.45787300296
+current loss = 112.39857668915
+current loss = 109.81206467758
+current loss = 107.61793893366
+current loss = 105.74992971952
+current loss = 104.15334760711
+current loss = 102.78300513789
+current loss = 101.60151990016
+
+...
+
+current loss = 1.5817980707772
+current loss = 1.5817750296182
+current loss = 1.5817519936254
+current loss = 1.5817289627972
+current loss = 1.5817059371316
+current loss = 1.5816829166269
+current loss = 1.5816599012812
+</file>
+
+==== Testing the model ====
+
+Now that the model is trained, one can test it by evaluating it
+on new samples.
+
+The text solves the model exactly using matrix techniques and determines
+that ''corn = 31.98 + 0.65 * fertilizer + 1.11 * insecticides''
+
+We compare our approximate results with the text's results.
+
+<file lua>
+text = {40.32, 42.92, 45.33, 48.85, 52.37, 57, 61.82, 69.78, 72.19, 79.42}
+
+print('id  approx   text')
+for i = 1,(#data)[1] do
+   local myPrediction = model:forward(data[i][{{2,3}}])
+   print(string.format("%2d  %6.2f %6.2f", i, myPrediction[1], text[i]))
+end
+</file>
+
+Running this produces the following output:
+
+<file bash>
+id  approx   text
+ 1   40.10  40.32
+ 2   42.77  42.92
+ 3   45.22  45.33
+ 4   48.78  48.85
+ 5   52.34  52.37
+ 6   57.02  57.00
+ 7   61.92  61.82
+ 8   69.95  69.78
+ 9   72.40  72.19
+10   79.74  79.42
+</file>
+
+
+
+
+
+===== Logistic Regression =====
+
+The first example provided a step-by-step introduction to training a linear regression model.
+Linear regression is very limited, and is typically rarely used in practice. A slightly
+more powerful/interesting model is the logistic regression model. 
+
+The code associated to this example can be found in logistic-regression/example-logistic-regression.lua .
+
+In this new example, the problem we try to solve is the following:
+  * there are 3 brands and 2 explanatory variables 
+  * the variables are coded this way:
+    * brand: 1, 2 or 3
+    * female: 1 if the person is a female, 0 if a male
+    * age: a positive integer
+  * the goal is to predict the brand, given the variables ''female'' and ''age''
+
+==== Definition of the model ====
+
+Logistic regression
+is a probabilistic, linear classifier. As its linear counterpart, it is parametrized by a weight 
+matrix ''W'', and a bias vector ''b''. The outputs of the linear layer are then fed to
+a ''softmax'' layer, which produces a properly normalized probability distribution. Mathematically,
+it can be defined as:
+
+{{logistic_regression.png}}
+
+If we're interested in classification, then the final prediction is typically done by taking
+the ''argmax'' of this distribution:
+
+{{logistic_argmax.png}}
+
+in which case the ouput ''y'' is a scalar.
+
+In Torch, we construct such a model by using a container, to stack two layers: a 
+[[..:nn#nn.Linear|Linear]] module, and a [[..:nn#nn.LogSoftMax|LogSoftMax]] module.
+Note that we use a LogSoftMax instead of SoftMax, for numeric reasons. As we will
+see below, the loss function works with log-probabilities, so never really have
+to have regular probabitlies.
+
+In this example, we will have 2 input variables, and 3 output variables.
+
+<file lua>
+model = nn.Sequential()
+model:add( nn.Linear(2,3) )
+model:add( nn.LogSoftMax() )
+</file>
+
+Note that we use log
+
+==== Definition of the loss function ====
+
+We want to maximize the likelihood of the correct (target) class, for each sample in the dataset. 
+This is equivalent to minimizing the negative log-likelihood (NLL), or minimizing the 
+cross-entropy between the predictions of our model and the targets (training data). Mathematically,
+the per-sample loss can be defined as:
+
+{{nll_loss.png}}
+
+Given that the model already produces log-probabilities, the loss is quite straightforward
+to estimate. In Torch, we use the [[..:nn#nn.ClassNLLCriterion|ClassNLLCriterion]], which
+expects its ''input'' as being a vector of log-probabilities, and the ''target'' as being
+an integer pointing to the correct class.
+
+<file lua>
+criterion = nn.ClassNLLCriterion()
+</file>
+
+==== Creating the training data ====
+
+In this example, the data come from a tutorial on using R from UCLA, which can be 
+found [[http://www.ats.ucla.edu/stat/r/dae/mlogit.htm|here]].
+
+The model is one of brand preference, where there are 3 brands and 2
+explanatory variables. The variables are coded this way:
+ brand: 1, 2 or 3
+ female: 1 if the person is a female, 0 if a male
+ age: a positive integer
+
+The data are stored in a csv file 'example-logistic-regression.csv'
+and will be read using a 3rd-party package called ''csv''. As all torch packages,
+it can be installed like this (at the command line):
+
+<file bash>
+$ torch-pkg install csv
+</file>
+
+Then loaded as any regular Lua package:
+
+<file lua>
+require 'csv'
+</file>
+
+To construct our dataset, we first need to load it from the csv file:
+
+<file lua>
+data = csv.load('example-logistic-regression.csv')
+</file>
+
+The loaded ''data'' contains one list per variable in the original CSV file. We
+can easily turn eachh of these lists into tensors, to be able to access this
+data more efficiently (by using slicing) during training:
+
+<file lua>
+-- first convert each variable list to a tensor:
+brands = torch.Tensor(loaded.brand)
+females = torch.Tensor(loaded.female)
+ages = torch.Tensor(loaded.age)
+
+-- copy all the input variables into a single tensor:
+dataset_inputs = torch.Tensor( (#brands)[1],2 )
+dataset_inputs[{ {},1 }] = females
+dataset_inputs[{ {},2 }] = ages
+
+-- the outputs are just the brands
+dataset_outputs = brands
+</file>
+
+A this stage, we have two arrays: 
+  * ''dataset_inputs'', a ''Nx2''-dim array, with ''N'' the number of training examples, and ''2'' the nb of input variables; 
+  * ''dataset_outputs'', a ''N''-dim array of indices, pointing to the grountruth for each data point. Indices are in ''{1,...,N}''.
+
+==== Training the model ====
+
+For this example, we present two methods to learn the model's parameters:
+  * Stochastic Gradient Descent (SGD): an online method, which typically scales well with large numbers of training samples
+  * L-BFGS: a second-order, batch-based optimization algorithm, which has been shown to converge extremely quickly in convex, deterministic optimization problems
+
+=== Stochastic Gradient Descent (SGD) ===
+
+As for the linear regression example, we now define a closure to estimate
+the value of the loss function at a given point ''x'', for a randomly
+sampled training pair ''{input,target}''.
+
+<file lua>
+-- params/gradients
+x, dl_dx = model:getParameters()
+
+-- closure
+feval = function(x_new)
+   -- set x to x_new, if differnt
+   -- (in this simple example, x_new will typically always point to x,
+   -- so the copy is really useless)
+   if x ~= x_new then
+      x:copy(x_new)
+   end
+
+   -- select a new training sample
+   _nidx_ = (_nidx_ or 0) + 1
+   if _nidx_ > (#dataset_inputs)[1] then _nidx_ = 1 end
+   local inputs = dataset_inputs[_nidx_]
+   local target = dataset_outputs[_nidx_]
+
+   -- reset gradients (gradients are always accumulated, to accomodate 
+   -- batch methods)
+   dl_dx:zero()
+
+   -- evaluate the loss function and its derivative wrt x, for that sample
+   local loss_x = criterion:forward(model:forward(inputs), target)
+   model:backward(inputs, criterion:backward(model.output, target))
+
+   -- return loss(x) and dloss/dx
+   return loss_x, dl_dx
+end
+</file>
+
+Then we go on by chosing the SGD parameters, and doing N epochs over
+the training data:
+
+<file lua>
+-- parameters:
+sgd_params = {
+   learningRate = 1e-3,
+   learningRateDecay = 1e-4,
+   weightDecay = 0,
+   momentum = 0
+}
+
+-- epochs
+epochs = 1e2
+for i = 1,epochs do
+
+   -- this variable is used to estimate the average loss
+   current_loss = 0
+
+   -- an epoch is a full loop over our training data
+   for i = 1,(#dataset_inputs)[1] do
+
+      -- optim contains several optimization algorithms. 
+      -- All of these algorithms assume the same parameters:
+      --   + a closure that computes the loss, and its gradient wrt to x, 
+      --     given a point x
+      --   + a point x
+      --   + some parameters, which are algorithm-specific
+
+      _,fs = optim.sgd(feval,x,sgd_params)
+
+      -- Functions in optim all return two things:
+      --   + the new x, found by the optimization method (here SGD)
+      --   + the value of the loss functions at all points that were used by
+      --     the algorithm. SGD only estimates the function once, so
+      --     that list just contains one value.
+
+      current_loss = current_loss + fs[1]
+   end
+
+   -- report average error on epoch
+   current_loss = current_loss / (#dataset_inputs)[1]
+   print('epoch = ' .. i .. 
+	 ' of ' .. epochs .. 
+	 ' current loss = ' .. current_loss)
+
+end
+</file>
+
+=== Batch, Second-order Optimization (L-BFGS) ===
+
+Now that we know how to train a model using simple SGD, we can
+use more complex optimization heuristics. In the following, we
+use a second-order method: L-BFGS, which typically yields
+more accurate results (for linear models), but can be significantly
+slower. For very large datasets, SGD is typically much faster
+to converge, and L-FBGS can be used to refine the results.
+
+All we need to do is re-define the eval closure such that it evaluates
+the loss function and the gradients on the full dataset, to compute
+the true loss, and the true gradients (reminder: SGD computes a very 
+noisy estimate of the loss function and gradients). Here's the code:
+
+<file lua>
+-- we start again, and reset the trained parameter vector:
+
+model:reset()
+
+-- next we re-define the closure that evaluates f and df/dx, so that
+-- it estimates the true f, and true (exact) df/dx, over the entire
+-- dataset. This is a full batch approach.
+
+feval = function(x_new)
+   -- set x to x_new, if differnt
+   -- (in this simple example, x_new will typically always point to x,
+   -- so the copy is really useless)
+   if x ~= x_new then
+      x:copy(x_new)
+   end
+
+   -- reset gradients (gradients are always accumulated, to accomodate 
+   -- batch methods)
+   dl_dx:zero()
+
+   -- and batch over the whole training dataset:
+   local loss_x = 0
+   for i = 1,(#dataset_inputs)[1] do
+      -- select a new training sample
+      _nidx_ = (_nidx_ or 0) + 1
+      if _nidx_ > (#dataset_inputs)[1] then _nidx_ = 1 end
+
+      local inputs = dataset_inputs[_nidx_]
+      local target = dataset_outputs[_nidx_]
+
+      -- evaluate the loss function and its derivative wrt x, for that sample
+      loss_x = loss_x + criterion:forward(model:forward(inputs), target)
+      model:backward(inputs, criterion:backward(model.output, target))
+   end
+
+   -- normalize with batch size
+   loss_x = loss_x / (#dataset_inputs)[1]
+   dl_dx = dl_dx:div( (#dataset_inputs)[1] )
+
+   -- return loss(x) and dloss/dx
+   return loss_x, dl_dx
+end
+</file>
+
+Doing the optimization is now really simple, we simple have to configure
+L-BFGS, and call it only once!
+
+<file lua>
+-- L-BFGS parameters are different than SGD:
+--   + a line search: we provide a line search, which aims at
+--                    finding the point that minimizes the loss locally
+--   + max nb of iterations: the maximum number of iterations for the batch,
+--                           which is equivalent to the number of epochs
+--                           on the given batch. In that example, it's simple
+--                           because the batch is the full dataset, but in
+--                           some cases, the batch can be a small subset
+--                           of the full dataset, in which case maxIter
+--                           becomes a more subtle parameter.
+
+lbfgs_params = {
+   lineSearch = optim.lswolfe,
+   maxIter = epochs,
+   verbose = true
+}
+
+print('Training with L-BFGS')
+_,fs = optim.lbfgs(feval,x,lbfgs_params)
+</file>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

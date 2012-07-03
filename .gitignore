@@ -21,3 +21,6 @@ log/
 # ignore datasets
 *.mat
 *.t7
+
+# ignore Mac OS dir files
+.DS_Store
