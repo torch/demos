@@ -647,11 +647,91 @@ _,fs = optim.lbfgs(feval,x,lbfgs_params)
 
 
 
+===== Convolutional Neural Networks (ConvNets) =====
 
+Convolutional Networks are trainable multistage architectures composed of multiple stages. The input and output of each stage are sets of arrays called feature maps. For example, if the input is a color image, each feature map would be a 2D array containing a color channel of the input image (for an audio input each feature map would be a 1D array, and for a video or volumetric image, it would be a 3D array). At the output, each feature map represents a particular feature extracted at all locations on the input. Each stage is composed of three layers: a filter bank layer, a non-linearity layer, and a feature pooling layer. A typical ConvNet is composed of one, two or three such 3-layer stages, followed by a classification module. Each layer type is now described for the case of image recognition.
 
+{{convnet.png?600}}
 
+Trainable hierarchical vision models, and more generally image processing algorithms are usually expressed as sequences of operations or transformations. They can be well described by a modular approach, in which each module processes an input image bank and produces a new bank. The figure above is a nice graphical illustration of this approach. Each module requires the previous bank to be fully (or at least partially) available before computing its output. This causality prevents simple parallelism to be implemented across modules. However parallelism can easily be introduced within a module, and at several levels, depending on the kind of underlying operations. These forms of parallelism are exploited in Torch7.
 
+Typical ConvNets rely on a few basic modules:
 
+  * Filter bank layer: the input is a 3D array with n1 2D feature maps of size n2 x n3. Each component is denoted x_ijk, and each feature map is denoted xi. The output is also a 3D array, y composed of m1 feature maps of size m2 x m3. A trainable filter (kernel) k_ij in the filter bank has size l1 x l2 and connects input feature map x to output feature map y_j. The module computes y_j = b_j + i_{kij} * x_i where * is the 2D discrete convolution operator and b_j is a trainable bias parameter. Each filter detects a particular feature at every location on the input. Hence spatially translating the input of a feature detection layer will translate the output but leave it otherwise unchanged.
+
+  * Non-Linearity Layer: In traditional ConvNets this simply consists in a pointwise tanh() sigmoid function applied to each site (ijk). However, recent implementations have used more sophisticated non-linearities. A useful one for natural image recognition is the rectified sigmoid Rabs: abs(g_i.tanh()) where g_i is a trainable gain parameter. The rectified sigmoid is sometimes followed by a subtractive and divisive local normalization N, which enforces local competition between adjacent features in a feature map, and between features at the same spatial location.
+
+  * Feature Pooling Layer: This layer treats each feature map separately. In its simplest instance, it computes the average values over a neighborhood in each feature map. Recent work has shown that more selective poolings, based on the LP-norm, tend to work best, with P=2, or P=inf (also known as max pooling). The neighborhoods are stepped by a stride larger than 1 (but smaller than or equal the pooling neighborhood). This results in a reduced-resolution output feature map which is robust to small variations in the location of features in the previous layer. The average operation is sometimes replaced by a max PM. Traditional ConvNets use a pointwise tanh() after the pooling layer, but more recent models do not. Some ConvNets dispense with the separate pooling layer entirely, but use strides larger than one in the filter bank layer to reduce the resolution. In some recent versions of ConvNets, the pooling also pools similar feature at the same location, in addition to the same feature at nearby locations.
+
+In this tutorial, we're going to train a variety of convolutional networks on 3 different datasets:
+
+  * The [[http://yann.lecun.com/exdb/mnist/|MNIST]] dataset: a handwritten digit recognition dataset,
+  * [[http://www.cs.toronto.edu/~kriz/cifar.html|CIFAR-10]]: a tiny image dataset, with 10 different classes of objects,
+  * The [[http://ufldl.stanford.edu/housenumbers/|SVHN]] (House Numbers) dataset, a dataset that looks a lot like MNIST, but with digits sampled from Street View images.
+
+For each dataset, we provide a script that basically does everything. You will find these scripts in:
+
+  * ''train-a-digit-classifier/'' (MNIST)
+  * ''train-on-cifar/'' (CIFAR-10)
+  * ''train-on-housenumbers/'' (SVHN)
+
+Each script provides an interface to load the training data, and we don't detail this in the tutorial (it's just mechanics and not really interesting).
+
+In this tutorial, we will discuss 2 things, that are common to all 3 datasets:
+
+  * describing a trainable ConvNet for each task, which includes pre-processing of the data
+  * training the model according to different optimization procedures
+
+Note that each script also provides flags to replace the ConvNet by a simple MLP
+(2-layer neural network), and logistic regression, for the purpose of comparison.
+
+==== Describing the trainable ConvNet ====
+
+Using the 'nn' package, describing ConvNets, MLPs and other forms of sequential trainable
+models is really easy. All we have to do is create a top-level wrapper, which, as for
+the logistic regression, is going to be a sequential module, and then append modules into
+it.
+
+For all 3 datasets, the input is ''32x32''. For MNIST, it's grayscale, for the two others,
+each pixel is encoded as an RGB triplet. For the next few paragraphs, we will assume that
+we're using the MNIST data, in which inputs are therefore 1024-dimensional.
+
+Let's start with a non-convolutional architecture, a simple 2-layer neural network. We
+arbitrarily set the number of hidden units as being twice as much as the inputs:
+
+<file lua>
+model = nn.Sequential()
+model:add(nn.Reshape(1024))
+model:add(nn.Linear(1024, 2048))
+model:add(nn.Tanh())
+model:add(nn.Linear(2048,10))
+</file>
+
+That model is self-explanatory. Moving on to a convolutional version of this, the simplest
+form of it would be:
+
+<file lua>
+model = nn.Sequential()
+-- layer 1:
+model:add(nn.SpatialConvolution(1, 16, 5, 5))
+model:add(nn.Tanh())
+model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
+-- layer 2:
+model:add(nn.SpatialConvolution(16, 128, 5, 5))
+model:add(nn.Tanh())
+model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
+-- layer 3, a simple 2-layer neural net:
+model:add(nn.Reshape(128*5*5))
+model:add(nn.Linear(128*5*5, 200))
+model:add(nn.Tanh())
+model:add(nn.Linear(200,10))
+</file>
+
+The basic building blocks of this simple ConvNet were all presented at the beginning of
+this section. For details on the basic modules used for this ConvNet, check out 
+this [[../nn:convolutionallayers|section]].
+
+==== Training the model ====
 
 
 
