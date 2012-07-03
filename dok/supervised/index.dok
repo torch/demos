@@ -13,9 +13,10 @@ increasing complexity.
 
 This first example provides a very simple step-by-step example
 of linear regression, using ''Torch7'' 's neural network ([[..:nn:index|nn]]) package,
-and the optimization package ([[..:optim:index|optim]]).
+and the optimization package ([[../optim:index|optim]]).
 
-The code associated to this example can be found in linear-regression/example-linear-regression.lua .
+The code associated to this example can be found in INSTALL_PREFIX/share/torch/lua/tutorials/:
+example-linear-regression.lua
 
 In this example, we consider a very simple regression problem, where we want to 
 predict the amount of corn produced by a farm, given the amount of fertilizer and
@@ -351,7 +352,8 @@ The first example provided a step-by-step introduction to training a linear regr
 Linear regression is very limited, and is typically rarely used in practice. A slightly
 more powerful/interesting model is the logistic regression model. 
 
-The code associated to this example can be found in logistic-regression/example-logistic-regression.lua .
+The code associated to this example can be found in INSTALL_PREFIX/share/torch/lua/tutorials/:
+example-logistic-regression.lua .
 
 In this new example, the problem we try to solve is the following:
   * there are 3 brands and 2 explanatory variables 
@@ -669,11 +671,12 @@ In this tutorial, we're going to train a variety of convolutional networks on 3 
   * [[http://www.cs.toronto.edu/~kriz/cifar.html|CIFAR-10]]: a tiny image dataset, with 10 different classes of objects,
   * The [[http://ufldl.stanford.edu/housenumbers/|SVHN]] (House Numbers) dataset, a dataset that looks a lot like MNIST, but with digits sampled from Street View images.
 
-For each dataset, we provide a script that basically does everything. You will find these scripts in:
+For each dataset, we provide a script that basically does everything. You will find these scripts
+installed in INSTALL_PREFIX/share/torch/lua/tutorials/:
 
-  * ''train-a-digit-classifier/'' (MNIST)
-  * ''train-on-cifar/'' (CIFAR-10)
-  * ''train-on-housenumbers/'' (SVHN)
+  * ''train-on-mnist.lua'' (MNIST)
+  * ''train-on-cifar.lua'' (CIFAR-10)
+  * ''train-on-housenumbers.lua'' (SVHN)
 
 Each script provides an interface to load the training data, and we don't detail this in the tutorial (it's just mechanics and not really interesting).
 
