@@ -20,7 +20,7 @@ require 'nn'
 require 'nnx'
 require 'optim'
 require 'image'
-require 'dataset'
+require 'dataset-mnist'
 
 ----------------------------------------------------------------------
 -- parse command-line options

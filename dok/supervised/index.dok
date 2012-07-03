@@ -13,7 +13,7 @@ increasing complexity.
 
 This first example provides a very simple step-by-step example
 of linear regression, using ''Torch7'' 's neural network ([[..:nn:index|nn]]) package,
-and the optimization package ([[../optim:index|optim]]).
+and the optimization package ([[..:optim:index|optim]]).
 
 The code associated to this example can be found in INSTALL_PREFIX/share/torch/lua/tutorials/:
 example-linear-regression.lua
@@ -29,7 +29,7 @@ and a bias vector ''b''. Mathematically, it can be written as:
 
 {{linear_regression.png}}
 
-To implement this model, we will use a [[..:nn#nn.Linear|Linear]] module, 
+To implement this model, we will use a [[..:nn:index#nn.Linear|Linear]] module, 
 which takes two inputs (fertilizer and insecticide) and produces one output
 (corn).
 
@@ -88,7 +88,7 @@ With the per-sample loss defined as:
 {{mse_loss.png}}
 
 Torch7 provides a couple of standard loss functions, we will use
-[[..:nn#nn.MSECriterion|nn.MSECriterion]], which provides a readily-usable mean-square
+[[..:nn:index#nn.MSECriterion|nn.MSECriterion]], which provides a readily-usable mean-square
 loss:
 
 <file lua>
@@ -381,7 +381,7 @@ the ''argmax'' of this distribution:
 in which case the ouput ''y'' is a scalar.
 
 In Torch, we construct such a model by using a container, to stack two layers: a 
-[[..:nn#nn.Linear|Linear]] module, and a [[..:nn#nn.LogSoftMax|LogSoftMax]] module.
+[[..:nn:index#nn.Linear|Linear]] module, and a [[..:nn:index#nn.LogSoftMax|LogSoftMax]] module.
 Note that we use a LogSoftMax instead of SoftMax, for numeric reasons. As we will
 see below, the loss function works with log-probabilities, so never really have
 to have regular probabitlies.
@@ -406,7 +406,7 @@ the per-sample loss can be defined as:
 {{nll_loss.png}}
 
 Given that the model already produces log-probabilities, the loss is quite straightforward
-to estimate. In Torch, we use the [[..:nn#nn.ClassNLLCriterion|ClassNLLCriterion]], which
+to estimate. In Torch, we use the [[..:nn:index#nn.ClassNLLCriterion|ClassNLLCriterion]], which
 expects its ''input'' as being a vector of log-probabilities, and the ''target'' as being
 an integer pointing to the correct class.
 
@@ -715,6 +715,7 @@ form of it would be:
 
 <file lua>
 model = nn.Sequential()
+model:add(nn.Reshape(1,32,32))
 -- layer 1:
 model:add(nn.SpatialConvolution(1, 16, 5, 5))
 model:add(nn.Tanh())
@@ -728,13 +729,117 @@ model:add(nn.Reshape(128*5*5))
 model:add(nn.Linear(128*5*5, 200))
 model:add(nn.Tanh())
 model:add(nn.Linear(200,10))
+model:add(nn.LogSoftMax())
 </file>
 
 The basic building blocks of this simple ConvNet were all presented at the beginning of
 this section. For details on the basic modules used for this ConvNet, check out 
-this [[../nn:convolutionallayers|section]].
+this [[..:nn:index#SpatialConvolution|section]]. This model should still be fairly
+self-explanatory, except for a couple of subtle details about the geometry (receptive
+field sizes) of each layer. Here's more info about this:
+
+  * the input has 1024 variables, and the first layer reshapes that vector into a 3D array of dimensions 1x32x32. It is the convention for all ''nn.Spatial*'' layers to work on 3D arrays, with the first dimension indexing different features, and the next two dimensions indexing the height and width of the image/map. For the MNIST case, there's only 1 input feature: the grayscale value.
+  * the fist layer applies 16 filters to the input map, each being ''5x5''. The receptive field of this first layer is ''5x5'', and the maps produced by it are therefore ''16x28x28''. This linear transform is then followed by a non-linearity (''tanh''), and a max-pooling function, which pools regions of size ''2x2'', and uses a stride of ''2x2''. The result of that operation is a ''16x14x14'' array, which represents a ''14x14'' map of 16-dimensional feature vectors. The receptive field of each unit at this stage is ''7x7''.
+  * the second layer is very much analogous to the first, excepet that now the 16-dim feature maps are projected into 128-dim maps, with a fully-connected connection table: each unit in the output array is influenced by a 16x5x5 neighborhood of features in the previous layer. That layer has therefore ''16x128x5x5'' trainable kernel weights (and 128 biases). The result of the complete layer (conv+pooling) is a ''128x5x5'' array.
+  * at this stage, the ''5x5'' array of 128-dimensional feature vectors is flattened into a 3200-dimensional vector, which we feed to a two-layer neural net. The final prediction (10-dimensional distribution over classes) is influenced by a 32x32 neighborhood of input variables (pixels).
+
+This model is quite basic, but typically yields excellent results on binary/sparse images such as the MNIST dataset. For natural images, it is necessary to apply some whitening transformation. Empirically, it has been shown that using local normalization operators helps a lot generalization 
+([[http://cs.nyu.edu/~koray/publis/jarrett-iccv-09.pdf|Jarret et al.]]).
+One commonly used (biologically-inspired) type of local normalization is the contrastive normalization, which imposes zero-mean and unit-norm in local neighborhoods of fairly small size (typically between ''5x5'' to ''15x15''). For color images, it is also a good idea to help the model by separating the color information from the luminance information. While the latter can be locally normalized, it's better to leave color untouched (or simply normalized globally, at the level of the dataset).
+
+One other remark: it is typically not a good idea to use fully connected layers, as was done above, in internal layers. In general, favoring large numbers of features (over-completeness) over density of connections helps achieve better results (empirical evidence of this was reported in several papers, as in 
+[[http://yann.lecun.com/exdb/publis/pdf/hadsell-iros-08.pdf|Hadsell et al.]]). 
+The [[..:nn:index#SpatialConvolutionMap|SpatialConvolutionMap]] module accepts tables of connectivities (maps) that allows one to create arbitrarily sparse connections between two layers. A couple of standard maps/tables are provided in ''nn.tables''. 
+
+Integrating all these remarks, here is a new model, that we will use for the CIFAR-10 dataset:
+
+<file lua>
+-- reshape vector into a 3-channel image (RGB)
+model:add(nn.Reshape(3,32,32))
+-- stage 0 : RGB -> YUV -> normalize(Y)
+model:add(nn.SpatialColorTransform('rgb2yuv'))
+do
+   ynormer = nn.Sequential()
+   ynormer:add(nn.Narrow(1,1,1))
+   ynormer:add(nn.SpatialContrastiveNormalization(1, image.gaussian1D(7)))
+   normer = nn.ConcatTable()
+   normer:add(ynormer)
+   normer:add(nn.Narrow(1,2,2))
+end
+model:add(normer)
+model:add(nn.JoinTable(1))
+-- stage 1 : mean+std normalization -> filter bank -> squashing -> max pooling
+local table = torch.Tensor{ {1,1},{1,2},{1,3},{1,4},{1,5},{1,6},{1,7},{1,8},{2,9},{2,10},{3,11},{3,12} }
+model:add(nn.SpatialConvolutionMap(table, 5, 5))
+model:add(nn.Tanh())
+model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
+-- stage 2 : filter bank -> squashing -> max pooling
+model:add(nn.SpatialConvolutionMap(nn.tables.random(12, 32, 4), 5, 5))
+model:add(nn.Tanh())
+model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
+-- stage 3 : standard 2-layer neural network
+model:add(nn.Reshape(32*5*5))
+model:add(nn.Linear(32*5*5, 128))
+model:add(nn.Tanh())
+model:add(nn.Linear(128,10))
+model:add(nn.LogSoftMax())
+</file>
+
+Finally, recent work ([[http://cs.nyu.edu/~koray/publis/jarrett-iccv-09.pdf|Jarret et al.]]) has
+demonstrated the advantage of locally normalizing sets of internal features, at each stage
+of the model. The use of smoother pooling functions, such as the L2 norm for instance instead
+of the harsher max-pooling, has also been shown to yield better generalization
+([[http://arxiv.org/pdf/1204.3968v1.pdf|Sermanet et al.]]). We will use these two ingredients
+for the House Numbers dataset. This gives us the new model:
+
+<file lua>
+-- reshape vector into a 3-channel image (RGB)
+model:add(nn.Reshape(3,32,32))
+-- stage 0 : RGB -> YUV -> normalize(Y)
+model:add(nn.SpatialColorTransform('rgb2yuv'))
+do
+   ynormer = nn.Sequential()
+   ynormer:add(nn.Narrow(1,1,1))
+   ynormer:add(nn.SpatialContrastiveNormalization(1, image.gaussian1D(7)))
+   normer = nn.ConcatTable()
+   normer:add(ynormer)
+   normer:add(nn.Narrow(1,2,2))
+end
+model:add(normer)
+model:add(nn.JoinTable(1))
+-- stage 1 : filter bank -> squashing -> max pooling
+model:add(nn.SpatialConvolutionMap(nn.tables.random(3,16,1), 5, 5))
+model:add(nn.Tanh())
+model:add(nn.SpatialLPPooling(16,2,2,2,2,2))
+-- stage 2 : filter bank -> squashing -> max pooling
+model:add(nn.SpatialSubtractiveNormalization(16, image.gaussian1D(7)))
+model:add(nn.SpatialConvolutionMap(nn.tables.random(16, 256, 4), 5, 5))
+model:add(nn.Tanh())
+model:add(nn.SpatialLPPooling(256,2,2,2,2,2))
+-- stage 3 : standard 2-layer neural network
+model:add(nn.SpatialSubtractiveNormalization(256, image.gaussian1D(7)))
+model:add(nn.Reshape(256*5*5))
+model:add(nn.Linear(256*5*5, 128))
+model:add(nn.Tanh())
+model:add(nn.Linear(128,#classes))
+model:add(nn.Linear(128,10))
+model:add(nn.LogSoftMax())
+</file>
 
 ==== Training the model ====
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
