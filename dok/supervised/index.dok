@@ -5,8 +5,14 @@ In this tutorial, we're going to learn how to define a model, and train
 it using a supervised approach. We're going to present and solve multiple problems of
 increasing complexity.
 
+All the examples in this tutorial rely on the 'optim' package, and some of the examples
+will require extra modules provided in 'nnx'. If you want to visualize the training data,
+the 'image' package should be installed as well. As for all torch packages,
+they can be installed like this (at the command line):
 
-
+<file bash>
+$ torch-pkg install image nnx optim
+</file>
 
 
 ===== Linear Regression =====
@@ -828,23 +834,282 @@ model:add(nn.LogSoftMax())
 
 ==== Training the model ====
 
+Once the model has been defined, the training procedure is pretty much the same
+as for the linear/logistic regression example. One big difference of course is the fact
+that the model is not linear anymore, and therefore the optimization problem is
+not convex. This  reinforces the need to a stochastic estimation of gradients, which
+have shown to produce much better generalization results for several different problems.
 
+As before, we minimize the negative log-likelihood:
 
+<file lua>
+criterion = nn.ClassNLLCriterion()
+</file>
 
+We also use a confusion matrix, to monitor the progress of our learner:
 
+<file lua>
+criterion = optim.ConfusionMatrix()
+</file>
 
+Now that we have all the building blocks, we just have to define our training function,
+as well as a test function. In the three scripts provided (MNIST, CIFAR, SVHN), the
+optimization algorithm can be set to either L-BFGS, CG, SGD or ASGD. In practice, it's 
+very important to start with a few epochs of pure SGD, before switching to L-BFGS or
+ASGD. The intuition for that is related to the non-convex nature of the problem: at the
+very beginning of training (random initialization), the landscape might be highly non-convex,
+and no assumption should be made about the shape of the energy function. Often, SGD
+is the best we can do. Later on, batch methods (L-BFGS, CG) can be used more safely.
 
+Here is our full training function, which demonstrates that you can switch the optimization
+you're using at runtime (if you want to), and also modify the batch size you're using
+at run time. You can do all these things because we create the evaluation closure
+each time we create a new batch. If the batch size is 1, then the method is purely
+stochastic. If the batch size is set to the complete dataset, then the method is
+a pure batch method.
 
+<file lua>
+-- retrieve parameters and gradients
+parameters,gradParameters = model:getParameters()
 
+-- training function:
+function train(dataset)
+   -- epoch tracker
+   epoch = epoch or 1
 
+   -- local vars
+   local time = sys.clock()
 
+   -- shuffle at each epoch
+   shuffle = torch.randperm(trsize)
 
+   -- do one epoch
+   print('<trainer> on training set:')
+   print("<trainer> online epoch # " .. epoch .. ' [batchSize = ' .. opt.batchSize .. ']')
+   for t = 1,dataset:size(),opt.batchSize do
+      -- disp progress
+      xlua.progress(t, dataset:size())
 
+      -- create mini batch
+      local inputs = {}
+      local targets = {}
+      for i = t,math.min(t+opt.batchSize-1,dataset:size()) do
+         -- load new sample
+         local input = dataset.data[shuffle[i]]:double()
+         local target = dataset.labels[shuffle[i]]
+         table.insert(inputs, input)
+         table.insert(targets, target)
+      end
 
+      -- create closure to evaluate f(X) and df/dX
+      local feval = function(x)
+                       -- get new parameters
+                       if x ~= parameters then
+                          parameters:copy(x)
+                       end
 
+                       -- reset gradients
+                       gradParameters:zero()
 
+                       -- f is the average of all criterions
+                       local f = 0
 
+                       -- evaluate function for complete mini batch
+                       for i = 1,#inputs do
+                          -- estimate f
+                          local output = model:forward(inputs[i])
+                          local err = criterion:forward(output, targets[i])
+                          f = f + err
 
+                          -- estimate df/dW
+                          local df_do = criterion:backward(output, targets[i])
+                          model:backward(inputs[i], df_do)
 
+                          -- update confusion
+                          confusion:add(output, targets[i])
+                       end
 
+                       -- normalize gradients and f(X)
+                       gradParameters:div(#inputs)
+                       f = f/#inputs
 
+                       -- return f and df/dX
+                       return f,gradParameters
+                    end
+
+      -- optimize on current mini-batch
+      if opt.optimization == 'CG' then
+         config = config or {maxIter = opt.maxIter}
+         optim.cg(feval, parameters, config)
+
+      elseif opt.optimization == 'LBFGS' then
+         config = config or {learningRate = opt.learningRate,
+                             maxIter = opt.maxIter,
+                             nCorrection = 10}
+         optim.lbfgs(feval, parameters, config)
+
+      elseif opt.optimization == 'SGD' then
+         config = config or {learningRate = opt.learningRate,
+                             weightDecay = opt.weightDecay,
+                             momentum = opt.momentum,
+                             learningRateDecay = 5e-7}
+         optim.sgd(feval, parameters, config)
+
+      elseif opt.optimization == 'ASGD' then
+         config = config or {eta0 = opt.learningRate,
+                             t0 = trsize * opt.t0}
+         _,_,average = optim.asgd(feval, parameters, config)
+
+      else
+         error('unknown optimization method')
+      end
+   end
+
+   -- time taken
+   time = sys.clock() - time
+   time = time / dataset:size()
+   print("<trainer> time to learn 1 sample = " .. (time*1000) .. 'ms')
+
+   -- print confusion matrix
+   print(confusion)
+   confusion:zero()
+
+   -- next epoch
+   epoch = epoch + 1
+end
+</file>
+
+The test function is simpler:
+
+<file lua>
+-- test function
+function test(dataset)
+   -- local vars
+   local time = sys.clock()
+
+   -- averaged param use (ASGD)
+   if average then
+      cachedparams = parameters:clone()
+      parameters:copy(average)
+   end
+
+   -- test over given dataset
+   print('<trainer> on testing Set:')
+   for t = 1,dataset:size() do
+      -- disp progress
+      xlua.progress(t, dataset:size())
+
+      -- get new sample
+      local input = dataset.data[t]:double()
+      local target = dataset.labels[t]
+
+      -- test sample
+      local pred = model:forward(input)
+      confusion:add(pred, target)
+   end
+
+   -- timing
+   time = sys.clock() - time
+   time = time / dataset:size()
+   print("<trainer> time to test 1 sample = " .. (time*1000) .. 'ms')
+
+   -- print confusion matrix
+   print(confusion)
+   confusion:zero()
+
+   -- averaged param use?
+   if average then
+      -- restore parameters
+      parameters:copy(cachedparams)
+   end
+end
+</file>
+
+We can now train and test like this (please refer to the actual code to look at
+how the trainData/testData are created):
+
+<file lua>
+while true do
+   train(trainData)
+   test(testData)
+end
+</file>
+
+This produces an output that looks like this:
+
+<file bash>
+<trainer> on training set:
+<trainer> online epoch # 1 [batchSize = 1]
+ [=============================== 2000/2000 ==================================>]
+<trainer> time to learn 1 sample = 11.309485500002ms
+ConfusionMatrix:
+[[     175       0       0       4       1       5       4       0       2       0]   91.623%   [class: 1]
+ [       1     208       1       3       0       1       0       2       1       3]   94.545%   [class: 2]
+ [       6       9     159       5       2       1       2       4       6       4]   80.303%   [class: 3]
+ [       2       4       6     158       1      10       2       2       1       5]   82.723%   [class: 4]
+ [       1       4       5       1     178       1       4       2       0      18]   83.178%   [class: 5]
+ [       2       5       2      13       8     130       7       0       7       6]   72.222%   [class: 6]
+ [       7       3       3       4       3       3     176       0       1       0]   88.000%   [class: 7]
+ [       1       7       2       3       4       0       1     194       1      11]   86.607%   [class: 8]
+ [       0      12       5       6       1       8       3       3     129       5]   75.000%   [class: 9]
+ [       5       2       0       4      14       2       0      16       3     164]]  78.095%   [class: 10]
+ + average row correct: 83.229621052742% 
+ + average rowUcol correct (VOC measure): 71.643643975258% 
+ + global correct: 83.55%
+<trainer> saving network to /Users/clement/work/github/xrocks/demos/train-a-digit-classifier/train-on-mnist/mnist.net
+<trainer> on testing Set:
+ [=============================== 1000/1000 ==================================>]
+<trainer> time to test 1 sample = 2.5694309999963ms
+ConfusionMatrix:
+[[      82       0       0       2       0       0       1       0       0       0]   96.471%   [class: 1]
+ [       0     125       1       0       0       0       0       0       0       0]   99.206%   [class: 2]
+ [       1       0     104       0       0       0       1       4       6       0]   89.655%   [class: 3]
+ [       0       0       4      95       0       6       0       0       2       0]   88.785%   [class: 4]
+ [       0       1       2       0      99       1       1       0       0       6]   90.000%   [class: 5]
+ [       0       0       1       3       0      80       0       0       2       1]   91.954%   [class: 6]
+ [       3       0       4       0       1       2      77       0       0       0]   88.506%   [class: 7]
+ [       0       0       9       0       0       0       0      88       0       2]   88.889%   [class: 8]
+ [       0       0       1       3       1       1       0       3      78       2]   87.640%   [class: 9]
+ [       0       0       1       2       2       0       0       7       3      79]]  84.043%   [class: 10]
+ + average row correct: 90.51488161087% 
+ + average rowUcol correct (VOC measure): 83.103343844414% 
+ + global correct: 90.7%
+<trainer> on training set:
+<trainer> online epoch # 2 [batchSize = 1]
+ [=============================== 2000/2000 ==================================>]
+<trainer> time to learn 1 sample = 11.362733499998ms
+ConfusionMatrix:
+[[     187       1       0       0       0       1       1       1       0       0]   97.906%   [class: 1]
+ [       0     214       1       2       1       1       0       1       0       0]   97.273%   [class: 2]
+ [       2       2     186       2       1       0       0       2       1       2]   93.939%   [class: 3]
+ [       0       0       4     176       0       6       1       2       1       1]   92.147%   [class: 4]
+ [       0       1       1       0     204       0       3       0       0       5]   95.327%   [class: 5]
+ [       0       1       2       5       2     164       1       0       1       4]   91.111%   [class: 6]
+ [       1       1       0       0       0       2     195       0       1       0]   97.500%   [class: 7]
+ [       0       1       2       1       1       0       0     212       0       7]   94.643%   [class: 8]
+ [       0       0       1       0       1       4       1       1     160       4]   93.023%   [class: 9]
+ [       4       0       0       1       5       2       0       7       1     190]]  90.476%   [class: 10]
+ + average row correct: 94.334501028061% 
+ + average rowUcol correct (VOC measure): 89.440071582794% 
+ + global correct: 94.4%
+<trainer> saving network to /Users/clement/work/github/xrocks/demos/train-a-digit-classifier/train-on-mnist/mnist.net
+<trainer> on testing Set:
+ [=============================== 1000/1000 ==================================>]
+<trainer> time to test 1 sample = 2.6758019999979ms
+ConfusionMatrix:
+[[      83       0       1       0       0       0       1       0       0       0]   97.647%   [class: 1]
+ [       0     124       1       1       0       0       0       0       0       0]   98.413%   [class: 2]
+ [       0       0     108       0       0       0       1       2       4       1]   93.103%   [class: 3]
+ [       0       0       3      99       0       5       0       0       0       0]   92.523%   [class: 4]
+ [       0       1       0       0     102       0       1       0       0       6]   92.727%   [class: 5]
+ [       0       0       1       0       0      85       0       0       1       0]   97.701%   [class: 6]
+ [       3       0       0       0       0       0      84       0       0       0]   96.552%   [class: 7]
+ [       0       0      10       0       0       0       0      88       0       1]   88.889%   [class: 8]
+ [       0       0       2       3       0       1       0       2      81       0]   91.011%   [class: 9]
+ [       0       0       1       2       1       0       0       2       3      85]]  90.426%   [class: 10]
+ + average row correct: 93.899238109589% 
+ + average rowUcol correct (VOC measure): 88.683768510818% 
+ + global correct: 93.9%
+</file>
+
+Yeepee!, that's it for the supervised training examples!
