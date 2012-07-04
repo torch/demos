@@ -20,26 +20,35 @@ cmd:text()
 cmd:text('Training a simple sparse coding dictionary on Berkeley images')
 cmd:text()
 cmd:text('Options')
+-- general options:
 cmd:option('-dir','outputs', 'subdirectory to save experiments in')
 cmd:option('-seed', 123211, 'initial random seed')
+cmd:option('-threads', 2, 'threads')
+
+-- for all models:
+cmd:option('-model', 'linear', 'auto-encoder class: linear | linear-psd | conv | conv-psd')
 cmd:option('-nfiltersin', 1, 'number of input convolutional filters')
-cmd:option('-nfiltersout', 32, 'number of output convolutional filters')
-cmd:option('-kernelsize', 9, 'size of convolutional kernels')
-cmd:option('-inputsize', 9, 'size of each input patch')
-cmd:option('-lambda', 1, 'sparsity coefficient')
+cmd:option('-nfiltersout', 128, 'number of output convolutional filters')
+cmd:option('-lambda', 1e-1, 'sparsity coefficient')
 cmd:option('-beta', 1, 'prediction error coefficient')
-cmd:option('-datafile', 'http://data.neuflow.org/data/tr-berkeley-N5K-M56x56-lcn.bin', 'Dataset URL')
-cmd:option('-eta', 0.01, 'learning rate')
+cmd:option('-eta', 1e-3, 'learning rate')
 cmd:option('-eta_encoder', 0, 'encoder learning rate')
 cmd:option('-momentum', 0, 'gradient momentum')
 cmd:option('-decay', 0, 'weigth decay')
 cmd:option('-maxiter', 1000000, 'max number of updates')
+
+-- for conv models:
+cmd:option('-kernelsize', 9, 'size of convolutional kernels')
+
+-- for linear models:
+cmd:option('-inputsize', 9, 'size of each input patch')
+
+-- logging:
+cmd:option('-datafile', 'http://data.neuflow.org/data/tr-berkeley-N5K-M56x56-lcn.bin', 'Dataset URL')
 cmd:option('-statinterval', 5000, 'interval for saving stats and models')
 cmd:option('-v', false, 'be verbose')
 cmd:option('-display', false, 'display stuff')
 cmd:option('-wcar', '', 'additional flag to differentiate this run')
-cmd:option('-conv', false, 'force convolutional dictionary')
-cmd:option('-threads', 4, 'threads')
 cmd:text()
 
 params = cmd:parse(arg)
@@ -73,7 +82,54 @@ end
 ----------------------------------------------------------------------
 -- create model
 --
-if params.inputsize == params.kernelsize and params.conv == false then
+if params.model == 'linear' then
+
+   -- params
+   inputSize = params.inputsize*params.inputsize
+   outputSize = params.nfiltersout
+
+   -- encoder
+   encoder = nn.Sequential()
+   encoder:add(nn.Linear(inputSize,outputSize))
+   encoder:add(nn.Tanh())
+
+   -- decoder
+   decoder = nn.Sequential()
+   decoder:add(nn.Linear(outputSize,inputSize))
+
+   -- complete model
+   module = unsup.AutoEncoder(encoder, decoder, params.beta)
+
+elseif params.model == 'conv' then
+
+   -- params:
+   conntable = nn.tables.full(params.nfiltersin, params.nfiltersout)
+   kw, kh = params.kernelsize, params.kernelsize
+   iw, ih = params.inputsize, params.inputsize
+
+   -- connection table:
+   local decodertable = conntable:clone()
+   decodertable[{ {},1 }] = conntable[{ {},2 }]
+   decodertable[{ {},2 }] = conntable[{ {},1 }]
+   local outputFeatures = conntable[{ {},2 }]:max()
+
+   -- encoder:
+   encoder = nn.Sequential()
+   encoder:add(nn.SpatialConvolutionMap(conntable, kw, kh, 1, 1))
+   encoder:add(nn.TanhShrink())
+   encoder:add(nn.Diag(outputFeatures))
+
+   -- decoder:
+   decoder = nn.Sequential()
+   decoder:add(nn.SpatialFullConvolutionMap(decodertable, kw, kh, 1, 1))
+
+   -- complete model
+   module = unsup.AutoEncoder(encoder, decoder, params.beta)
+
+   -- convert dataset to convolutional (returns 1xKxK tensors (3D), instead of K*K (1D))
+   dataset:conv()
+
+elseif params.model == 'linear-psd' then
 
    -- params
    inputSize = params.inputsize*params.inputsize
@@ -89,7 +145,7 @@ if params.inputsize == params.kernelsize and params.conv == false then
    -- PSD autoencoder
    module = unsup.PSD(encoder, decoder, params.beta)
 
-else
+elseif params.model == 'conv-psd' then
 
    -- params:
    conntable = nn.tables.full(params.nfiltersin, params.nfiltersout)
@@ -102,18 +158,24 @@ else
    decodertable[{ {},2 }] = conntable[{ {},1 }]
    local outputFeatures = conntable[{ {},2 }]:max()
 
-   -- decoder is L1 solution:
-   decoder = unsup.SpatialConvFistaL1(decodertable, kw, kh, iw, ih, params.lambda)
-
    -- encoder:
    encoder = nn.Sequential()
    encoder:add(nn.SpatialConvolutionMap(conntable, kw, kh, 1, 1))
+   encoder:add(nn.TanhShrink())
+   encoder:add(nn.Diag(outputFeatures))
+
+   -- decoder is L1 solution:
+   decoder = unsup.SpatialConvFistaL1(decodertable, kw, kh, iw, ih, params.lambda)
 
    -- PSD autoencoder
    module = unsup.PSD(encoder, decoder, params.beta)
 
    -- convert dataset to convolutional (returns 1xKxK tensors (3D), instead of K*K (1D))
    dataset:conv()
+
+else
+   print('unknown model: ' .. params.model)
+   os.exit()
 end
 
 ----------------------------------------------------------------------
@@ -166,10 +228,16 @@ for t = 1,params.maxiter do
             ', ' .. currentLearningRate[2] .. ' ) current error = ' .. err)
 
       -- plot filters
-      if params.conv then
+      if params.model == 'linear' then
+         dd = image.toDisplayTensor{input=module.decoder.modules[1].weight:transpose(1,2):unfold(2,params.inputsize,params.inputsize),padding=2,nrow=8,symmetric=true}
+         de = image.toDisplayTensor{input=module.encoder.modules[1].weight:unfold(2,params.inputsize,params.inputsize),padding=2,nrow=8,symmetric=true}
+      elseif params.model == 'conv' then
+         de = image.toDisplayTensor{input=module.encoder.modules[1].weight,padding=2,nrow=8,symmetric=true}
+         dd = image.toDisplayTensor{input=module.decoder.modules[1].weight,padding=2,nrow=8,symmetric=true}
+      elseif params.model == 'conv-psd' then
          de = image.toDisplayTensor{input=module.encoder.modules[1].weight,padding=2,nrow=8,symmetric=true}
          dd = image.toDisplayTensor{input=module.decoder.D.weight,padding=2,nrow=8,symmetric=true}
-      else
+      elseif params.model == 'linear-psd' then
          dd = image.toDisplayTensor{input=module.decoder.D.weight:transpose(1,2):unfold(2,params.inputsize,params.inputsize),padding=2,nrow=8,symmetric=true}
          de = image.toDisplayTensor{input=module.encoder.modules[1].weight:unfold(2,params.inputsize,params.inputsize),padding=2,nrow=8,symmetric=true}
       end
