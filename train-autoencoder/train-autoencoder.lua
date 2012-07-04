@@ -28,7 +28,7 @@ cmd:option('-kernelsize', 9, 'size of convolutional kernels')
 cmd:option('-inputsize', 9, 'size of each input patch')
 cmd:option('-lambda', 1, 'sparsity coefficient')
 cmd:option('-beta', 1, 'prediction error coefficient')
-cmd:option('-datafile', 'http://data.neuflow.org/tr-berkeley-N5K-M56x56-lcn.bin', 'Dataset URL')
+cmd:option('-datafile', 'http://data.neuflow.org/data/tr-berkeley-N5K-M56x56-lcn.bin', 'Dataset URL')
 cmd:option('-eta', 0.01, 'learning rate')
 cmd:option('-eta_encoder', 0, 'encoder learning rate')
 cmd:option('-momentum', 0, 'gradient momentum')
@@ -50,7 +50,7 @@ params.rundir = params.dir .. '/' .. rundir
 if paths.dirp(params.rundir) then
    os.execute('rm -r ' .. params.rundir)
 end
-os.execute('mkdir ' .. params.rundir)
+os.execute('mkdir -p ' .. params.rundir)
 cmd:log(params.rundir .. '/log', params)
 
 torch.manualSeed(params.seed)
