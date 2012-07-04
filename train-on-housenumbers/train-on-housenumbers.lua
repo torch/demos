@@ -82,28 +82,6 @@ if opt.network == '' then
    ------------------------------------------------------------
    -- top container
    model = nn.Sequential()
-   -- stage 0 : RGB -> YUV -> normalize(Y)
-   model:add(nn.SpatialColorTransform('rgb2yuv'))
-   do
-      -- normalize Y
-      ynormer = nn.Sequential()
-      ynormer:add(nn.Narrow(1,1,1))
-      ynormer:add(nn.SpatialContrastiveNormalization(1, image.gaussian1D(7)))
-      -- normalize U+V
-      unormer = nn.Sequential()
-      unormer:add(nn.Narrow(1,2,1))
-      unormer:add(nn.SpatialContrastiveNormalization(1, image.gaussian1D(15)))
-      vnormer = nn.Sequential()
-      vnormer:add(nn.Narrow(1,3,1))
-      vnormer:add(nn.SpatialContrastiveNormalization(1, image.gaussian1D(15)))
-      -- package all modules
-      normer = nn.ConcatTable()
-      normer:add(ynormer)
-      normer:add(unormer)
-      normer:add(vnormer)
-   end
-   model:add(normer)
-   model:add(nn.JoinTable(1))
    -- stage 1 : filter bank -> squashing -> max pooling
    model:add(nn.SpatialConvolutionMap(nn.tables.random(3,16,1), 5, 5))
    model:add(nn.Tanh())
@@ -145,7 +123,7 @@ if opt.extra then
    trsize = 73257 + 531131
    tesize = 26032
 else
-   print '<trainer> WARNING: using reduced trian set'
+   print '<trainer> WARNING: using reduced train set'
    print '(use -extra to use complete training set, with extra samples)'
    trsize = 73257
    tesize = 26032
@@ -193,6 +171,53 @@ testData = {
    labels = loaded.y[1],
    size = function() return tesize end
 }
+
+----------------------------------------------------------------------
+-- preprocess/normalize train/test sets
+--
+
+print '<trainer> preprocessing data (color space + normalization)'
+
+-- preprocess requires floating point
+trainData.data = trainData.data:float()
+testData.data = testData.data:float()
+
+-- preprocess trainSet
+normalization = nn.SpatialContrastiveNormalization(1, image.gaussian1D(7)):float()
+for i = 1,trainData:size() do
+   -- rgb -> yuv
+   local rgb = trainData.data[i]
+   local yuv = image.rgb2yuv(rgb)
+   -- normalize y locally:
+   yuv[1] = normalization(yuv[{{1}}])
+   trainData.data[i] = yuv
+end
+-- normalize u globally:
+mean_u = trainData.data[{ {},2,{},{} }]:mean()
+std_u = trainData.data[{ {},2,{},{} }]:std()
+trainData.data[{ {},2,{},{} }]:add(-mean_u)
+trainData.data[{ {},2,{},{} }]:div(-std_u)
+-- normalize v globally:
+mean_v = trainData.data[{ {},3,{},{} }]:mean()
+std_v = trainData.data[{ {},3,{},{} }]:std()
+trainData.data[{ {},3,{},{} }]:add(-mean_v)
+trainData.data[{ {},3,{},{} }]:div(-std_v)
+
+-- preprocess testSet
+for i = 1,testData:size() do
+   -- rgb -> yuv
+   local rgb = testData.data[i]
+   local yuv = image.rgb2yuv(rgb)
+   -- normalize y locally:
+   yuv[{1}] = normalization(yuv[{{1}}])
+   testData.data[i] = yuv
+end
+-- normalize u globally:
+testData.data[{ {},2,{},{} }]:add(-mean_u)
+testData.data[{ {},2,{},{} }]:div(-std_u)
+-- normalize v globally:
+testData.data[{ {},3,{},{} }]:add(-mean_v)
+testData.data[{ {},3,{},{} }]:div(-std_v)
 
 ----------------------------------------------------------------------
 -- define training and testing functions

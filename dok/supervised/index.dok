@@ -721,7 +721,6 @@ form of it would be:
 
 <file lua>
 model = nn.Sequential()
-model:add(nn.Reshape(1,32,32))
 -- layer 1:
 model:add(nn.SpatialConvolution(1, 16, 5, 5))
 model:add(nn.Tanh())
@@ -760,20 +759,7 @@ The [[..:nn:index#SpatialConvolutionMap|SpatialConvolutionMap]] module accepts t
 Integrating all these remarks, here is a new model, that we will use for the CIFAR-10 dataset:
 
 <file lua>
--- reshape vector into a 3-channel image (RGB)
-model:add(nn.Reshape(3,32,32))
--- stage 0 : RGB -> YUV -> normalize(Y)
-model:add(nn.SpatialColorTransform('rgb2yuv'))
-do
-   ynormer = nn.Sequential()
-   ynormer:add(nn.Narrow(1,1,1))
-   ynormer:add(nn.SpatialContrastiveNormalization(1, image.gaussian1D(7)))
-   normer = nn.ConcatTable()
-   normer:add(ynormer)
-   normer:add(nn.Narrow(1,2,2))
-end
-model:add(normer)
-model:add(nn.JoinTable(1))
+model = nn.Sequential()
 -- stage 1 : mean+std normalization -> filter bank -> squashing -> max pooling
 local table = torch.Tensor{ {1,1},{1,2},{1,3},{1,4},{1,5},{1,6},{1,7},{1,8},{2,9},{2,10},{3,11},{3,12} }
 model:add(nn.SpatialConvolutionMap(table, 5, 5))
@@ -799,20 +785,7 @@ of the harsher max-pooling, has also been shown to yield better generalization
 for the House Numbers dataset. This gives us the new model:
 
 <file lua>
--- reshape vector into a 3-channel image (RGB)
-model:add(nn.Reshape(3,32,32))
--- stage 0 : RGB -> YUV -> normalize(Y)
-model:add(nn.SpatialColorTransform('rgb2yuv'))
-do
-   ynormer = nn.Sequential()
-   ynormer:add(nn.Narrow(1,1,1))
-   ynormer:add(nn.SpatialContrastiveNormalization(1, image.gaussian1D(7)))
-   normer = nn.ConcatTable()
-   normer:add(ynormer)
-   normer:add(nn.Narrow(1,2,2))
-end
-model:add(normer)
-model:add(nn.JoinTable(1))
+model = nn.Sequential()
 -- stage 1 : filter bank -> squashing -> max pooling
 model:add(nn.SpatialConvolutionMap(nn.tables.random(3,16,1), 5, 5))
 model:add(nn.Tanh())

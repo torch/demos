@@ -67,43 +67,19 @@ if opt.network == '' then
 
    if opt.model == 'convnet' then
       ------------------------------------------------------------
-      -- convolutional network 
-      -- this is a typical convolutional network for vision:
-      --   1/ the image is transformed into Y-UV space
-      --   2/ the Y (luminance) channel is locally normalized
-      --   3/ the first layer allocates for filters to the Y
-      --      channels, and just a few to the U and V channels
-      --   4/ the first two stages features are locally pooled
-      --      using a max-operator
-      --   5/ a two-layer neural network is applied on the
-      --      representation
+      -- convolutional network
       ------------------------------------------------------------
-      -- reshape vector into a 3-channel image (RGB)
-      model:add(nn.Reshape(3,32,32))
-      -- stage 0 : RGB -> YUV -> normalize(Y)
-      model:add(nn.SpatialColorTransform('rgb2yuv'))
-      do
-         ynormer = nn.Sequential()
-         ynormer:add(nn.Narrow(1,1,1))
-         ynormer:add(nn.SpatialContrastiveNormalization(1, image.gaussian1D(7)))
-         normer = nn.ConcatTable()
-         normer:add(ynormer)
-         normer:add(nn.Narrow(1,2,2))
-      end
-      model:add(normer)
-      model:add(nn.JoinTable(1))
       -- stage 1 : mean+std normalization -> filter bank -> squashing -> max pooling
-      local table = torch.Tensor{ {1,1},{1,2},{1,3},{1,4},{1,5},{1,6},{1,7},{1,8},{2,9},{2,10},{3,11},{3,12} }
-      model:add(nn.SpatialConvolutionMap(table, 5, 5))
+      model:add(nn.SpatialConvolutionMap(nn.tables.random(3,16,1), 5, 5))
       model:add(nn.Tanh())
       model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
       -- stage 2 : filter bank -> squashing -> max pooling
-      model:add(nn.SpatialConvolutionMap(nn.tables.random(12, 32, 4), 5, 5))
+      model:add(nn.SpatialConvolutionMap(nn.tables.random(16, 256, 4), 5, 5))
       model:add(nn.Tanh())
       model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
       -- stage 3 : standard 2-layer neural network
-      model:add(nn.Reshape(32*5*5))
-      model:add(nn.Linear(32*5*5, 128))
+      model:add(nn.Reshape(256*5*5))
+      model:add(nn.Linear(256*5*5, 128))
       model:add(nn.Tanh())
       model:add(nn.Linear(128,#classes))
       ------------------------------------------------------------
@@ -112,6 +88,7 @@ if opt.network == '' then
       ------------------------------------------------------------
       -- regular 2-layer MLP
       ------------------------------------------------------------
+      model:add(nn.Reshape(3*32*32))
       model:add(nn.Linear(3*32*32, 1*32*32))
       model:add(nn.Tanh())
       model:add(nn.Linear(1*32*32, #classes))
@@ -121,6 +98,7 @@ if opt.network == '' then
       ------------------------------------------------------------
       -- simple linear model: logistic regression
       ------------------------------------------------------------
+      model:add(nn.Reshape(3*32*32))
       model:add(nn.Linear(3*32*32,#classes))
       ------------------------------------------------------------
 
@@ -159,12 +137,14 @@ else
    tesize = 1000
 end
 
+-- download dataset
 if not paths.dirp('cifar-10-batches-t7') then
    local www = 'http://data.neuflow.org/data/cifar-10-torch.tar.gz'
    local tar = sys.basename(www)
    os.execute('wget ' .. www .. '; '.. 'tar xvf ' .. tar)
 end
 
+-- load dataset
 trainData = {
    data = torch.Tensor(50000, 3072),
    labels = torch.Tensor(50000),
@@ -185,11 +165,59 @@ testData = {
 }
 testData.labels = testData.labels + 1
 
+-- resize dataset (if using small version)
 trainData.data = trainData.data[{ {1,trsize} }]
 trainData.labels = trainData.labels[{ {1,trsize} }]
 
 testData.data = testData.data[{ {1,tesize} }]
 testData.labels = testData.labels[{ {1,tesize} }]
+
+-- reshape data
+trainData.data = trainData.data:reshape(trsize,3,32,32)
+testData.data = testData.data:reshape(tesize,3,32,32)
+
+----------------------------------------------------------------------
+-- preprocess/normalize train/test sets
+--
+
+print '<trainer> preprocessing data (color space + normalization)'
+
+-- preprocess trainSet
+normalization = nn.SpatialContrastiveNormalization(1, image.gaussian1D(7))
+for i = 1,trainData:size() do
+   -- rgb -> yuv
+   local rgb = trainData.data[i]
+   local yuv = image.rgb2yuv(rgb)
+   -- normalize y locally:
+   yuv[1] = normalization(yuv[{{1}}])
+   trainData.data[i] = yuv
+end
+-- normalize u globally:
+mean_u = trainData.data[{ {},2,{},{} }]:mean()
+std_u = trainData.data[{ {},2,{},{} }]:std()
+trainData.data[{ {},2,{},{} }]:add(-mean_u)
+trainData.data[{ {},2,{},{} }]:div(-std_u)
+-- normalize v globally:
+mean_v = trainData.data[{ {},3,{},{} }]:mean()
+std_v = trainData.data[{ {},3,{},{} }]:std()
+trainData.data[{ {},3,{},{} }]:add(-mean_v)
+trainData.data[{ {},3,{},{} }]:div(-std_v)
+
+-- preprocess testSet
+for i = 1,testData:size() do
+   -- rgb -> yuv
+   local rgb = testData.data[i]
+   local yuv = image.rgb2yuv(rgb)
+   -- normalize y locally:
+   yuv[{1}] = normalization(yuv[{{1}}])
+   testData.data[i] = yuv
+end
+-- normalize u globally:
+testData.data[{ {},2,{},{} }]:add(-mean_u)
+testData.data[{ {},2,{},{} }]:div(-std_u)
+-- normalize v globally:
+testData.data[{ {},3,{},{} }]:add(-mean_v)
+testData.data[{ {},3,{},{} }]:div(-std_v)
 
 ----------------------------------------------------------------------
 -- define training and testing functions
