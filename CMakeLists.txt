@@ -10,6 +10,7 @@ ADD_TORCH_DOK(dok/gui tutorials_gui "Tutorials" "Graphical User Interfaces" 1.3)
 
 SET(luasrc linear-regression/example-linear-regression.lua
 		   logistic-regression/example-logistic-regression.lua
+		   logistic-regression/example-logistic-regression.csv
 		   train-a-digit-classifier/train-on-mnist.lua
 		   train-a-digit-classifier/dataset-mnist.lua
 		   train-on-cifar/train-on-cifar.lua

@@ -5,9 +5,9 @@ In this tutorial, we're going to learn how to define a model, and train
 it using a supervised approach. We're going to present and solve multiple problems of
 increasing complexity.
 
-All the examples in this tutorial rely on the 'optim' package, and some of the examples
-will require extra modules provided in 'nnx'. If you want to visualize the training data,
-the 'image' package should be installed as well. As for all torch packages,
+All the examples in this tutorial rely on the [[..:optim:index|optim]] package, and some of the examples
+will require extra modules provided in nnx. If you want to visualize the training data,
+the image package should also be installed. As for all torch packages,
 they can be installed like this (at the command line):
 
 <file bash>
@@ -118,7 +118,7 @@ model:backward(input, grad_wrt_output) -- estimate gradients wrt to models' para
 ==== Creating the training data ====
 
 In all regression problems, some training data needs to be 
-provided. In a realistic scenarios, data comes from some database
+provided. In a realistic scenario, data comes from some database
 or file system, and needs to be loaded from disk. In that 
 tutorial, we create the data source as a Lua table.
 
@@ -176,7 +176,7 @@ so better to start with the right tools).
 
 Given an arbitrarily complex model, we can retrieve its trainable
 parameters, and the gradients of our loss function wrt these 
-parameters by doing so:
+parameters by doing:
 
 <file lua>
 x, dl_dx = model:getParameters()
@@ -193,9 +193,9 @@ any point ''x''.
 
 <file lua>
 feval = function(x_new)
-   -- set x to x_new, if differnt
+   -- set x to x_new, if different
    -- (in this simple example, x_new will typically always point to x,
-   -- so the copy is really useless)
+   -- so this copy is never happening)
    if x ~= x_new then
       x:copy(x_new)
    end
@@ -223,8 +223,7 @@ end
 
 Given the function above, we can now easily train the model using SGD.
 For that, we need to define four key parameters:
-  * a learning rate: the size of the step taken at each stochastic 
-    estimate of the gradient
+  * a learning rate: the size of the step taken at each stochastic estimate of the gradient
   * a weight decay, to regularize the solution (L2 regularization)
   * a momentum term, to average steps over time
   * a learning rate decay, to let the algorithm converge more precisely
@@ -626,7 +625,7 @@ feval = function(x_new)
 end
 </file>
 
-Doing the optimization is now really simple, we simple have to configure
+Doing the optimization is now really simple, we simply have to configure
 L-BFGS, and call it only once!
 
 <file lua>
@@ -657,7 +656,7 @@ _,fs = optim.lbfgs(feval,x,lbfgs_params)
 
 ===== Convolutional Neural Networks (ConvNets) =====
 
-Convolutional Networks are trainable multistage architectures composed of multiple stages. The input and output of each stage are sets of arrays called feature maps. For example, if the input is a color image, each feature map would be a 2D array containing a color channel of the input image (for an audio input each feature map would be a 1D array, and for a video or volumetric image, it would be a 3D array). At the output, each feature map represents a particular feature extracted at all locations on the input. Each stage is composed of three layers: a filter bank layer, a non-linearity layer, and a feature pooling layer. A typical ConvNet is composed of one, two or three such 3-layer stages, followed by a classification module. Each layer type is now described for the case of image recognition.
+Convolutional Networks are trainable architectures composed of multiple stages. The input and output of each stage are sets of arrays called feature maps. For example, if the input is a color image, each feature map would be a 2D array containing a color channel of the input image (for an audio input each feature map would be a 1D array, and for a video or volumetric image, it would be a 3D array). At the output, each feature map represents a particular feature extracted at all locations on the input. Each stage is composed of three layers: a filter bank layer, a non-linearity layer, and a feature pooling layer. A typical ConvNet is composed of one, two or three such 3-layer stages, followed by a classification module. Each layer type is now described for the case of image recognition.
 
 {{convnet.png?600}}
 
@@ -721,6 +720,7 @@ form of it would be:
 
 <file lua>
 model = nn.Sequential()
+model:add(nn.Reshape(1,32,32))
 -- layer 1:
 model:add(nn.SpatialConvolution(1, 16, 5, 5))
 model:add(nn.Tanh())
@@ -750,7 +750,51 @@ field sizes) of each layer. Here's more info about this:
 
 This model is quite basic, but typically yields excellent results on binary/sparse images such as the MNIST dataset. For natural images, it is necessary to apply some whitening transformation. Empirically, it has been shown that using local normalization operators helps a lot generalization 
 ([[http://cs.nyu.edu/~koray/publis/jarrett-iccv-09.pdf|Jarret et al.]]).
-One commonly used (biologically-inspired) type of local normalization is the contrastive normalization, which imposes zero-mean and unit-norm in local neighborhoods of fairly small size (typically between ''5x5'' to ''15x15''). For color images, it is also a good idea to help the model by separating the color information from the luminance information. While the latter can be locally normalized, it's better to leave color untouched (or simply normalized globally, at the level of the dataset).
+One commonly used (biologically-inspired) type of local normalization is the contrastive normalization, which imposes zero-mean and unit-norm in local neighborhoods of fairly small size (typically between ''5x5'' to ''15x15''). For color images, it is also a good idea to help the model by separating the color information from the luminance information. While the latter can be locally normalized, it's better to leave color untouched (or simply normalized globally, at the level of the dataset). Here's an example of code that can be used to preprocess the entire dataset:
+
+<file lua>
+-- we assume that the data was loaded into two tables: trainData and testData, which have
+-- this form:
+-- trainData = {data=Tensor(trsize,3,32,32), labels=Tensor(N)}
+-- testData = {data=Tensor(tesize,3,32,32), labels=Tensor(N)}
+
+-- preprocess trainSet
+normalization = nn.SpatialContrastiveNormalization(1, image.gaussian1D(7))
+for i = 1,trainData:size() do
+   -- rgb -> yuv
+   local rgb = trainData.data[i]
+   local yuv = image.rgb2yuv(rgb)
+   -- normalize y locally:
+   yuv[1] = normalization(yuv[{{1}}])
+   trainData.data[i] = yuv
+end
+-- normalize u globally:
+mean_u = trainData.data[{ {},2,{},{} }]:mean()
+std_u = trainData.data[{ {},2,{},{} }]:std()
+trainData.data[{ {},2,{},{} }]:add(-mean_u)
+trainData.data[{ {},2,{},{} }]:div(-std_u)
+-- normalize v globally:
+mean_v = trainData.data[{ {},3,{},{} }]:mean()
+std_v = trainData.data[{ {},3,{},{} }]:std()
+trainData.data[{ {},3,{},{} }]:add(-mean_v)
+trainData.data[{ {},3,{},{} }]:div(-std_v)
+
+-- preprocess testSet
+for i = 1,testData:size() do
+   -- rgb -> yuv
+   local rgb = testData.data[i]
+   local yuv = image.rgb2yuv(rgb)
+   -- normalize y locally:
+   yuv[{1}] = normalization(yuv[{{1}}])
+   testData.data[i] = yuv
+end
+-- normalize u globally:
+testData.data[{ {},2,{},{} }]:add(-mean_u)
+testData.data[{ {},2,{},{} }]:div(-std_u)
+-- normalize v globally:
+testData.data[{ {},3,{},{} }]:add(-mean_v)
+testData.data[{ {},3,{},{} }]:div(-std_v)
+</file>
 
 One other remark: it is typically not a good idea to use fully connected layers, as was done above, in internal layers. In general, favoring large numbers of features (over-completeness) over density of connections helps achieve better results (empirical evidence of this was reported in several papers, as in 
 [[http://yann.lecun.com/exdb/publis/pdf/hadsell-iros-08.pdf|Hadsell et al.]]). 
