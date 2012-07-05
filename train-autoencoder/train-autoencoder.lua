@@ -8,30 +8,17 @@
 -- autoencoders. Learned filters can be visualized by providing the
 -- flag -display.
 --
--- A few configurations that seem to work:
-
--- Linear auto-encoder:
--- $ torch train-autoencoder.lua -display -model linear -eta 0.01 -nfiltersout 64
-
--- Linear PSD auto-encoder:
--- $ torch train-autoencoder.lua -display -model linear-psd -eta 0.1 -lambda 0.5
-
--- Convolutional PSD auto-encoder:
--- $ torch train-autoencoder.lua -display -model conv-psd -eta 0.005 -lambda 0.05
-
 -- Note: simple auto-encoders (with no sparsity constraint on the code) typically
 -- don't yield filters that are visually appealing, although they might be
 -- minimizing the reconstruction error correctly.
-
+--
 -- Clement Farabet
 ----------------------------------------------------------------------
 
 require 'unsup'
 require 'image'
-require 'gnuplot'
-
+require 'optim'
 require 'autoencoder-data'
-if not arg then arg = {} end
 
 ----------------------------------------------------------------------
 -- parse command-line options
@@ -42,29 +29,36 @@ cmd:text('Training a simple sparse coding dictionary on Berkeley images')
 cmd:text()
 cmd:text('Options')
 -- general options:
-cmd:option('-dir','outputs', 'subdirectory to save experiments in')
-cmd:option('-seed', 123211, 'initial random seed')
+cmd:option('-dir', 'outputs', 'subdirectory to save experiments in')
+cmd:option('-seed', 1, 'initial random seed')
 cmd:option('-threads', 2, 'threads')
 
 -- for all models:
-cmd:option('-model', 'linear', 'auto-encoder class: linear | linear-psd | conv | conv-psd')
-cmd:option('-inputsize', 12, 'size of each input patch')
+cmd:option('-model', 'conv-psd', 'auto-encoder class: linear | linear-psd | conv | conv-psd')
+cmd:option('-inputsize', 25, 'size of each input patch')
 cmd:option('-nfiltersin', 1, 'number of input convolutional filters')
-cmd:option('-nfiltersout', 256, 'number of output convolutional filters')
+cmd:option('-nfiltersout', 4, 'number of output convolutional filters')
 cmd:option('-lambda', 1, 'sparsity coefficient')
 cmd:option('-beta', 1, 'prediction error coefficient')
-cmd:option('-eta', 1e-1, 'learning rate')
-cmd:option('-eta_encoder', 0, 'encoder learning rate')
+cmd:option('-eta', 2e-3, 'learning rate')
+cmd:option('-batchsize', 1, 'batch size')
+cmd:option('-etadecay', 1e-1, 'learning rate decay')
 cmd:option('-momentum', 0, 'gradient momentum')
-cmd:option('-decay', 0, 'weight decay')
 cmd:option('-maxiter', 1000000, 'max number of updates')
 
+-- use hessian information for training:
+cmd:option('-hessian', true, 'compute diagonal hessian coefficients to condition learning rates')
+cmd:option('-hessiansamples', 500, 'number of samples to use to estimate hessian')
+cmd:option('-hessianinterval', 10000, 'compute diagonal hessian coefs at every this many samples')
+cmd:option('-minhessian', 0.02, 'min hessian to avoid extreme speed up')
+cmd:option('-maxhessian', 500, 'max hessian to avoid extreme slow down')
+
 -- for conv models:
-cmd:option('-kernelsize', 12, 'size of convolutional kernels')
+cmd:option('-kernelsize', 9, 'size of convolutional kernels')
 
 -- logging:
 cmd:option('-datafile', 'http://data.neuflow.org/data/tr-berkeley-N5K-M56x56-lcn.bin', 'Dataset URL')
-cmd:option('-statinterval', 1000, 'interval for saving stats and models')
+cmd:option('-statinterval', 5000, 'interval for saving stats and models')
 cmd:option('-v', false, 'be verbose')
 cmd:option('-display', false, 'display stuff')
 cmd:option('-wcar', '', 'additional flag to differentiate this run')
@@ -79,7 +73,8 @@ if paths.dirp(params.rundir) then
    os.execute('rm -r ' .. params.rundir)
 end
 os.execute('mkdir -p ' .. params.rundir)
-cmd:log(params.rundir .. '/log', params)
+cmd:addTime('psd')
+cmd:log(params.rundir .. '/log.txt', params)
 
 torch.manualSeed(params.seed)
 
@@ -120,6 +115,9 @@ if params.model == 'linear' then
    -- complete model
    module = unsup.AutoEncoder(encoder, decoder, params.beta)
 
+   -- verbose
+   print('==> constructed linear auto-encoder')
+
 elseif params.model == 'conv' then
 
    -- params:
@@ -149,6 +147,9 @@ elseif params.model == 'conv' then
    -- convert dataset to convolutional (returns 1xKxK tensors (3D), instead of K*K (1D))
    dataset:conv()
 
+   -- verbose
+   print('==> constructed convolutional auto-encoder')
+
 elseif params.model == 'linear-psd' then
 
    -- params
@@ -166,6 +167,9 @@ elseif params.model == 'linear-psd' then
 
    -- PSD autoencoder
    module = unsup.PSD(encoder, decoder, params.beta)
+
+   -- verbose
+   print('==> constructed linear predictive sparse decomposition (PSD) auto-encoder')
 
 elseif params.model == 'conv-psd' then
 
@@ -195,87 +199,193 @@ elseif params.model == 'conv-psd' then
    -- convert dataset to convolutional (returns 1xKxK tensors (3D), instead of K*K (1D))
    dataset:conv()
 
+   -- verbose
+   print('==> constructed convolutional predictive sparse decomposition (PSD) auto-encoder')
+
 else
-   print('unknown model: ' .. params.model)
+   print('==> unknown model: ' .. params.model)
    os.exit()
 end
 
 ----------------------------------------------------------------------
--- training parameters
+-- trainable parameters
 --
--- learning rates
-if params.eta_encoder == 0 then params.eta_encoder = params.eta end
-params.eta = torch.Tensor({params.eta_encoder, params.eta})
 
--- do learrning rate hacks
-kex.nnhacks()
+-- diag hessian parameters
+module:initDiagHessianParameters()
+
+-- get all parameters
+x,dl_dx,ddl_ddx = module:getParameters()
+
+-- learning rates
+if params.hessian then
+   etas = ddl_ddx:clone():fill(1)
+end
 
 ----------------------------------------------------------------------
 -- train model
 --
-local avTrainingError = torch.FloatTensor(math.ceil(params.maxiter/params.statinterval)):zero()
-local avFistaIterations = torch.FloatTensor(math.ceil(params.maxiter/params.statinterval)):zero()
-local currentLearningRate = params.eta
 
+print('==> training model')
+
+local avTrainingError = torch.FloatTensor(math.ceil(params.maxiter/params.statinterval)):zero()
 local err = 0
 local iter = 0
-for t = 1,params.maxiter do
 
-   -- get next sample
-   local example = dataset[t]
+for t = 1,params.maxiter,params.batchsize do
 
-   -- update model on sample (one gradient descent step)
-   local updateSample = function()
-      local input = example[1]
-      local target = example[2]
-      local err = module:updateOutput(input, target)
-      module:zeroGradParameters()
-      module:updateGradInput(input, target)
-      module:accGradParameters(input, target)
-      module:updateParameters(currentLearningRate)
-      return err
+   --------------------------------------------------------------------
+   -- update diagonal hessian parameters
+   --
+   if params.hessian and math.fmod(t , params.hessianinterval) == 1 then
+      -- some extra vars:
+      local hessiansamples = params.hessiansamples
+      local minhessian = params.minhessian
+      local maxhessian = params.maxhessian
+      local knew = 1/hessiansamples
+      local kold = 1
+      local ddeltax = ddl_ddx:clone(ddl_ddx):zero()
+
+      print('==> estimating diagonal hessian elements')
+      for i=1,hessiansamples do
+         -- next
+         local ex = dataset[i]
+         local input = ex[1]
+         local target = ex[2]
+         module:updateOutput(input, target)
+
+         -- gradient
+         dl_dx:zero()
+         module:updateGradInput(input, target)
+         module:accGradParameters(input, target)
+
+         -- hessian
+         ddl_ddx:zero()
+         module:updateDiagHessianInput(input, target)
+         module:accDiagHessianParameters(input, target)
+
+         -- assert
+         if ddl_ddx:min() < 0 then error('Negative ddx') end
+
+         -- accumulate
+         ddeltax:mul(kold):add(knew,ddl_ddx)
+      end
+
+      -- cap hessian params
+      print('==> ddl/ddx : min/max = ' .. ddeltax:min() .. '/' .. ddeltax:max())
+      ddeltax[torch.lt(ddeltax,minhessian)] = minhessian
+      ddeltax[torch.gt(ddeltax,maxhessian)] = maxhessian
+      print('==> corrected ddl/ddx : min/max = ' .. ddeltax:min() .. '/' .. ddeltax:max())
+      ddl_ddx[{}] = ddeltax
+
+      -- generate learning rates
+      etas:cdiv(ddl_ddx)
    end
-   local serr, siter = updateSample()
-   err = err + serr
 
-   -- gather/print statistics
+   --------------------------------------------------------------------
+   -- progress
+   --
+   iter = iter+1
+   xlua.progress(iter, params.statinterval)
+
+   --------------------------------------------------------------------
+   -- create mini-batch
+   --
+   local example = dataset[t]
+   local inputs = {}
+   local targets = {}
+   for i = t,t+params.batchsize-1 do
+      -- load new sample
+      local sample = dataset[i]
+      local input = sample[1]:clone()
+      local target = sample[2]:clone()
+      table.insert(inputs, input)
+      table.insert(targets, target)
+   end
+
+   --------------------------------------------------------------------
+   -- define eval closure
+   --
+   local feval = function()
+      -- reset gradient/f
+      local f = 0
+      dl_dx:zero()
+
+      -- estimate f and gradients, for minibatch
+      for i = 1,#inputs do
+         -- f
+         f = f + module:updateOutput(inputs[i], targets[i])
+
+         -- gradients
+         module:updateGradInput(inputs[i], targets[i])
+         module:accGradParameters(inputs[i], targets[i])
+      end
+
+      -- normalize
+      dl_dx:div(#inputs)
+      f = f/#inputs
+
+      -- return f and df/dx
+      return f,dl_dx
+   end
+
+   --------------------------------------------------------------------
+   -- one SGD step
+   --
+   sgdconf = sgdconf or {learningRate = params.eta,
+                         learningRateDecay = params.etadecay,
+                         learningRates = etas,
+                         momentum = params.momentum}
+   _,fs = optim.sgd(feval, x, sgdconf)
+   err = err + fs[1]
+
+   -- normalize
+   module:normalize()
+
+   --------------------------------------------------------------------
+   -- compute statistics / report error
+   --
    if math.fmod(t , params.statinterval) == 0 then
-      -- training error / iteration
-      avTrainingError[t/params.statinterval] = err/params.statinterval
 
       -- report
-      print('# iter=' .. t .. ' eta = ( ' .. currentLearningRate[1] .. 
-            ', ' .. currentLearningRate[2] .. ' ) current error = ' .. err)
+      print('==> iteration = ' .. t .. ', average loss = ' .. err/params.statinterval)
 
-      -- plot filters
-      if params.model == 'linear' then
-         dd = image.toDisplayTensor{input=module.decoder.modules[1].weight:transpose(1,2):unfold(2,params.inputsize,params.inputsize),padding=2,nrow=16,symmetric=true}
-         de = image.toDisplayTensor{input=module.encoder.modules[1].weight:unfold(2,params.inputsize,params.inputsize),padding=2,nrow=16,symmetric=true}
-      elseif params.model == 'conv' then
-         de = image.toDisplayTensor{input=module.encoder.modules[1].weight,padding=2,nrow=16,symmetric=true}
-         dd = image.toDisplayTensor{input=module.decoder.modules[1].weight,padding=2,nrow=16,symmetric=true}
-      elseif params.model == 'conv-psd' then
-         de = image.toDisplayTensor{input=module.encoder.modules[1].weight,padding=2,nrow=16,symmetric=true}
-         dd = image.toDisplayTensor{input=module.decoder.D.weight,padding=2,nrow=16,symmetric=true}
-      elseif params.model == 'linear-psd' then
-         dd = image.toDisplayTensor{input=module.decoder.D.weight:transpose(1,2):unfold(2,params.inputsize,params.inputsize),padding=2,nrow=16,symmetric=true}
-         de = image.toDisplayTensor{input=module.encoder.modules[1].weight:unfold(2,params.inputsize,params.inputsize),padding=2,nrow=16,symmetric=true}
+      -- get weights
+      eweight = module.encoder.modules[1].weight
+      if module.decoder.D then
+         dweight = module.decoder.D.weight
+      else
+         dweight = module.decoder.modules[1].weight
       end
-      image.save(params.rundir .. '/filters_dec_' .. t .. '.jpg', dd)
-      image.save(params.rundir .. '/filters_enc_' .. t .. '.jpg', de)
+
+      -- reshape weights if linear matrix is used
+      if params.model:find('linear') then
+         dweight = dweight:transpose(1,2):unfold(2,params.inputsize,params.inputsize)
+         eweight = eweight:unfold(2,params.inputsize,params.inputsize)
+      end
+
+      -- render filters
+      dd = image.toDisplayTensor{input=dweight,
+                                 padding=2,
+                                 nrow=math.floor(math.sqrt(params.nfiltersout)),
+                                 symmetric=true}
+      de = image.toDisplayTensor{input=eweight,
+                                 padding=2,
+                                 nrow=math.floor(math.sqrt(params.nfiltersout)),
+                                 symmetric=true}
+
+      -- live display
       if params.display then
          _win1_ = image.display{image=dd, win=_win1_, legend='Decoder filters', zoom=2}
          _win2_ = image.display{image=de, win=_win2_, legend='Encoder filters', zoom=2}
       end
 
-      -- store model
+      -- save stuff
+      image.save(params.rundir .. '/filters_dec_' .. t .. '.jpg', dd)
+      image.save(params.rundir .. '/filters_enc_' .. t .. '.jpg', de)
       torch.save(params.rundir .. '/model_' .. t .. '.bin', module)
-      -- write training error
-      torch.save(params.rundir .. '/error.mat', avTrainingError[{ {1,t/params.statinterval} }])
 
-      -- update learning rate with decay
-      currentLearningRate = params.eta/(1+(t/params.statinterval)*params.decay)
-      err = 0
-      iter = 0
+      -- reset counters
+      err = 0; iter = 0
    end
 end
