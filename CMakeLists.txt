@@ -14,6 +14,7 @@ SET(luasrc linear-regression/example-linear-regression.lua
 		   train-a-digit-classifier/train-on-mnist.lua
 		   train-a-digit-classifier/dataset-mnist.lua
 		   train-on-cifar/train-on-cifar.lua
-		   train-on-housenumbers/train-on-housenumbers.lua)
+		   train-on-housenumbers/train-on-housenumbers.lua
+		   train-autoencoder/train-autoencoder.lua)
 
 ADD_TORCH_PACKAGE(tutorials "" "${luasrc}" "Tutorials")
