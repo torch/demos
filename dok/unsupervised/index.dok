@@ -314,7 +314,7 @@ encoder:add(nn.Tanh())
 encoder:add(nn.Diag(outputSize))
 
 -- decoder is L1 solution:
-decoder = unsup.SpatialConvFistaL1(conntable, 5, 5, 25, 25)
+decoder = unsup.SpatialConvFistaL1(decodertable, 5, 5, 25, 25)
 </file>
 
 ==== Training ====
