@@ -42,7 +42,7 @@ cmd:option('-lambda', 1, 'sparsity coefficient')
 cmd:option('-beta', 1, 'prediction error coefficient')
 cmd:option('-eta', 2e-3, 'learning rate')
 cmd:option('-batchsize', 1, 'batch size')
-cmd:option('-etadecay', 1e-1, 'learning rate decay')
+cmd:option('-etadecay', 1e-3, 'learning rate decay')
 cmd:option('-momentum', 0, 'gradient momentum')
 cmd:option('-maxiter', 1000000, 'max number of updates')
 
