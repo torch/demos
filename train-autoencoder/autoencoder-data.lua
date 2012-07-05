@@ -197,5 +197,5 @@ function displayData(dataset, nsamples, nrow, zoom)
       cntr = cntr + 1
    end
 
-   return image.display{image=ex, padding=1, symmetric=true, zoom=zoom, nrow=nrow, legend='Training Data'}
+   return image.display{image=ex, padding=2, symmetric=true, zoom=zoom, nrow=nrow, legend='Training Data'}
 end
