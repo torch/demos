@@ -12,7 +12,7 @@
 -- don't yield filters that are visually appealing, although they might be
 -- minimizing the reconstruction error correctly.
 --
--- Clement Farabet
+-- Koray Kavukcuoglu, Clement Farabet
 ----------------------------------------------------------------------
 
 require 'unsup'
