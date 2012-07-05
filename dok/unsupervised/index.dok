@@ -224,7 +224,7 @@ where the l0 norm is defined as the number of non-zero elements in a given
 vector. This is a combinatorial problem, and a common approximation of it
 is the following optimization problem:
 
-{{sparse_coding_approx.png}}
+{{sparse_coding_optim.png}}
 
 This particular formulation, called Basis Pursuit Denoising, can be seen as 
 minimizing an objective that penalizes the reconstruction error using a 
