@@ -223,7 +223,6 @@ end
 -- are we using the hessian?
 if params.hessian then
    module:initDiagHessianParameters()
-   etas = ddl_ddx:clone():fill(1)
 end
 
 -- get all parameters
@@ -250,6 +249,7 @@ for t = 1,params.maxiter,params.batchsize do
       local minhessian = params.minhessian
       local maxhessian = params.maxhessian
       local ddl_ddx_avg = ddl_ddx:clone(ddl_ddx):zero()
+      etas = etas or ddl_ddx:clone()
 
       print('==> estimating diagonal hessian elements')
       for i = 1,hessiansamples do
@@ -341,7 +341,9 @@ for t = 1,params.maxiter,params.batchsize do
    err = err + fs[1]
 
    -- normalize
-   module:normalize()
+   if params.model:find('psd') then
+      module:normalize()
+   end
 
    --------------------------------------------------------------------
    -- compute statistics / report error
