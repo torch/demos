@@ -220,16 +220,14 @@ end
 -- trainable parameters
 --
 
--- diag hessian parameters
-module:initDiagHessianParameters()
+-- are we using the hessian?
+if params.hessian then
+   module:initDiagHessianParameters()
+   etas = ddl_ddx:clone():fill(1)
+end
 
 -- get all parameters
 x,dl_dx,ddl_ddx = module:getParameters()
-
--- learning rates
-if params.hessian then
-   etas = ddl_ddx:clone():fill(1)
-end
 
 ----------------------------------------------------------------------
 -- train model
