@@ -12,6 +12,15 @@
 -- don't yield filters that are visually appealing, although they might be
 -- minimizing the reconstruction error correctly.
 --
+-- We demonstrate 2 types of auto-encoders:
+--   * plain: regular auto-encoder
+--   * predictive sparse decomposition (PSD): the encoder is trained
+--     to predict an optimal sparse decomposition of the input
+--
+-- Both types of auto-encoders can use linear or convolutional
+-- encoders/decoders. The convolutional version typically yields more
+-- interesting, less redundant filters for images.
+--
 -- Koray Kavukcuoglu, Clement Farabet
 ----------------------------------------------------------------------
 
@@ -37,12 +46,12 @@ cmd:option('-threads', 2, 'threads')
 cmd:option('-model', 'conv-psd', 'auto-encoder class: linear | linear-psd | conv | conv-psd')
 cmd:option('-inputsize', 25, 'size of each input patch')
 cmd:option('-nfiltersin', 1, 'number of input convolutional filters')
-cmd:option('-nfiltersout', 4, 'number of output convolutional filters')
+cmd:option('-nfiltersout', 16, 'number of output convolutional filters')
 cmd:option('-lambda', 1, 'sparsity coefficient')
 cmd:option('-beta', 1, 'prediction error coefficient')
 cmd:option('-eta', 2e-3, 'learning rate')
 cmd:option('-batchsize', 1, 'batch size')
-cmd:option('-etadecay', 1e-3, 'learning rate decay')
+cmd:option('-etadecay', 1e-5, 'learning rate decay')
 cmd:option('-momentum', 0, 'gradient momentum')
 cmd:option('-maxiter', 1000000, 'max number of updates')
 
@@ -242,12 +251,10 @@ for t = 1,params.maxiter,params.batchsize do
       local hessiansamples = params.hessiansamples
       local minhessian = params.minhessian
       local maxhessian = params.maxhessian
-      local knew = 1/hessiansamples
-      local kold = 1
-      local ddeltax = ddl_ddx:clone(ddl_ddx):zero()
+      local ddl_ddx_avg = ddl_ddx:clone(ddl_ddx):zero()
 
       print('==> estimating diagonal hessian elements')
-      for i=1,hessiansamples do
+      for i = 1,hessiansamples do
          -- next
          local ex = dataset[i]
          local input = ex[1]
@@ -264,22 +271,18 @@ for t = 1,params.maxiter,params.batchsize do
          module:updateDiagHessianInput(input, target)
          module:accDiagHessianParameters(input, target)
 
-         -- assert
-         if ddl_ddx:min() < 0 then error('Negative ddx') end
-
          -- accumulate
-         ddeltax:mul(kold):add(knew,ddl_ddx)
+         ddl_ddx_avg:add(1/hessiansamples, ddl_ddx)
       end
 
       -- cap hessian params
-      print('==> ddl/ddx : min/max = ' .. ddeltax:min() .. '/' .. ddeltax:max())
-      ddeltax[torch.lt(ddeltax,minhessian)] = minhessian
-      ddeltax[torch.gt(ddeltax,maxhessian)] = maxhessian
-      print('==> corrected ddl/ddx : min/max = ' .. ddeltax:min() .. '/' .. ddeltax:max())
-      ddl_ddx[{}] = ddeltax
+      print('==> ddl/ddx : min/max = ' .. ddl_ddx_avg:min() .. '/' .. ddl_ddx_avg:max())
+      ddl_ddx_avg[torch.lt(ddl_ddx_avg,minhessian)] = minhessian
+      ddl_ddx_avg[torch.gt(ddl_ddx_avg,maxhessian)] = maxhessian
+      print('==> corrected ddl/ddx : min/max = ' .. ddl_ddx_avg:min() .. '/' .. ddl_ddx_avg:max())
 
       -- generate learning rates
-      etas:cdiv(ddl_ddx)
+      etas:fill(1):cdiv(ddl_ddx_avg)
    end
 
    --------------------------------------------------------------------
