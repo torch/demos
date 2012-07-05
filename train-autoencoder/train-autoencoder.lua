@@ -11,13 +11,13 @@
 -- A few configurations that seem to work:
 
 -- Linear auto-encoder:
--- $ torch train-autoencoder.lua -display -model linear -eta 0.1 -lambda 1
+-- $ torch train-autoencoder.lua -display -model linear -eta 0.01 -nfiltersout 64
 
 -- Linear PSD auto-encoder:
 -- $ torch train-autoencoder.lua -display -model linear-psd -eta 0.1 -lambda 0.5
 
 -- Convolutional PSD auto-encoder:
--- $ torch train-autoencoder.lua -display -model conv-psd -eta 0.001 -lambda 0.02
+-- $ torch train-autoencoder.lua -display -model conv-psd -eta 0.005 -lambda 0.05
 
 -- Note: simple auto-encoders (with no sparsity constraint on the code) typically
 -- don't yield filters that are visually appealing, although they might be
