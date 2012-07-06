@@ -7,8 +7,10 @@ increasing complexity.
 
 All the examples in this tutorial rely on the [[..:optim:index|optim]] package, and some of the examples
 will require extra modules provided in nnx. If you want to visualize the training data,
-the image package should also be installed. As for all torch packages,
-they can be installed like this (at the command line):
+the image package should also be installed. Also, if you're reading this online,
+you should install the ''tutorials'' package, which provides the code
+for these examples. As for all torch packages, they can be installed like this (at the 
+command line):
 
 <file bash>
 $ torch-pkg install image nnx optim
