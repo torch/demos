@@ -22,32 +22,35 @@ want to jump right into the code.
 
 ===== Basic Autoencoder =====
 
-An autoencoder is a model that takes a vector input ''x'', maps it into
-a hidden representation ''y'' using an encoder which typically has this
-form:
+An autoencoder is a model that takes a vector input ''y'', maps it into
+a hidden representation ''z'' (code) using an encoder which typically has 
+this form:
 
 {{auto_encoder.png}}
 
-The hidden representation ''y'', often called code, is then mapped back
-into the space of ''x'', using a decoder of this form:
+where ''s'' is a non-linear activation function (the ''tanh'' function
+is a common choice), ''W_e'' the encoding matrix and ''b_e'' a vector
+of bias parameters.
+
+The hidden representation ''z'', often called code, is then mapped back
+into the space of ''y'', using a decoder of this form:
 
 {{auto_decoder.png}}
 
-''a'' is a non-linear activation function (the ''tanh'' function
-is a common choice), ''W_e'' the encoding matrix, ''W_d'' the decoding
-matrix, ''b_e'' and ''b_d'' the encoding/decoding bias vectors.
+where ''W_d'' is the decoding matrix and ''b_d'' a vector of bias
+parameters.
 
 The goal of the autoencoder is to minimize the reconstruction error,
-that is, which is represented by a distance between ''x'' and ''z''. The
+which is represented by a distance between ''y'' and ''y~''. The
 most common type of distance is the mean squared error:
 
 {{mse_loss.png}}
 
-The code ''z'' typically has less dimensions than ''x'', which forces
+The code ''z'' typically has less dimensions than ''y'', which forces
 the autoencoder to learn a good representation of the data. In its 
 simplest form (linear), an autoencoder learns to project the data
-onto its first principal components. If the code ''y'' has as many
-components as ''x'', then no compression is required, and the model
+onto its first principal components. If the code ''z'' has as many
+components as ''y'', then no compression is required, and the model
 could typically end up learning the identity function. Now if
 the encoder has a non-linear form (using a ''tanh'', or using a 
 multi-layered model), then the autoencoder can learn a potentially
