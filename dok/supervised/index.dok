@@ -13,7 +13,7 @@ for these examples. As for all torch packages, they can be installed like this (
 command line):
 
 <file bash>
-$ torch-pkg install image nnx optim
+$ torch-pkg install tutorials image nnx optim
 </file>
 
 

@@ -12,7 +12,7 @@ for these examples.As for all torch packages, they can be installed like this (a
 command line):
 
 <file bash>
-$ torch-pkg install unsup optim image
+$ torch-pkg install tutorials unsup optim image
 </file>
 
 All the examples in this section are based on:
