@@ -115,8 +115,7 @@ if opt.network == '' then
    end
 else
    print('<trainer> reloading previously trained network')
-   model = nn.Sequential()
-   model:read(torch.DiskFile(opt.network))
+   model = torch.load(opt.network)
 end
 
 -- retrieve parameters and gradients
