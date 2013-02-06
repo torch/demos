@@ -35,9 +35,10 @@ local opt = lapp[[
    -o,--optimization  (default "SGD")       optimization: SGD | LBFGS 
    -r,--learningRate  (default 0.1)         learning rate, for SGD only
    -b,--batchSize     (default 10)          batch size
-   -d,--weightDecay   (default 0)           weight decay, for SGD only
    -m,--momentum      (default 0)           momentum, for SGD only
-   -i,--maxIter       (default 1)           maximum nb of iterations per batch, for LBFGS
+   -i,--maxIter       (default 3)           maximum nb of iterations per batch, for LBFGS
+   --coefL1           (default 0)           L1 penalty on the weights
+   --coefL2           (default 0)           L2 penalty on the weights
    -t,--threads       (default 4)           number of threads
 ]]
 
@@ -78,14 +79,16 @@ if opt.network == '' then
       -- stage 1 : mean suppresion -> filter bank -> squashing -> max pooling
       model:add(nn.SpatialConvolutionMM(1, 32, 5, 5))
       model:add(nn.Tanh())
-      model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
+      model:add(nn.SpatialMaxPooling(3, 3, 3, 3))
       -- stage 2 : mean suppresion -> filter bank -> squashing -> max pooling
       model:add(nn.SpatialConvolutionMM(32, 64, 5, 5))
       model:add(nn.Tanh())
       model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
-      -- stage 3 : standard classifier
-      model:add(nn.Reshape(64*5*5))
-      model:add(nn.Linear(64*5*5, #classes))
+      -- stage 3 : standard 2-layer MLP:
+      model:add(nn.Reshape(64*2*2))
+      model:add(nn.Linear(64*2*2, 200))
+      model:add(nn.Tanh())
+      model:add(nn.Linear(200, #classes))
       ------------------------------------------------------------
 
    elseif opt.model == 'mlp' then
@@ -143,7 +146,7 @@ end
 
 -- create training set and normalize
 trainData = mnist.loadTrainSet(nbTrainingPatches, geometry)
-mean, std = trainData:normalizeGlobal()
+trainData:normalizeGlobal(mean, std)
 
 -- create test set and normalize
 testData = mnist.loadTestSet(nbTestingPatches, geometry)
@@ -189,6 +192,9 @@ function train(dataset)
 
       -- create closure to evaluate f(X) and df/dX
       local feval = function(x)
+         -- just in case:
+         collectgarbage()
+
          -- get new parameters
          if x ~= parameters then
             parameters:copy(x)
@@ -205,6 +211,19 @@ function train(dataset)
          local df_do = criterion:backward(outputs, targets)
          model:backward(inputs, df_do)
 
+         -- penalties (L1 and L2):
+         if opt.coefL1 ~= 0 or opt.coefL2 ~= 0 then
+            -- locals:
+            local norm,sign= torch.norm,torch.sign
+
+            -- Loss:
+            f = f + opt.coefL1 * norm(parameters,1)
+            f = f + opt.coefL2 * norm(parameters,2)
+
+            -- Gradients:
+            gradParameters:add( sign(parameters):mul(opt.coefL1) + parameters:clone():mul(opt.coefL2) )
+         end
+
          -- update confusion
          for i = 1,opt.batchSize do
             confusion:add(outputs[i], targets[i])
@@ -218,8 +237,10 @@ function train(dataset)
       if opt.optimization == 'LBFGS' then
 
          -- Perform LBFGS step:
-         lbfgsState = lbfgsState or {maxIter = opt.maxIter,
-                                     lineSearch = optim.lswolfe}
+         lbfgsState = lbfgsState or {
+            maxIter = opt.maxIter,
+            lineSearch = optim.lswolfe
+         }
          optim.lbfgs(feval, parameters, lbfgsState)
        
          -- disp report:
@@ -231,10 +252,11 @@ function train(dataset)
       elseif opt.optimization == 'SGD' then
 
          -- Perform SGD step:
-         sgdState = sgdState or {learningRate = opt.learningRate,
-                                 weightDecay = opt.weightDecay,
-                                 momentum = opt.momentum,
-                                 learningRateDecay = 5e-7}
+         sgdState = sgdState or {
+            learningRate = opt.learningRate,
+            momentum = opt.momentum,
+            learningRateDecay = 5e-7
+         }
          optim.sgd(feval, parameters, sgdState)
       
          -- disp progress
