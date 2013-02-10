@@ -218,7 +218,7 @@ function train(dataset)
 
             -- Loss:
             f = f + opt.coefL1 * norm(parameters,1)
-            f = f + opt.coefL2 * norm(parameters,2)
+            f = f + opt.coefL2 * norm(parameters,2)^2
 
             -- Gradients:
             gradParameters:add( sign(parameters):mul(opt.coefL1) + parameters:clone():mul(opt.coefL2) )
