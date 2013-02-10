@@ -297,18 +297,32 @@ function test(dataset)
 
    -- test over given dataset
    print('<trainer> on testing Set:')
-   for t = 1,dataset:size() do
+   for t = 1,dataset:size(),opt.batchSize do
       -- disp progress
       xlua.progress(t, dataset:size())
 
-      -- get new sample
-      local sample = dataset[t]
-      local input = sample[1]
-      local _,target = sample[2]:max(1)
-      target = target:squeeze()
+      -- create mini batch
+      local inputs = torch.Tensor(opt.batchSize,1,geometry[1],geometry[2])
+      local targets = torch.Tensor(opt.batchSize)
+      local k = 1
+      for i = t,math.min(t+opt.batchSize-1,dataset:size()) do
+         -- load new sample
+         local sample = dataset[i]
+         local input = sample[1]:clone()
+         local _,target = sample[2]:clone():max(1)
+         target = target:squeeze()
+         inputs[k] = input
+         targets[k] = target
+         k = k + 1
+      end
 
-      -- test sample
-      confusion:add(model:forward(input), target)
+      -- test samples
+      local preds = model:forward(inputs)
+
+      -- confusion:
+      for i = 1,opt.batchSize do
+         confusion:add(preds[i], targets[i])
+      end
    end
 
    -- timing
