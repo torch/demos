@@ -35,6 +35,7 @@ local opt = lapp[[
    -o,--optimization  (default "SGD")       optimization: SGD | LBFGS 
    -r,--learningRate  (default 0.05)        learning rate, for SGD only
    -b,--batchSize     (default 10)          batch size
+   -t,--batchSizeTest (default 1000)        batch size for test
    -m,--momentum      (default 0)           momentum, for SGD only
    -i,--maxIter       (default 3)           maximum nb of iterations per batch, for LBFGS
    --coefL1           (default 0)           L1 penalty on the weights
@@ -234,7 +235,21 @@ function train(dataset)
       end
 
       -- optimize on current mini-batch
-      if opt.optimization == 'LBFGS' then
+      if opt.optimization == 'CLBFGS' then
+
+         -- Full LBFGS
+         local lbfgs = require 'lbfgs'
+         lbfgsState = lbfgsState or {
+            max_iterations = 3,
+            linesearch = 'LBFGS_LINESEARCH_BACKTRACKING_WOLFE',
+            report = function(state)
+               print('LBFGS Progress:')
+               print(state)
+            end
+         }
+         lbfgs(feval, parameters, lbfgsState)
+
+      elseif opt.optimization == 'LBFGS' then
 
          -- Perform LBFGS step:
          lbfgsState = lbfgsState or {
@@ -297,15 +312,15 @@ function test(dataset)
 
    -- test over given dataset
    print('<trainer> on testing Set:')
-   for t = 1,dataset:size(),opt.batchSize do
+   for t = 1,dataset:size(),opt.batchSizeTest do
       -- disp progress
       xlua.progress(t, dataset:size())
 
       -- create mini batch
-      local inputs = torch.Tensor(opt.batchSize,1,geometry[1],geometry[2])
-      local targets = torch.Tensor(opt.batchSize)
+      local inputs = torch.Tensor(opt.batchSizeTest,1,geometry[1],geometry[2])
+      local targets = torch.Tensor(opt.batchSizeTest)
       local k = 1
-      for i = t,math.min(t+opt.batchSize-1,dataset:size()) do
+      for i = t,math.min(t+opt.batchSizeTest-1,dataset:size()) do
          -- load new sample
          local sample = dataset[i]
          local input = sample[1]:clone()
@@ -320,7 +335,7 @@ function test(dataset)
       local preds = model:forward(inputs)
 
       -- confusion:
-      for i = 1,opt.batchSize do
+      for i = 1,opt.batchSizeTest do
          confusion:add(preds[i], targets[i])
       end
    end
