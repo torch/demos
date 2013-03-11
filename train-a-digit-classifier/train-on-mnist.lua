@@ -165,7 +165,7 @@ trainLogger = optim.Logger(paths.concat(opt.save, 'train.log'))
 testLogger = optim.Logger(paths.concat(opt.save, 'test.log'))
 
 -- training function
-function train(dataset)
+function train(dataset, testdataset)
    -- epoch tracker
    epoch = epoch or 1
 
@@ -175,8 +175,19 @@ function train(dataset)
    -- do one epoch
    print('<trainer> on training set:')
    print("<trainer> online epoch # " .. epoch .. ' [batchSize = ' .. opt.batchSize .. ']')
-   for t = 1,dataset:size(),opt.batchSize do
-      -- create mini batch
+
+   -- create closure to evaluate f(X) and df/dX
+   local t = 1
+   local feval = function(x)
+      -- just in case:
+      collectgarbage()
+
+      -- get new parameters
+      if x ~= parameters then
+         parameters:copy(x)
+      end
+   
+      -- create new mini batch at each func eval
       local inputs = torch.Tensor(opt.batchSize,1,geometry[1],geometry[2])
       local targets = torch.Tensor(opt.batchSize)
       local k = 1
@@ -191,118 +202,126 @@ function train(dataset)
          k = k + 1
       end
 
-      -- create closure to evaluate f(X) and df/dX
-      local feval = function(x)
-         -- just in case:
-         collectgarbage()
+      -- reset gradients
+      gradParameters:zero()
 
-         -- get new parameters
-         if x ~= parameters then
-            parameters:copy(x)
-         end
-
-         -- reset gradients
-         gradParameters:zero()
-
+      -- Divide big batches into fixed-size batches:
+      local f = 0
+      for k = 1,opt.batchSize,1000 do
          -- evaluate function for complete mini batch
-         local outputs = model:forward(inputs)
-         local f = criterion:forward(outputs, targets)
+         local outputs = model:forward(inputs[{ {k,k+1000-1} }])
+         f = f + criterion:forward(outputs, targets[{ {k,k+1000-1} }])
 
          -- estimate df/dW
-         local df_do = criterion:backward(outputs, targets)
-         model:backward(inputs, df_do)
-
-         -- penalties (L1 and L2):
-         if opt.coefL1 ~= 0 or opt.coefL2 ~= 0 then
-            -- locals:
-            local norm,sign= torch.norm,torch.sign
-
-            -- Loss:
-            f = f + opt.coefL1 * norm(parameters,1)
-            f = f + opt.coefL2 * norm(parameters,2)^2/2
-
-            -- Gradients:
-            gradParameters:add( sign(parameters):mul(opt.coefL1) + parameters:clone():mul(opt.coefL2) )
-         end
+         local df_do = criterion:backward(outputs, targets[{ {k,k+1000-1} }])
+         model:backward(inputs[{ {k,k+1000-1} }], df_do)
 
          -- update confusion
-         for i = 1,opt.batchSize do
-            confusion:add(outputs[i], targets[i])
+         for i = 1,1000 do
+            confusion:add(outputs[i], targets[k+i-1])
          end
-
-         -- return f and df/dX
-         return f,gradParameters
       end
 
-      -- optimize on current mini-batch
-      if opt.optimization == 'CLBFGS' then
+      -- penalties (L1 and L2):
+      if opt.coefL1 ~= 0 or opt.coefL2 ~= 0 then
+         -- locals:
+         local norm,sign= torch.norm,torch.sign
 
-         -- Full LBFGS
-         local lbfgs = require 'lbfgs'
-         lbfgsState = lbfgsState or {
-            max_iterations = 3,
-            linesearch = 'LBFGS_LINESEARCH_BACKTRACKING_WOLFE',
-            report = function(state)
-               print('LBFGS Progress:')
-               print(state)
+         -- Loss:
+         f = f + opt.coefL1 * norm(parameters,1)
+         f = f + opt.coefL2 * norm(parameters,2)^2/2
+
+         -- Gradients:
+         gradParameters:add( sign(parameters):mul(opt.coefL1) + parameters:clone():mul(opt.coefL2) )
+      end
+
+      -- return f and df/dX
+      return f,gradParameters
+   end
+
+   -- optimize on current mini-batch
+   if opt.optimization == 'LBFGS' then
+
+      -- Full LBFGS
+      local lbfgs = require 'lbfgs'
+      lbfgsState = lbfgsState or {
+         max_iterations = 0, -- unlimited
+         max_linesearch = 5,
+         linesearch = 'LBFGS_LINESEARCH_BACKTRACKING_WOLFE',
+         report = function(state)
+            -- Next Step:
+            t = t + opt.batchSize
+            if (t + opt.batchSize - 1) > dataset:size() then
+               t = 1
             end
-         }
+
+            -- Progress:
+            print('LBFGS Progress:')
+            print(state)
+            print(confusion)
+            confusion:zero()
+
+            -- Test!
+            if state.iterations % (dataset:size()/opt.batchSize) == 0 then
+               test(testdataset)
+            end
+         end
+      }
+      while true do
+         -- Do an LBFGS pass
          lbfgs(feval, parameters, lbfgsState)
 
-      elseif opt.optimization == 'LBFGS' then
-
-         -- Perform LBFGS step:
-         lbfgsState = lbfgsState or {
-            maxIter = opt.maxIter,
-            lineSearch = optim.lswolfe
-         }
-         optim.lbfgs(feval, parameters, lbfgsState)
-       
-         -- disp report:
-         print('LBFGS step')
-         print(' - progress in batch: ' .. t .. '/' .. dataset:size())
-         print(' - nb of iterations: ' .. lbfgsState.nIter)
-         print(' - nb of function evalutions: ' .. lbfgsState.funcEval)
-
-      elseif opt.optimization == 'SGD' then
-
-         -- Perform SGD step:
-         sgdState = sgdState or {
-            learningRate = opt.learningRate,
-            momentum = opt.momentum,
-            learningRateDecay = 5e-7
-         }
-         optim.sgd(feval, parameters, sgdState)
-      
-         -- disp progress
-         xlua.progress(t, dataset:size())
-
-      else
-         error('unknown optimization method')
+         -- Increase batch size
+         opt.batchSize = math.min(opt.batchSize * 2, 60000)
+         print('Increated batch size to: ' .. opt.batchSize)
       end
-   end
+
+   elseif opt.optimization == 'SGD' then
+
+      -- Train!
+      while true do
+         -- Perform SGD for N steps:
+         for i = 1,dataset:size() / opt.batchSize do
+            sgdState = sgdState or {
+               learningRate = opt.learningRate,
+               momentum = opt.momentum,
+               learningRateDecay = 5e-7
+            }
+            optim.sgd(feval, parameters, sgdState)
+         
+            -- disp progress
+            xlua.progress(i, dataset:size())
+            
+            -- Next Step:
+            t = t + opt.batchSize
+            if (t + opt.batchSize - 1) > dataset:size() then
+               t = 1
+            end
+         end
+         -- time taken
+         time = sys.clock() - time
+         time = time / dataset:size()
+         print("<trainer> time to learn 1 sample = " .. (time*1000) .. 'ms')
+
+         -- print confusion matrix
+         print(confusion)
+         trainLogger:add{['% mean class accuracy (train set)'] = confusion.totalValid * 100}
+         confusion:zero()
+
+         -- test!
+         test(testdataset)
    
-   -- time taken
-   time = sys.clock() - time
-   time = time / dataset:size()
-   print("<trainer> time to learn 1 sample = " .. (time*1000) .. 'ms')
-
-   -- print confusion matrix
-   print(confusion)
-   trainLogger:add{['% mean class accuracy (train set)'] = confusion.totalValid * 100}
-   confusion:zero()
-
-   -- save/log current net
-   local filename = paths.concat(opt.save, 'mnist.net')
-   os.execute('mkdir -p ' .. sys.dirname(filename))
-   if sys.filep(filename) then
-      os.execute('mv ' .. filename .. ' ' .. filename .. '.old')
+         -- plot errors
+         if opt.plot then
+            trainLogger:style{['% mean class accuracy (train set)'] = '-'}
+            testLogger:style{['% mean class accuracy (test set)'] = '-'}
+            trainLogger:plot()
+            testLogger:plot()
+         end
+      end
+   else
+      error('unknown optimization method')
    end
-   print('<trainer> saving network to '..filename)
-   -- torch.save(filename, model)
-
-   -- next epoch
-   epoch = epoch + 1
 end
 
 -- test function
@@ -354,16 +373,5 @@ end
 ----------------------------------------------------------------------
 -- and train!
 --
-while true do
-   -- train/test
-   train(trainData)
-   test(testData)
+train(trainData, testData)
 
-   -- plot errors
-   if opt.plot then
-      trainLogger:style{['% mean class accuracy (train set)'] = '-'}
-      testLogger:style{['% mean class accuracy (test set)'] = '-'}
-      trainLogger:plot()
-      testLogger:plot()
-   end
-end
