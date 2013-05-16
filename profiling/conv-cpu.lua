@@ -4,8 +4,8 @@ require 'sys'
 require 'cunn'
 
 -- dev:
---cutorch.setDevice(arg[1] or 1)
---print('DEVID = ' .. cutorch.getDevice())
+cutorch.setDevice(arg[1] or 1)
+print('DEVID = ' .. cutorch.getDevice())
 
 -- params:
 batchSize = 32
@@ -25,7 +25,7 @@ n:add( nn.SpatialConvolutionMM(ninputs, nhiddens, fsize, fsize, stride, stride) 
 -- pre-alloc states:
 n:forward(i)
 n:backward(i, n.output)
---cutorch.synchronize()
+cutorch.synchronize()
 
 -- nb of operations:
 opsPerMAC = 2
@@ -41,7 +41,7 @@ for t = 1,nbOfAverages do
    n:forward(i)
    n:backward(i, n.output)
 end
---cutorch.synchronize()
+cutorch.synchronize()
 t = sys.toc()/nbOfAverages
 
 -- result:

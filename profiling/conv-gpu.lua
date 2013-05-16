@@ -30,7 +30,7 @@ n:cuda()
 -- pre-alloc states:
 n:forward(i)
 n:backward(i, n.output)
---cutorch.synchronize()
+cutorch.synchronize()
 
 -- nb of operations:
 opsPerMAC = 2
@@ -46,7 +46,7 @@ for t = 1,nbOfAverages do
    n:forward(i)
    n:backward(i,n.output)
 end
---cutorch.synchronize()
+cutorch.synchronize()
 t = sys.toc()/nbOfAverages
 
 -- result:
