@@ -13,9 +13,12 @@ require 'xlua'
 -- angle (in rad)
 -- elipse_ratio = aspect ratio(0.5)
 
+-- test:
+--image.display{image=gabor(9,0.5,45,1,0.5), zoom =4}
+
 function gabor(size, sigma, angle, period, ellipse_ratio)
       -- init matrix
-      local data = lab.zeros(size,size)
+      local data = torch.zeros(size,size)
 
       -- image -> pixel
       period = period * size

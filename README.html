@@ -1,0 +1,37 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+   <title>Torch7 Packages</title>
+   <style>
+      body {font-family:helvetica,arial; margin:auto; padding:0; width:600px;}
+      a {color:#777;text-decoration:none;}
+      h1 {color:#777;}
+      h2 {color:#444;}
+      code {background:#eee;color:#222;}
+   </style>
+</head>
+<body>
+<h1 id="demos-turorials-for-torch7.">Demos &amp; Turorials for Torch7.</h1>
+<p>All the demos/tutorials provided in this repo require Torch7 to be installed, as well as some extra (3rd-party) packages.</p>
+<h2 id="install">Install</h2>
+<h3 id="torch7">Torch7</h3>
+<p>Follow instructions on: <a href="http://www.torch.ch/">Torch7's homepage</a>.</p>
+<h3 id="rd-party-packages">3rd-party packages</h3>
+<p>Different demos/tutorials rely on different 3rd-party packages. If a demo crashes because it can't find a package then simply try to install it using torch-pkg:</p>
+<pre class="sh"><code>$ torch-pkg install image    # an image library for Torch7
+$ torch-pkg install nnx      # lots of extra neural-net modules
+$ torch-pkg install camera   # a camera interface for Linux/MacOS
+$ torch-pkg install ffmpeg   # a video decoder for most formats
+$ ...</code></pre>
+<p>A complete list of packages can be obtained by doing:</p>
+<pre class="sh"><code>$ torch-pkg list</code></pre>
+<p>or checking out <a href="http://data.neuflow.org/torch">this page</a>.</p>
+<h3 id="documentation">Documentation</h3>
+<p>Torch's main documentation gets installed when you install Torch, and should be available <a href="file:///usr/local/share/torch/html/index.html">here</a>, or wherever you installed Torch.</p>
+<p>This repo also comes with documentation, in the form of tutorials. To make them available, simply issue the following command in this directory:</p>
+<pre class="sh"><code>$ torch-pkg deploy</code></pre>
+<p>After that, a list of tutorials will be available in the documentation.</p>
+<h2 id="tutorials">Tutorials</h2>
+<p>Each directory provides a tutorial or a demo, with no particular order. It's a good idea to have the local <a href="file:///usr/local/share/torch/html/index.html">Torch documentation</a> open on the side, for reference. As Torch is based on the Lua language, it's also a good idea to go through the <a href="http://www.lua.org/manual/5.1/">Lua 5.1</a> book.</p>
+<h2 id="credits">Credits</h2>
+<p>These demos were slowly put together by: Clement Farabet &amp; Roy Lowrance.</p>

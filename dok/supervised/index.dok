@@ -1,0 +1,1134 @@
+====== Supervised learning ======
+{{anchor:tutorials.supervised}}
+
+In this tutorial, we're going to learn how to define a model, and train
+it using a supervised approach. We're going to present and solve multiple problems of
+increasing complexity.
+
+All the examples in this tutorial rely on the [[..:optim:index|optim]] package, and some of the examples
+will require extra modules provided in nnx. If you want to visualize the training data,
+the image package should also be installed. Also, if you're reading this online,
+you should install the ''tutorials'' package, which provides the code
+for these examples. As for all torch packages, they can be installed like this (at the 
+command line):
+
+<file bash>
+$ torch-pkg install tutorials image nnx optim
+</file>
+
+
+===== Linear Regression =====
+
+This first example provides a very simple step-by-step example
+of linear regression, using ''Torch7'' 's neural network ([[..:nn:index|nn]]) package,
+and the optimization package ([[..:optim:index|optim]]).
+
+The code associated to this example can be found in INSTALL_PREFIX/share/torch/lua/tutorials/:
+example-linear-regression.lua
+
+In this example, we consider a very simple regression problem, where we want to 
+predict the amount of corn produced by a farm, given the amount of fertilizer and
+intesticide used. In other words, we have two input variables, and one output variable.
+
+==== Definition of the model ====
+
+Linear regression is the simplest type of model. It is parametrized by a weight matrix ''W'', 
+and a bias vector ''b''. Mathematically, it can be written as:
+
+{{linear_regression.png}}
+
+To implement this model, we will use a [[..:nn:index#nn.Linear|Linear]] module, 
+which takes two inputs (fertilizer and insecticide) and produces one output
+(corn).
+
+Note that this linear model has 3 trainable parameters:
+  * 1 for the weight assigned to fertilizer
+  * 1 for the weight assigned to insecticide
+  * 1 for the weight assigned to the bias term
+
+<file lua>
+require 'nn'
+ninputs = 2
+noutputs = 1
+model = nn.Linear(ninputs, noutputs)
+</file>
+
+In the ''nn'' package, all the modules are self-contained building blocks, which might contain
+a set of trainable parameters, and if so, a set of similarily-sized matrices that are used to
+hold the gradients.
+
+At this stage, we can make predictions:
+
+<file lua>
+input = torch.randn(2)
+output = model:forward(input)
+</file>
+
+Also, the gradients wrt to all the parameters in the model, as well as wrt to the input of the model,
+can be computed this way:
+
+<file lua>
+input = torch.randn(2)
+grad_wrt_output = torch.randn(1)
+grad_wrt_input = model:backward(input, grad_wrt_output)
+</file>
+
+Given arbitrary trainable (nn) models, trainable parameters, and gradients can be obtained
+this way:
+
+<file lua>
+parameters,gradients = model:getParameters()
+</file>
+
+We will come back to this later, when we start training the model.
+
+==== Definition of a loss function ====
+
+Now that we have a model, we need to define a loss function to be minimized. In this
+regression example, what we want to do is minimize the mean-square error between
+the predictions (outputs of the model), and the groundtruth labels, across the entire
+dataset, which is defined as:
+
+{{loss.png}}
+
+With the per-sample loss defined as:
+
+{{mse_loss.png}}
+
+Torch7 provides a couple of standard loss functions, we will use
+[[..:nn:index#nn.MSECriterion|nn.MSECriterion]], which provides a readily-usable mean-square
+loss:
+
+<file lua>
+criterion = nn.MSECriterion()
+</file>
+
+Given a loss function and a model, we can now completely estimate the loss for a given
+sample/target pair, and also compute the gradients of this loss function wrt to the internal
+parameters of the model:
+
+<file lua>
+input = torch.randn(2)   -- a random input
+target = torch.randn(1)  -- a random target
+output = model:forward(input) -- estimate prediction
+loss = criterion:forward(output, target)  -- estimate loss
+
+grad_wrt_output = criterion:backward(output, target) -- estimate gradient wrt to model's output
+model:backward(input, grad_wrt_output) -- estimate gradients wrt to models' parameters
+</file>
+
+==== Creating the training data ====
+
+In all regression problems, some training data needs to be 
+provided. In a realistic scenario, data comes from some database
+or file system, and needs to be loaded from disk. In that 
+tutorial, we create the data source as a Lua table.
+
+In general, the data can be stored in arbitrary forms, and using
+Lua's flexible table data structure is usually a good idea. 
+Here we store the data as a 2D Tensor, where each
+row represents a training sample, and each column a variable. The
+first column is the target variable, and the others are the
+input variables.
+
+The data are from an example in Schaum's Outline:
+Dominick Salvator and Derrick Reagle
+Shaum's Outline of Theory and Problems of Statistics and Economics
+2nd edition
+McGraw-Hill
+2002
+
+The data relate the amount of corn produced, given certain amounts
+of fertilizer and insecticide. See p 157 of the text.
+
+In this example, we want to be able to predict the amount of
+corn produced, given the amount of fertilizer and intesticide used.
+In other words: fertilizer & insecticide are our two input variables,
+and corn is our target value.
+
+The data entries have this format: ''{corn, fertilizer, insecticide}''.
+
+Here's how to initialize a Tensor with the data:
+
+<file lua>
+data = torch.Tensor{
+   {40,  6,  4},
+   {44, 10,  4},
+   {46, 12,  5},
+   {48, 14,  7},
+   {52, 16,  9},
+   {58, 18, 12},
+   {60, 22, 14},
+   {68, 24, 20},
+   {74, 26, 21},
+   {80, 32, 24}
+}
+</file>
+
+==== Training the model ====
+
+To minimize the loss function defined above, using the linear model defined
+in ''model'', we follow a stochastic gradient descent procedure (SGD).
+
+SGD is a good optimization algorithm when the amount of training data
+is large, and estimating the gradient of the loss function over the 
+entire training set is too costly (which is not the case in this example,
+but we'll be dealing with online problems across the entire tutorial,
+so better to start with the right tools).
+
+Given an arbitrarily complex model, we can retrieve its trainable
+parameters, and the gradients of our loss function wrt these 
+parameters by doing:
+
+<file lua>
+x, dl_dx = model:getParameters()
+</file>
+
+We then need to define a closure, ''feval'', which computes
+the value of the loss function at a given point ''x'', and the gradient of
+that function with respect to ''x''. ''x'' is the vector of trainable weights,
+which, in this example, are all the weights of the linear matrix of
+our model, plus one bias. The form of this closure is imposed by the ''optim''
+package, in which all optimization methods require the ability to evaluate
+the value of a function and its derivatives wrt to the trainable ''x'', at
+any point ''x''.
+
+<file lua>
+feval = function(x_new)
+   -- set x to x_new, if different
+   -- (in this simple example, x_new will typically always point to x,
+   -- so this copy is never happening)
+   if x ~= x_new then
+      x:copy(x_new)
+   end
+
+   -- select a new training sample
+   _nidx_ = (_nidx_ or 0) + 1
+   if _nidx_ > (#data)[1] then _nidx_ = 1 end
+
+   local sample = data[_nidx_]
+   local target = sample[{ {1} }]      -- this funny looking syntax allows
+   local inputs = sample[{ {2,3} }]    -- slicing of arrays.
+
+   -- reset gradients (gradients are always accumulated, to accomodate 
+   -- batch methods)
+   dl_dx:zero()
+
+   -- evaluate the loss function and its derivative wrt x, for that sample
+   local loss_x = criterion:forward(model:forward(inputs), target)
+   model:backward(inputs, criterion:backward(model.output, target))
+
+   -- return loss(x) and dloss/dx
+   return loss_x, dl_dx
+end
+</file>
+
+Given the function above, we can now easily train the model using SGD.
+For that, we need to define four key parameters:
+  * a learning rate: the size of the step taken at each stochastic estimate of the gradient
+  * a weight decay, to regularize the solution (L2 regularization)
+  * a momentum term, to average steps over time
+  * a learning rate decay, to let the algorithm converge more precisely
+
+<file lua>
+sgd_params = {
+   learningRate = 1e-3,
+   learningRateDecay = 1e-4,
+   weightDecay = 0,
+   momentum = 0
+}
+</file>
+
+We're now good to go... all we have left to do is run over the dataset
+for a certain number of iterations, and perform a stochastic update 
+at each iteration. The number of iterations is found empirically here,
+but should typically be determinined using cross-validation.
+
+<file lua>
+-- we cycle 1e4 times over our training data
+for i = 1,1e4 do
+
+   -- this variable is used to estimate the average loss
+   current_loss = 0
+
+   -- an epoch is a full loop over our training data
+   for i = 1,(#data)[1] do
+
+      -- optim contains several optimization algorithms. 
+      -- All of these algorithms assume the same parameters:
+      --   + a closure that computes the loss, and its gradient wrt to x, 
+      --     given a point x
+      --   + a point x
+      --   + some parameters, which are algorithm-specific
+      
+      _,fs = optim.sgd(feval,x,sgd_params)
+
+      -- Functions in optim all return two things:
+      --   + the new x, found by the optimization method (here SGD)
+      --   + the value of the loss functions at all points that were used by
+      --     the algorithm. SGD only estimates the function once, so
+      --     that list just contains one value.
+
+      current_loss = current_loss + fs[1]
+   end
+
+   -- report average error on epoch
+   current_loss = current_loss / (#data)[1]
+   print('current loss = ' .. current_loss)
+
+end
+</file>
+
+Running this produces the following output:
+
+<file bash>
+current loss = 446.52843167045
+current loss = 209.72667362749
+current loss = 190.12634223999
+current loss = 174.55385751715
+current loss = 161.66828948384
+current loss = 150.98450667711
+current loss = 142.1093935021
+current loss = 134.72182736708
+current loss = 128.55920125807
+current loss = 123.40652701895
+current loss = 119.08760675586
+current loss = 115.45787300296
+current loss = 112.39857668915
+current loss = 109.81206467758
+current loss = 107.61793893366
+current loss = 105.74992971952
+current loss = 104.15334760711
+current loss = 102.78300513789
+current loss = 101.60151990016
+
+...
+
+current loss = 1.5817980707772
+current loss = 1.5817750296182
+current loss = 1.5817519936254
+current loss = 1.5817289627972
+current loss = 1.5817059371316
+current loss = 1.5816829166269
+current loss = 1.5816599012812
+</file>
+
+==== Testing the model ====
+
+Now that the model is trained, one can test it by evaluating it
+on new samples.
+
+The text solves the model exactly using matrix techniques and determines
+that ''corn = 31.98 + 0.65 * fertilizer + 1.11 * insecticides''
+
+We compare our approximate results with the text's results.
+
+<file lua>
+text = {40.32, 42.92, 45.33, 48.85, 52.37, 57, 61.82, 69.78, 72.19, 79.42}
+
+print('id  approx   text')
+for i = 1,(#data)[1] do
+   local myPrediction = model:forward(data[i][{{2,3}}])
+   print(string.format("%2d  %6.2f %6.2f", i, myPrediction[1], text[i]))
+end
+</file>
+
+Running this produces the following output:
+
+<file bash>
+id  approx   text
+ 1   40.10  40.32
+ 2   42.77  42.92
+ 3   45.22  45.33
+ 4   48.78  48.85
+ 5   52.34  52.37
+ 6   57.02  57.00
+ 7   61.92  61.82
+ 8   69.95  69.78
+ 9   72.40  72.19
+10   79.74  79.42
+</file>
+
+
+
+
+
+===== Logistic Regression =====
+
+The first example provided a step-by-step introduction to training a linear regression model.
+Linear regression is very limited, and is typically rarely used in practice. A slightly
+more powerful/interesting model is the logistic regression model. 
+
+The code associated to this example can be found in INSTALL_PREFIX/share/torch/lua/tutorials/:
+example-logistic-regression.lua .
+
+In this new example, the problem we try to solve is the following:
+  * there are 3 brands and 2 explanatory variables 
+  * the variables are coded this way:
+    * brand: 1, 2 or 3
+    * female: 1 if the person is a female, 0 if a male
+    * age: a positive integer
+  * the goal is to predict the brand, given the variables ''female'' and ''age''
+
+==== Definition of the model ====
+
+Logistic regression
+is a probabilistic, linear classifier. As its linear counterpart, it is parametrized by a weight 
+matrix ''W'', and a bias vector ''b''. The outputs of the linear layer are then fed to
+a ''softmax'' layer, which produces a properly normalized probability distribution. Mathematically,
+it can be defined as:
+
+{{logistic_regression.png}}
+
+If we're interested in classification, then the final prediction is typically done by taking
+the ''argmax'' of this distribution:
+
+{{logistic_argmax.png}}
+
+in which case the ouput ''y'' is a scalar.
+
+In Torch, we construct such a model by using a container, to stack two layers: a 
+[[..:nn:index#nn.Linear|Linear]] module, and a [[..:nn:index#nn.LogSoftMax|LogSoftMax]] module.
+Note that we use a LogSoftMax instead of SoftMax, for numeric reasons. As we will
+see below, the loss function works with log-probabilities, so never really have
+to have regular probabitlies.
+
+In this example, we will have 2 input variables, and 3 output variables.
+
+<file lua>
+model = nn.Sequential()
+model:add( nn.Linear(2,3) )
+model:add( nn.LogSoftMax() )
+</file>
+
+Note that we use log
+
+==== Definition of the loss function ====
+
+We want to maximize the likelihood of the correct (target) class, for each sample in the dataset. 
+This is equivalent to minimizing the negative log-likelihood (NLL), or minimizing the 
+cross-entropy between the predictions of our model and the targets (training data). Mathematically,
+the per-sample loss can be defined as:
+
+{{nll_loss.png}}
+
+Given that the model already produces log-probabilities, the loss is quite straightforward
+to estimate. In Torch, we use the [[..:nn:index#nn.ClassNLLCriterion|ClassNLLCriterion]], which
+expects its ''input'' as being a vector of log-probabilities, and the ''target'' as being
+an integer pointing to the correct class.
+
+<file lua>
+criterion = nn.ClassNLLCriterion()
+</file>
+
+==== Creating the training data ====
+
+In this example, the data come from a tutorial on using R from UCLA, which can be 
+found [[http://www.ats.ucla.edu/stat/r/dae/mlogit.htm|here]].
+
+The model is one of brand preference, where there are 3 brands and 2
+explanatory variables. The variables are coded this way:
+ brand: 1, 2 or 3
+ female: 1 if the person is a female, 0 if a male
+ age: a positive integer
+
+The data are stored in a csv file 'example-logistic-regression.csv'
+and will be read using a 3rd-party package called ''csv''. As all torch packages,
+it can be installed like this (at the command line):
+
+<file bash>
+$ torch-pkg install csv
+</file>
+
+Then loaded as any regular Lua package:
+
+<file lua>
+require 'csv'
+</file>
+
+To construct our dataset, we first need to load it from the csv file:
+
+<file lua>
+data = csv.load('example-logistic-regression.csv')
+</file>
+
+The loaded ''data'' contains one list per variable in the original CSV file. We
+can easily turn eachh of these lists into tensors, to be able to access this
+data more efficiently (by using slicing) during training:
+
+<file lua>
+-- first convert each variable list to a tensor:
+brands = torch.Tensor(loaded.brand)
+females = torch.Tensor(loaded.female)
+ages = torch.Tensor(loaded.age)
+
+-- copy all the input variables into a single tensor:
+dataset_inputs = torch.Tensor( (#brands)[1],2 )
+dataset_inputs[{ {},1 }] = females
+dataset_inputs[{ {},2 }] = ages
+
+-- the outputs are just the brands
+dataset_outputs = brands
+</file>
+
+A this stage, we have two arrays: 
+  * ''dataset_inputs'', a ''Nx2''-dim array, with ''N'' the number of training examples, and ''2'' the nb of input variables; 
+  * ''dataset_outputs'', a ''N''-dim array of indices, pointing to the grountruth for each data point. Indices are in ''{1,...,N}''.
+
+==== Training the model ====
+
+For this example, we present two methods to learn the model's parameters:
+  * Stochastic Gradient Descent (SGD): an online method, which typically scales well with large numbers of training samples
+  * L-BFGS: a second-order, batch-based optimization algorithm, which has been shown to converge extremely quickly in convex, deterministic optimization problems
+
+=== Stochastic Gradient Descent (SGD) ===
+
+As for the linear regression example, we now define a closure to estimate
+the value of the loss function at a given point ''x'', for a randomly
+sampled training pair ''{input,target}''.
+
+<file lua>
+-- params/gradients
+x, dl_dx = model:getParameters()
+
+-- closure
+feval = function(x_new)
+   -- set x to x_new, if differnt
+   -- (in this simple example, x_new will typically always point to x,
+   -- so the copy is really useless)
+   if x ~= x_new then
+      x:copy(x_new)
+   end
+
+   -- select a new training sample
+   _nidx_ = (_nidx_ or 0) + 1
+   if _nidx_ > (#dataset_inputs)[1] then _nidx_ = 1 end
+   local inputs = dataset_inputs[_nidx_]
+   local target = dataset_outputs[_nidx_]
+
+   -- reset gradients (gradients are always accumulated, to accomodate 
+   -- batch methods)
+   dl_dx:zero()
+
+   -- evaluate the loss function and its derivative wrt x, for that sample
+   local loss_x = criterion:forward(model:forward(inputs), target)
+   model:backward(inputs, criterion:backward(model.output, target))
+
+   -- return loss(x) and dloss/dx
+   return loss_x, dl_dx
+end
+</file>
+
+Then we go on by chosing the SGD parameters, and doing N epochs over
+the training data:
+
+<file lua>
+-- parameters:
+sgd_params = {
+   learningRate = 1e-3,
+   learningRateDecay = 1e-4,
+   weightDecay = 0,
+   momentum = 0
+}
+
+-- epochs
+epochs = 1e2
+for i = 1,epochs do
+
+   -- this variable is used to estimate the average loss
+   current_loss = 0
+
+   -- an epoch is a full loop over our training data
+   for i = 1,(#dataset_inputs)[1] do
+
+      -- optim contains several optimization algorithms. 
+      -- All of these algorithms assume the same parameters:
+      --   + a closure that computes the loss, and its gradient wrt to x, 
+      --     given a point x
+      --   + a point x
+      --   + some parameters, which are algorithm-specific
+
+      _,fs = optim.sgd(feval,x,sgd_params)
+
+      -- Functions in optim all return two things:
+      --   + the new x, found by the optimization method (here SGD)
+      --   + the value of the loss functions at all points that were used by
+      --     the algorithm. SGD only estimates the function once, so
+      --     that list just contains one value.
+
+      current_loss = current_loss + fs[1]
+   end
+
+   -- report average error on epoch
+   current_loss = current_loss / (#dataset_inputs)[1]
+   print('epoch = ' .. i .. 
+	 ' of ' .. epochs .. 
+	 ' current loss = ' .. current_loss)
+
+end
+</file>
+
+=== Batch, Second-order Optimization (L-BFGS) ===
+
+Now that we know how to train a model using simple SGD, we can
+use more complex optimization heuristics. In the following, we
+use a second-order method: L-BFGS, which typically yields
+more accurate results (for linear models), but can be significantly
+slower. For very large datasets, SGD is typically much faster
+to converge, and L-FBGS can be used to refine the results.
+
+All we need to do is re-define the eval closure such that it evaluates
+the loss function and the gradients on the full dataset, to compute
+the true loss, and the true gradients (reminder: SGD computes a very 
+noisy estimate of the loss function and gradients). Here's the code:
+
+<file lua>
+-- we start again, and reset the trained parameter vector:
+
+model:reset()
+
+-- next we re-define the closure that evaluates f and df/dx, so that
+-- it estimates the true f, and true (exact) df/dx, over the entire
+-- dataset. This is a full batch approach.
+
+feval = function(x_new)
+   -- set x to x_new, if differnt
+   -- (in this simple example, x_new will typically always point to x,
+   -- so the copy is really useless)
+   if x ~= x_new then
+      x:copy(x_new)
+   end
+
+   -- reset gradients (gradients are always accumulated, to accomodate 
+   -- batch methods)
+   dl_dx:zero()
+
+   -- and batch over the whole training dataset:
+   local loss_x = 0
+   for i = 1,(#dataset_inputs)[1] do
+      -- select a new training sample
+      _nidx_ = (_nidx_ or 0) + 1
+      if _nidx_ > (#dataset_inputs)[1] then _nidx_ = 1 end
+
+      local inputs = dataset_inputs[_nidx_]
+      local target = dataset_outputs[_nidx_]
+
+      -- evaluate the loss function and its derivative wrt x, for that sample
+      loss_x = loss_x + criterion:forward(model:forward(inputs), target)
+      model:backward(inputs, criterion:backward(model.output, target))
+   end
+
+   -- normalize with batch size
+   loss_x = loss_x / (#dataset_inputs)[1]
+   dl_dx = dl_dx:div( (#dataset_inputs)[1] )
+
+   -- return loss(x) and dloss/dx
+   return loss_x, dl_dx
+end
+</file>
+
+Doing the optimization is now really simple, we simply have to configure
+L-BFGS, and call it only once!
+
+<file lua>
+-- L-BFGS parameters are different than SGD:
+--   + a line search: we provide a line search, which aims at
+--                    finding the point that minimizes the loss locally
+--   + max nb of iterations: the maximum number of iterations for the batch,
+--                           which is equivalent to the number of epochs
+--                           on the given batch. In that example, it's simple
+--                           because the batch is the full dataset, but in
+--                           some cases, the batch can be a small subset
+--                           of the full dataset, in which case maxIter
+--                           becomes a more subtle parameter.
+
+lbfgs_params = {
+   lineSearch = optim.lswolfe,
+   maxIter = epochs,
+   verbose = true
+}
+
+print('Training with L-BFGS')
+_,fs = optim.lbfgs(feval,x,lbfgs_params)
+</file>
+
+
+
+
+
+===== Convolutional Neural Networks (ConvNets) =====
+
+Convolutional Networks are trainable architectures composed of multiple stages. The input and output of each stage are sets of arrays called feature maps. For example, if the input is a color image, each feature map would be a 2D array containing a color channel of the input image (for an audio input each feature map would be a 1D array, and for a video or volumetric image, it would be a 3D array). At the output, each feature map represents a particular feature extracted at all locations on the input. Each stage is composed of three layers: a filter bank layer, a non-linearity layer, and a feature pooling layer. A typical ConvNet is composed of one, two or three such 3-layer stages, followed by a classification module. Each layer type is now described for the case of image recognition.
+
+{{convnet.png?600}}
+
+Trainable hierarchical vision models, and more generally image processing algorithms are usually expressed as sequences of operations or transformations. They can be well described by a modular approach, in which each module processes an input image bank and produces a new bank. The figure above is a nice graphical illustration of this approach. Each module requires the previous bank to be fully (or at least partially) available before computing its output. This causality prevents simple parallelism to be implemented across modules. However parallelism can easily be introduced within a module, and at several levels, depending on the kind of underlying operations. These forms of parallelism are exploited in Torch7.
+
+Typical ConvNets rely on a few basic modules:
+
+  * Filter bank layer: the input is a 3D array with n1 2D feature maps of size n2 x n3. Each component is denoted x_ijk, and each feature map is denoted xi. The output is also a 3D array, y composed of m1 feature maps of size m2 x m3. A trainable filter (kernel) k_ij in the filter bank has size l1 x l2 and connects input feature map x to output feature map y_j. The module computes y_j = b_j + i_{kij} * x_i where * is the 2D discrete convolution operator and b_j is a trainable bias parameter. Each filter detects a particular feature at every location on the input. Hence spatially translating the input of a feature detection layer will translate the output but leave it otherwise unchanged.
+
+  * Non-Linearity Layer: In traditional ConvNets this simply consists in a pointwise tanh() sigmoid function applied to each site (ijk). However, recent implementations have used more sophisticated non-linearities. A useful one for natural image recognition is the rectified sigmoid Rabs: abs(g_i.tanh()) where g_i is a trainable gain parameter. The rectified sigmoid is sometimes followed by a subtractive and divisive local normalization N, which enforces local competition between adjacent features in a feature map, and between features at the same spatial location.
+
+  * Feature Pooling Layer: This layer treats each feature map separately. In its simplest instance, it computes the average values over a neighborhood in each feature map. Recent work has shown that more selective poolings, based on the LP-norm, tend to work best, with P=2, or P=inf (also known as max pooling). The neighborhoods are stepped by a stride larger than 1 (but smaller than or equal the pooling neighborhood). This results in a reduced-resolution output feature map which is robust to small variations in the location of features in the previous layer. The average operation is sometimes replaced by a max PM. Traditional ConvNets use a pointwise tanh() after the pooling layer, but more recent models do not. Some ConvNets dispense with the separate pooling layer entirely, but use strides larger than one in the filter bank layer to reduce the resolution. In some recent versions of ConvNets, the pooling also pools similar feature at the same location, in addition to the same feature at nearby locations.
+
+In this tutorial, we're going to train a variety of convolutional networks on 3 different datasets:
+
+  * The [[http://yann.lecun.com/exdb/mnist/|MNIST]] dataset: a handwritten digit recognition dataset,
+  * [[http://www.cs.toronto.edu/~kriz/cifar.html|CIFAR-10]]: a tiny image dataset, with 10 different classes of objects,
+  * The [[http://ufldl.stanford.edu/housenumbers/|SVHN]] (House Numbers) dataset, a dataset that looks a lot like MNIST, but with digits sampled from Street View images.
+
+For each dataset, we provide a script that basically does everything. You will find these scripts
+installed in INSTALL_PREFIX/share/torch/lua/tutorials/:
+
+  * ''train-on-mnist.lua'' (MNIST)
+  * ''train-on-cifar.lua'' (CIFAR-10)
+  * ''train-on-housenumbers.lua'' (SVHN)
+
+Each script provides an interface to load the training data, and we don't detail this in the tutorial (it's just mechanics and not really interesting).
+
+In this tutorial, we will discuss 2 things, that are common to all 3 datasets:
+
+  * describing a trainable ConvNet for each task, which includes pre-processing of the data
+  * training the model according to different optimization procedures
+
+Note that each script also provides flags to replace the ConvNet by a simple MLP
+(2-layer neural network), and logistic regression, for the purpose of comparison.
+
+==== Describing the trainable ConvNet ====
+
+Using the 'nn' package, describing ConvNets, MLPs and other forms of sequential trainable
+models is really easy. All we have to do is create a top-level wrapper, which, as for
+the logistic regression, is going to be a sequential module, and then append modules into
+it.
+
+For all 3 datasets, the input is ''32x32''. For MNIST, it's grayscale, for the two others,
+each pixel is encoded as an RGB triplet. For the next few paragraphs, we will assume that
+we're using the MNIST data, in which inputs are therefore 1024-dimensional.
+
+Let's start with a non-convolutional architecture, a simple 2-layer neural network. We
+arbitrarily set the number of hidden units as being twice as much as the inputs:
+
+<file lua>
+model = nn.Sequential()
+model:add(nn.Reshape(1024))
+model:add(nn.Linear(1024, 2048))
+model:add(nn.Tanh())
+model:add(nn.Linear(2048,10))
+</file>
+
+That model is self-explanatory. Moving on to a convolutional version of this, the simplest
+form of it would be:
+
+<file lua>
+model = nn.Sequential()
+model:add(nn.Reshape(1,32,32))
+-- layer 1:
+model:add(nn.SpatialConvolution(1, 16, 5, 5))
+model:add(nn.Tanh())
+model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
+-- layer 2:
+model:add(nn.SpatialConvolution(16, 128, 5, 5))
+model:add(nn.Tanh())
+model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
+-- layer 3, a simple 2-layer neural net:
+model:add(nn.Reshape(128*5*5))
+model:add(nn.Linear(128*5*5, 200))
+model:add(nn.Tanh())
+model:add(nn.Linear(200,10))
+model:add(nn.LogSoftMax())
+</file>
+
+The basic building blocks of this simple ConvNet were all presented at the beginning of
+this section. For details on the basic modules used for this ConvNet, check out 
+this [[..:nn:index#SpatialConvolution|section]]. This model should still be fairly
+self-explanatory, except for a couple of subtle details about the geometry (receptive
+field sizes) of each layer. Here's more info about this:
+
+  * the input has 1024 variables, and the first layer reshapes that vector into a 3D array of dimensions 1x32x32. It is the convention for all ''nn.Spatial*'' layers to work on 3D arrays, with the first dimension indexing different features, and the next two dimensions indexing the height and width of the image/map. For the MNIST case, there's only 1 input feature: the grayscale value.
+  * the fist layer applies 16 filters to the input map, each being ''5x5''. The receptive field of this first layer is ''5x5'', and the maps produced by it are therefore ''16x28x28''. This linear transform is then followed by a non-linearity (''tanh''), and a max-pooling function, which pools regions of size ''2x2'', and uses a stride of ''2x2''. The result of that operation is a ''16x14x14'' array, which represents a ''14x14'' map of 16-dimensional feature vectors. The receptive field of each unit at this stage is ''7x7''.
+  * the second layer is very much analogous to the first, excepet that now the 16-dim feature maps are projected into 128-dim maps, with a fully-connected connection table: each unit in the output array is influenced by a 16x5x5 neighborhood of features in the previous layer. That layer has therefore ''16x128x5x5'' trainable kernel weights (and 128 biases). The result of the complete layer (conv+pooling) is a ''128x5x5'' array.
+  * at this stage, the ''5x5'' array of 128-dimensional feature vectors is flattened into a 3200-dimensional vector, which we feed to a two-layer neural net. The final prediction (10-dimensional distribution over classes) is influenced by a 32x32 neighborhood of input variables (pixels).
+
+This model is quite basic, but typically yields excellent results on binary/sparse images such as the MNIST dataset. For natural images, it is necessary to apply some whitening transformation. Empirically, it has been shown that using local normalization operators helps a lot generalization 
+([[http://cs.nyu.edu/~koray/publis/jarrett-iccv-09.pdf|Jarret et al.]]).
+One commonly used (biologically-inspired) type of local normalization is the contrastive normalization, which imposes zero-mean and unit-norm in local neighborhoods of fairly small size (typically between ''5x5'' to ''15x15''). For color images, it is also a good idea to help the model by separating the color information from the luminance information. While the latter can be locally normalized, it's better to leave color untouched (or simply normalized globally, at the level of the dataset). Here's an example of code that can be used to preprocess the entire dataset:
+
+<file lua>
+-- we assume that the data was loaded into two tables: trainData and testData, which have
+-- this form:
+-- trainData = {data=Tensor(trsize,3,32,32), labels=Tensor(N)}
+-- testData = {data=Tensor(tesize,3,32,32), labels=Tensor(N)}
+
+-- preprocess trainSet
+normalization = nn.SpatialContrastiveNormalization(1, image.gaussian1D(7))
+for i = 1,trainData:size() do
+   -- rgb -> yuv
+   local rgb = trainData.data[i]
+   local yuv = image.rgb2yuv(rgb)
+   -- normalize y locally:
+   yuv[1] = normalization(yuv[{{1}}])
+   trainData.data[i] = yuv
+end
+-- normalize u globally:
+mean_u = trainData.data[{ {},2,{},{} }]:mean()
+std_u = trainData.data[{ {},2,{},{} }]:std()
+trainData.data[{ {},2,{},{} }]:add(-mean_u)
+trainData.data[{ {},2,{},{} }]:div(-std_u)
+-- normalize v globally:
+mean_v = trainData.data[{ {},3,{},{} }]:mean()
+std_v = trainData.data[{ {},3,{},{} }]:std()
+trainData.data[{ {},3,{},{} }]:add(-mean_v)
+trainData.data[{ {},3,{},{} }]:div(-std_v)
+
+-- preprocess testSet
+for i = 1,testData:size() do
+   -- rgb -> yuv
+   local rgb = testData.data[i]
+   local yuv = image.rgb2yuv(rgb)
+   -- normalize y locally:
+   yuv[{1}] = normalization(yuv[{{1}}])
+   testData.data[i] = yuv
+end
+-- normalize u globally:
+testData.data[{ {},2,{},{} }]:add(-mean_u)
+testData.data[{ {},2,{},{} }]:div(-std_u)
+-- normalize v globally:
+testData.data[{ {},3,{},{} }]:add(-mean_v)
+testData.data[{ {},3,{},{} }]:div(-std_v)
+</file>
+
+One other remark: it is typically not a good idea to use fully connected layers, as was done above, in internal layers. In general, favoring large numbers of features (over-completeness) over density of connections helps achieve better results (empirical evidence of this was reported in several papers, as in 
+[[http://yann.lecun.com/exdb/publis/pdf/hadsell-iros-08.pdf|Hadsell et al.]]). 
+The [[..:nn:index#SpatialConvolutionMap|SpatialConvolutionMap]] module accepts tables of connectivities (maps) that allows one to create arbitrarily sparse connections between two layers. A couple of standard maps/tables are provided in ''nn.tables''. 
+
+Integrating all these remarks, here is a new model, that we will use for the CIFAR-10 dataset:
+
+<file lua>
+model = nn.Sequential()
+-- stage 1 : mean+std normalization -> filter bank -> squashing -> max pooling
+local table = torch.Tensor{ {1,1},{1,2},{1,3},{1,4},{1,5},{1,6},{1,7},{1,8},{2,9},{2,10},{3,11},{3,12} }
+model:add(nn.SpatialConvolutionMap(table, 5, 5))
+model:add(nn.Tanh())
+model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
+-- stage 2 : filter bank -> squashing -> max pooling
+model:add(nn.SpatialConvolutionMap(nn.tables.random(12, 32, 4), 5, 5))
+model:add(nn.Tanh())
+model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
+-- stage 3 : standard 2-layer neural network
+model:add(nn.Reshape(32*5*5))
+model:add(nn.Linear(32*5*5, 128))
+model:add(nn.Tanh())
+model:add(nn.Linear(128,10))
+model:add(nn.LogSoftMax())
+</file>
+
+Finally, recent work ([[http://cs.nyu.edu/~koray/publis/jarrett-iccv-09.pdf|Jarret et al.]]) has
+demonstrated the advantage of locally normalizing sets of internal features, at each stage
+of the model. The use of smoother pooling functions, such as the L2 norm for instance instead
+of the harsher max-pooling, has also been shown to yield better generalization
+([[http://arxiv.org/pdf/1204.3968v1.pdf|Sermanet et al.]]). We will use these two ingredients
+for the House Numbers dataset. This gives us the new model:
+
+<file lua>
+model = nn.Sequential()
+-- stage 1 : filter bank -> squashing -> max pooling
+model:add(nn.SpatialConvolutionMap(nn.tables.random(3,16,1), 5, 5))
+model:add(nn.Tanh())
+model:add(nn.SpatialLPPooling(16,2,2,2,2,2))
+-- stage 2 : filter bank -> squashing -> max pooling
+model:add(nn.SpatialSubtractiveNormalization(16, image.gaussian1D(7)))
+model:add(nn.SpatialConvolutionMap(nn.tables.random(16, 256, 4), 5, 5))
+model:add(nn.Tanh())
+model:add(nn.SpatialLPPooling(256,2,2,2,2,2))
+-- stage 3 : standard 2-layer neural network
+model:add(nn.SpatialSubtractiveNormalization(256, image.gaussian1D(7)))
+model:add(nn.Reshape(256*5*5))
+model:add(nn.Linear(256*5*5, 128))
+model:add(nn.Tanh())
+model:add(nn.Linear(128,#classes))
+model:add(nn.Linear(128,10))
+model:add(nn.LogSoftMax())
+</file>
+
+==== Training the model ====
+
+Once the model has been defined, the training procedure is pretty much the same
+as for the linear/logistic regression example. One big difference of course is the fact
+that the model is not linear anymore, and therefore the optimization problem is
+not convex. This  reinforces the need to a stochastic estimation of gradients, which
+have shown to produce much better generalization results for several different problems.
+
+As before, we minimize the negative log-likelihood:
+
+<file lua>
+criterion = nn.ClassNLLCriterion()
+</file>
+
+We also use a confusion matrix, to monitor the progress of our learner:
+
+<file lua>
+criterion = optim.ConfusionMatrix()
+</file>
+
+Now that we have all the building blocks, we just have to define our training function,
+as well as a test function. In the three scripts provided (MNIST, CIFAR, SVHN), the
+optimization algorithm can be set to either L-BFGS, CG, SGD or ASGD. In practice, it's 
+very important to start with a few epochs of pure SGD, before switching to L-BFGS or
+ASGD. The intuition for that is related to the non-convex nature of the problem: at the
+very beginning of training (random initialization), the landscape might be highly non-convex,
+and no assumption should be made about the shape of the energy function. Often, SGD
+is the best we can do. Later on, batch methods (L-BFGS, CG) can be used more safely.
+
+Here is our full training function, which demonstrates that you can switch the optimization
+you're using at runtime (if you want to), and also modify the batch size you're using
+at run time. You can do all these things because we create the evaluation closure
+each time we create a new batch. If the batch size is 1, then the method is purely
+stochastic. If the batch size is set to the complete dataset, then the method is
+a pure batch method.
+
+<file lua>
+-- retrieve parameters and gradients
+parameters,gradParameters = model:getParameters()
+
+-- training function:
+function train(dataset)
+   -- epoch tracker
+   epoch = epoch or 1
+
+   -- local vars
+   local time = sys.clock()
+
+   -- shuffle at each epoch
+   shuffle = torch.randperm(trsize)
+
+   -- do one epoch
+   print('<trainer> on training set:')
+   print("<trainer> online epoch # " .. epoch .. ' [batchSize = ' .. opt.batchSize .. ']')
+   for t = 1,dataset:size(),opt.batchSize do
+      -- disp progress
+      xlua.progress(t, dataset:size())
+
+      -- create mini batch
+      local inputs = {}
+      local targets = {}
+      for i = t,math.min(t+opt.batchSize-1,dataset:size()) do
+         -- load new sample
+         local input = dataset.data[shuffle[i]]:double()
+         local target = dataset.labels[shuffle[i]]
+         table.insert(inputs, input)
+         table.insert(targets, target)
+      end
+
+      -- create closure to evaluate f(X) and df/dX
+      local feval = function(x)
+                       -- get new parameters
+                       if x ~= parameters then
+                          parameters:copy(x)
+                       end
+
+                       -- reset gradients
+                       gradParameters:zero()
+
+                       -- f is the average of all criterions
+                       local f = 0
+
+                       -- evaluate function for complete mini batch
+                       for i = 1,#inputs do
+                          -- estimate f
+                          local output = model:forward(inputs[i])
+                          local err = criterion:forward(output, targets[i])
+                          f = f + err
+
+                          -- estimate df/dW
+                          local df_do = criterion:backward(output, targets[i])
+                          model:backward(inputs[i], df_do)
+
+                          -- update confusion
+                          confusion:add(output, targets[i])
+                       end
+
+                       -- normalize gradients and f(X)
+                       gradParameters:div(#inputs)
+                       f = f/#inputs
+
+                       -- return f and df/dX
+                       return f,gradParameters
+                    end
+
+      -- optimize on current mini-batch
+      if opt.optimization == 'CG' then
+         config = config or {maxIter = opt.maxIter}
+         optim.cg(feval, parameters, config)
+
+      elseif opt.optimization == 'LBFGS' then
+         config = config or {learningRate = opt.learningRate,
+                             maxIter = opt.maxIter,
+                             nCorrection = 10}
+         optim.lbfgs(feval, parameters, config)
+
+      elseif opt.optimization == 'SGD' then
+         config = config or {learningRate = opt.learningRate,
+                             weightDecay = opt.weightDecay,
+                             momentum = opt.momentum,
+                             learningRateDecay = 5e-7}
+         optim.sgd(feval, parameters, config)
+
+      elseif opt.optimization == 'ASGD' then
+         config = config or {eta0 = opt.learningRate,
+                             t0 = trsize * opt.t0}
+         _,_,average = optim.asgd(feval, parameters, config)
+
+      else
+         error('unknown optimization method')
+      end
+   end
+
+   -- time taken
+   time = sys.clock() - time
+   time = time / dataset:size()
+   print("<trainer> time to learn 1 sample = " .. (time*1000) .. 'ms')
+
+   -- print confusion matrix
+   print(confusion)
+   confusion:zero()
+
+   -- next epoch
+   epoch = epoch + 1
+end
+</file>
+
+The test function is simpler:
+
+<file lua>
+-- test function
+function test(dataset)
+   -- local vars
+   local time = sys.clock()
+
+   -- averaged param use (ASGD)
+   if average then
+      cachedparams = parameters:clone()
+      parameters:copy(average)
+   end
+
+   -- test over given dataset
+   print('<trainer> on testing Set:')
+   for t = 1,dataset:size() do
+      -- disp progress
+      xlua.progress(t, dataset:size())
+
+      -- get new sample
+      local input = dataset.data[t]:double()
+      local target = dataset.labels[t]
+
+      -- test sample
+      local pred = model:forward(input)
+      confusion:add(pred, target)
+   end
+
+   -- timing
+   time = sys.clock() - time
+   time = time / dataset:size()
+   print("<trainer> time to test 1 sample = " .. (time*1000) .. 'ms')
+
+   -- print confusion matrix
+   print(confusion)
+   confusion:zero()
+
+   -- averaged param use?
+   if average then
+      -- restore parameters
+      parameters:copy(cachedparams)
+   end
+end
+</file>
+
+We can now train and test like this (please refer to the actual code to look at
+how the trainData/testData are created):
+
+<file lua>
+while true do
+   train(trainData)
+   test(testData)
+end
+</file>
+
+This produces an output that looks like this:
+
+<file bash>
+<trainer> on training set:
+<trainer> online epoch # 1 [batchSize = 1]
+ [=============================== 2000/2000 ==================================>]
+<trainer> time to learn 1 sample = 11.309485500002ms
+ConfusionMatrix:
+[[     175       0       0       4       1       5       4       0       2       0]   91.623%   [class: 1]
+ [       1     208       1       3       0       1       0       2       1       3]   94.545%   [class: 2]
+ [       6       9     159       5       2       1       2       4       6       4]   80.303%   [class: 3]
+ [       2       4       6     158       1      10       2       2       1       5]   82.723%   [class: 4]
+ [       1       4       5       1     178       1       4       2       0      18]   83.178%   [class: 5]
+ [       2       5       2      13       8     130       7       0       7       6]   72.222%   [class: 6]
+ [       7       3       3       4       3       3     176       0       1       0]   88.000%   [class: 7]
+ [       1       7       2       3       4       0       1     194       1      11]   86.607%   [class: 8]
+ [       0      12       5       6       1       8       3       3     129       5]   75.000%   [class: 9]
+ [       5       2       0       4      14       2       0      16       3     164]]  78.095%   [class: 10]
+ + average row correct: 83.229621052742% 
+ + average rowUcol correct (VOC measure): 71.643643975258% 
+ + global correct: 83.55%
+<trainer> saving network to /Users/clement/work/github/xrocks/demos/train-a-digit-classifier/train-on-mnist/mnist.net
+<trainer> on testing Set:
+ [=============================== 1000/1000 ==================================>]
+<trainer> time to test 1 sample = 2.5694309999963ms
+ConfusionMatrix:
+[[      82       0       0       2       0       0       1       0       0       0]   96.471%   [class: 1]
+ [       0     125       1       0       0       0       0       0       0       0]   99.206%   [class: 2]
+ [       1       0     104       0       0       0       1       4       6       0]   89.655%   [class: 3]
+ [       0       0       4      95       0       6       0       0       2       0]   88.785%   [class: 4]
+ [       0       1       2       0      99       1       1       0       0       6]   90.000%   [class: 5]
+ [       0       0       1       3       0      80       0       0       2       1]   91.954%   [class: 6]
+ [       3       0       4       0       1       2      77       0       0       0]   88.506%   [class: 7]
+ [       0       0       9       0       0       0       0      88       0       2]   88.889%   [class: 8]
+ [       0       0       1       3       1       1       0       3      78       2]   87.640%   [class: 9]
+ [       0       0       1       2       2       0       0       7       3      79]]  84.043%   [class: 10]
+ + average row correct: 90.51488161087% 
+ + average rowUcol correct (VOC measure): 83.103343844414% 
+ + global correct: 90.7%
+<trainer> on training set:
+<trainer> online epoch # 2 [batchSize = 1]
+ [=============================== 2000/2000 ==================================>]
+<trainer> time to learn 1 sample = 11.362733499998ms
+ConfusionMatrix:
+[[     187       1       0       0       0       1       1       1       0       0]   97.906%   [class: 1]
+ [       0     214       1       2       1       1       0       1       0       0]   97.273%   [class: 2]
+ [       2       2     186       2       1       0       0       2       1       2]   93.939%   [class: 3]
+ [       0       0       4     176       0       6       1       2       1       1]   92.147%   [class: 4]
+ [       0       1       1       0     204       0       3       0       0       5]   95.327%   [class: 5]
+ [       0       1       2       5       2     164       1       0       1       4]   91.111%   [class: 6]
+ [       1       1       0       0       0       2     195       0       1       0]   97.500%   [class: 7]
+ [       0       1       2       1       1       0       0     212       0       7]   94.643%   [class: 8]
+ [       0       0       1       0       1       4       1       1     160       4]   93.023%   [class: 9]
+ [       4       0       0       1       5       2       0       7       1     190]]  90.476%   [class: 10]
+ + average row correct: 94.334501028061% 
+ + average rowUcol correct (VOC measure): 89.440071582794% 
+ + global correct: 94.4%
+<trainer> saving network to /Users/clement/work/github/xrocks/demos/train-a-digit-classifier/train-on-mnist/mnist.net
+<trainer> on testing Set:
+ [=============================== 1000/1000 ==================================>]
+<trainer> time to test 1 sample = 2.6758019999979ms
+ConfusionMatrix:
+[[      83       0       1       0       0       0       1       0       0       0]   97.647%   [class: 1]
+ [       0     124       1       1       0       0       0       0       0       0]   98.413%   [class: 2]
+ [       0       0     108       0       0       0       1       2       4       1]   93.103%   [class: 3]
+ [       0       0       3      99       0       5       0       0       0       0]   92.523%   [class: 4]
+ [       0       1       0       0     102       0       1       0       0       6]   92.727%   [class: 5]
+ [       0       0       1       0       0      85       0       0       1       0]   97.701%   [class: 6]
+ [       3       0       0       0       0       0      84       0       0       0]   96.552%   [class: 7]
+ [       0       0      10       0       0       0       0      88       0       1]   88.889%   [class: 8]
+ [       0       0       2       3       0       1       0       2      81       0]   91.011%   [class: 9]
+ [       0       0       1       2       1       0       0       2       3      85]]  90.426%   [class: 10]
+ + average row correct: 93.899238109589% 
+ + average rowUcol correct (VOC measure): 88.683768510818% 
+ + global correct: 93.9%
+</file>
+
+Yeepee!, that's it for the supervised training examples!

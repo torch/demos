@@ -1,6 +1,7 @@
 ----------------------------------------------------------------------
--- This script shows how to train different models on the CIFAR
--- dataset, using multiple optimization techniques (SGD, ASGD, CG)
+-- This script shows how to train different models on the street
+-- view house number dataset,
+-- using multiple optimization techniques (SGD, ASGD, CG)
 --
 -- This script demonstrates a classical example of training 
 -- well-known models (convnet, MLP, logistic regression)
@@ -11,6 +12,13 @@
 -- 2/ choice of a loss function (criterion) to minimize
 -- 3/ creation of a dataset as a simple Lua table
 -- 4/ description of training and test procedures
+--
+-- Note: the architecture of the convnet is based on Pierre Sermanet's
+-- work on this dataset (http://arxiv.org/abs/1204.3968). In particular
+-- the use of LP-pooling (with P=2) has a very positive impact on
+-- generalization. Normalization is not done exactly as proposed in
+-- the paper, and low-level (first layer) features are not fed to
+-- the classifier.
 --
 -- Clement Farabet
 ----------------------------------------------------------------------
@@ -27,22 +35,22 @@ require 'image'
 dname,fname = sys.fpath()
 cmd = torch.CmdLine()
 cmd:text()
-cmd:text('CIFAR Training')
+cmd:text('HouseNumber Training')
 cmd:text()
 cmd:text('Options:')
 cmd:option('-save', fname:gsub('.lua',''), 'subdirectory to save/log experiments in')
 cmd:option('-network', '', 'reload pretrained network')
-cmd:option('-model', 'convnet', 'type of model to train: convnet | mlp | linear')
-cmd:option('-full', false, 'use full dataset (50,000 samples)')
+cmd:option('-extra', false, 'use extra training samples dataset (~500,000 extra training samples)')
 cmd:option('-visualize', false, 'visualize input data and weights during training')
 cmd:option('-seed', 1, 'fixed input seed for repeatable experiments')
+cmd:option('-plot', false, 'live plot')
 cmd:option('-optimization', 'SGD', 'optimization method: SGD | ASGD | CG | LBFGS')
 cmd:option('-learningRate', 1e-3, 'learning rate at t=0')
 cmd:option('-batchSize', 1, 'mini-batch size (1 = pure stochastic)')
 cmd:option('-weightDecay', 0, 'weight decay (SGD only)')
 cmd:option('-momentum', 0, 'momentum (SGD only)')
 cmd:option('-t0', 1, 'start averaging at t0 (ASGD only), in nb of epochs')
-cmd:option('-maxIter', 5, 'maximum nb of iterations for CG and LBFGS')
+cmd:option('-maxIter', 2, 'maximum nb of iterations for CG and LBFGS')
 cmd:option('-threads', 2, 'nb of threads to use')
 cmd:text()
 opt = cmd:parse(arg)
@@ -58,123 +66,111 @@ print('<torch> set nb of threads to ' .. opt.threads)
 -- define model to train
 -- on the 10-class classification problem
 --
-classes = {'airplane', 'automobile', 'bird', 'cat',
-           'deer', 'dog', 'frog', 'horse', 'ship', 'truck'}
+classes = {'1','2','3','4','5','6','7','8','9','0'}
 
 if opt.network == '' then
-   -- define model to train
+   ------------------------------------------------------------
+   -- convolutional network 
+   -- this is a typical convolutional network for vision:
+   --   1/ the image is transformed into Y-UV space
+   --   2/ the Y (luminance) channel is locally normalized,
+   --      while the U/V channels are more loosely normalized
+   --   3/ the first two stages features are locally pooled
+   --      using LP-pooling (P=2)
+   --   4/ a two-layer neural network is applied on the
+   --      representation
+   ------------------------------------------------------------
+   -- top container
    model = nn.Sequential()
-
-   if opt.model == 'convnet' then
-      ------------------------------------------------------------
-      -- convolutional network
-      ------------------------------------------------------------
-      -- stage 1 : mean+std normalization -> filter bank -> squashing -> max pooling
-      model:add(nn.SpatialConvolutionMap(nn.tables.random(3,16,1), 5, 5))
-      model:add(nn.Tanh())
-      model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
-      -- stage 2 : filter bank -> squashing -> max pooling
-      model:add(nn.SpatialConvolutionMap(nn.tables.random(16, 256, 4), 5, 5))
-      model:add(nn.Tanh())
-      model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
-      -- stage 3 : standard 2-layer neural network
-      model:add(nn.Reshape(256*5*5))
-      model:add(nn.Linear(256*5*5, 128))
-      model:add(nn.Tanh())
-      model:add(nn.Linear(128,#classes))
-      ------------------------------------------------------------
-
-   elseif opt.model == 'mlp' then
-      ------------------------------------------------------------
-      -- regular 2-layer MLP
-      ------------------------------------------------------------
-      model:add(nn.Reshape(3*32*32))
-      model:add(nn.Linear(3*32*32, 1*32*32))
-      model:add(nn.Tanh())
-      model:add(nn.Linear(1*32*32, #classes))
-      ------------------------------------------------------------
-
-   elseif opt.model == 'linear' then
-      ------------------------------------------------------------
-      -- simple linear model: logistic regression
-      ------------------------------------------------------------
-      model:add(nn.Reshape(3*32*32))
-      model:add(nn.Linear(3*32*32,#classes))
-      ------------------------------------------------------------
-
-   else
-      print('Unknown model type')
-      cmd:text()
-      error()
-   end
+   -- stage 1 : filter bank -> squashing -> max pooling
+   model:add(nn.SpatialConvolutionMap(nn.tables.random(3,16,1), 5, 5))
+   model:add(nn.Tanh())
+   model:add(nn.SpatialLPPooling(16,2,2,2,2,2))
+   -- stage 2 : filter bank -> squashing -> max pooling
+   model:add(nn.SpatialSubtractiveNormalization(16, image.gaussian1D(7)))
+   model:add(nn.SpatialConvolutionMap(nn.tables.random(16, 256, 4), 5, 5))
+   model:add(nn.Tanh())
+   model:add(nn.SpatialLPPooling(256,2,2,2,2,2))
+   -- stage 3 : standard 2-layer neural network
+   model:add(nn.SpatialSubtractiveNormalization(256, image.gaussian1D(7)))
+   model:add(nn.Reshape(256*5*5))
+   model:add(nn.Linear(256*5*5, 128))
+   model:add(nn.Tanh())
+   model:add(nn.Linear(128,#classes))
+   model:add(nn.LogSoftMax())
+   ------------------------------------------------------------
 else
    print('<trainer> reloading previously trained network')
-   model = nn.Sequential()
-   model:read(torch.DiskFile(opt.network))
+   model = torch.load(opt.network)
 end
 
 -- retrieve parameters and gradients
 parameters,gradParameters = model:getParameters()
 
 -- verbose
-print('<cifar> using model:')
+print('<trainer> using model:')
 print(model)
 
 ----------------------------------------------------------------------
 -- loss function: negative log-likelihood
 --
-model:add(nn.LogSoftMax())
 criterion = nn.ClassNLLCriterion()
 
 ----------------------------------------------------------------------
 -- get/create dataset
 --
-if opt.full then
-   trsize = 50000
-   tesize = 10000
+if opt.extra then
+   trsize = 73257 + 531131
+   tesize = 26032
 else
-   trsize = 2000
-   tesize = 1000
+   print '<trainer> WARNING: using reduced train set'
+   print '(use -extra to use complete training set, with extra samples)'
+   trsize = 73257
+   tesize = 26032
 end
 
--- download dataset
-if not paths.dirp('cifar-10-batches-t7') then
-   local www = 'http://data.neuflow.org/data/cifar-10-torch.tar.gz'
-   local tar = sys.basename(www)
-   os.execute('wget ' .. www .. '; '.. 'tar xvf ' .. tar)
+www = 'http://data.neuflow.org/data/housenumbers/'
+train_file = 'train_32x32.t7'
+test_file = 'test_32x32.t7'
+extra_file = 'extra_32x32.t7'
+if not paths.filep(train_file) then
+   os.execute('wget ' .. www .. train_file)
+end
+if not paths.filep(test_file) then
+   os.execute('wget ' .. www .. test_file)
+end
+if opt.extra and not paths.filep(extra_file) then
+   os.execute('wget ' .. www .. extra_file)   
 end
 
--- load dataset
+loaded = torch.load(train_file,'ascii')
 trainData = {
-   data = torch.Tensor(50000, 3072),
-   labels = torch.Tensor(50000),
+   data = loaded.X:transpose(3,4),
+   labels = loaded.y[1],
    size = function() return trsize end
 }
-for i = 0,4 do
-   subset = torch.load('cifar-10-batches-t7/data_batch_' .. (i+1) .. '.t7', 'ascii')
-   trainData.data[{ {i*10000+1, (i+1)*10000} }] = subset.data:t()
-   trainData.labels[{ {i*10000+1, (i+1)*10000} }] = subset.labels
-end
-trainData.labels = trainData.labels + 1
 
-subset = torch.load('cifar-10-batches-t7/test_batch.t7', 'ascii')
+if opt.extra then
+   loaded = torch.load(extra_file,'ascii')
+   trdata = torch.Tensor(trsize,3,32,32)
+   trdata[{ {1,(#trainData.data)[1]} }] = trainData.data
+   trdata[{ {(#trainData.data)[1]+1,-1} }] = loaded.X:transpose(3,4)
+   trlabels = torch.Tensor(trsize)
+   trlabels[{ {1,(#trainData.labels)[1]} }] = trainData.labels
+   trlabels[{ {(#trainData.labels)[1]+1,-1} }] = loaded.y[1]
+   trainData = {
+      data = trdata,
+      labels = trlabels,
+      size = function() return trsize end
+   }
+end
+
+loaded = torch.load(test_file,'ascii')
 testData = {
-   data = subset.data:t():double(),
-   labels = subset.labels[1]:double(),
+   data = loaded.X:transpose(3,4),
+   labels = loaded.y[1],
    size = function() return tesize end
 }
-testData.labels = testData.labels + 1
-
--- resize dataset (if using small version)
-trainData.data = trainData.data[{ {1,trsize} }]
-trainData.labels = trainData.labels[{ {1,trsize} }]
-
-testData.data = testData.data[{ {1,tesize} }]
-testData.labels = testData.labels[{ {1,tesize} }]
-
--- reshape data
-trainData.data = trainData.data:reshape(trsize,3,32,32)
-testData.data = testData.data:reshape(tesize,3,32,32)
 
 ----------------------------------------------------------------------
 -- preprocess/normalize train/test sets
@@ -182,8 +178,12 @@ testData.data = testData.data:reshape(tesize,3,32,32)
 
 print '<trainer> preprocessing data (color space + normalization)'
 
+-- preprocess requires floating point
+trainData.data = trainData.data:float()
+testData.data = testData.data:float()
+
 -- preprocess trainSet
-normalization = nn.SpatialContrastiveNormalization(1, image.gaussian1D(7))
+normalization = nn.SpatialContrastiveNormalization(1, image.gaussian1D(7)):float()
 for i = 1,trainData:size() do
    -- rgb -> yuv
    local rgb = trainData.data[i]
@@ -230,31 +230,13 @@ confusion = optim.ConfusionMatrix(classes)
 trainLogger = optim.Logger(paths.concat(opt.save, 'train.log'))
 testLogger = optim.Logger(paths.concat(opt.save, 'test.log'))
 
--- display function
-function display(input)
-   iter = iter or 0
+-- display
+if opt.visualize then
    require 'image'
-   win_input = image.display{image=input, win=win_input, zoom=2, legend='input'}
-   if iter%10 == 0 then
-      if opt.model == 'convnet' then
-         win_w1 = image.display{image=model:get(2).weight, zoom=4, nrow=10,
-                                min=-1, max=1,
-                                win=win_w1, legend='stage 1: weights', padding=1}
-         win_w2 = image.display{image=model:get(6).weight, zoom=4, nrow=30,
-                                min=-1, max=1,
-                                win=win_w2, legend='stage 2: weights', padding=1}
-      elseif opt.model == 'mlp' then
-         local W1 = torch.Tensor(model:get(2).weight):resize(2048,1024)
-         win_w1 = image.display{image=W1, zoom=0.5,
-                                min=-1, max=1,
-                                win=win_w1, legend='W1 weights'}
-         local W2 = torch.Tensor(model:get(2).weight):resize(10,2048)
-         win_w2 = image.display{image=W2, zoom=0.5,
-                                min=-1, max=1,
-                                win=win_w2, legend='W2 weights'}
-      end
-   end
-   iter = iter + 1
+   local trset = trainData.data[{ {1,100} }]
+   local teset = testData.data[{ {1,100} }]
+   image.display{image=trset, legend='training set', nrow=10, padding=1}
+   image.display{image=teset, legend='test set', nrow=10, padding=1}
 end
 
 -- training function
@@ -264,6 +246,9 @@ function train(dataset)
 
    -- local vars
    local time = sys.clock()
+
+   -- shuffle at each epoch
+   shuffle = torch.randperm(trsize)
 
    -- do one epoch
    print('<trainer> on training set:')
@@ -277,8 +262,8 @@ function train(dataset)
       local targets = {}
       for i = t,math.min(t+opt.batchSize-1,dataset:size()) do
          -- load new sample
-         local input = dataset.data[i]
-         local target = dataset.labels[i]
+         local input = dataset.data[shuffle[i]]:double()
+         local target = dataset.labels[shuffle[i]]
          table.insert(inputs, input)
          table.insert(targets, target)
       end
@@ -309,11 +294,6 @@ function train(dataset)
 
                           -- update confusion
                           confusion:add(output, targets[i])
-
-                          -- visualize?
-                          if opt.visualize then
-                             display(inputs[i])
-                          end
                        end
 
                        -- normalize gradients and f(X)
@@ -344,7 +324,7 @@ function train(dataset)
 
       elseif opt.optimization == 'ASGD' then
          config = config or {eta0 = opt.learningRate,
-                             t0 = nbTrainingPatches * opt.t0}
+                             t0 = trsize * opt.t0}
          _,_,average = optim.asgd(feval, parameters, config)
 
       else
@@ -363,11 +343,8 @@ function train(dataset)
    confusion:zero()
 
    -- save/log current net
-   local filename = paths.concat(opt.save, 'cifar.net')
+   local filename = paths.concat(opt.save, 'house.net')
    os.execute('mkdir -p ' .. sys.dirname(filename))
-   if sys.filep(filename) then
-      os.execute('mv ' .. filename .. ' ' .. filename .. '.old')
-   end
    print('<trainer> saving network to '..filename)
    torch.save(filename, model)
 
@@ -393,7 +370,7 @@ function test(dataset)
       xlua.progress(t, dataset:size())
 
       -- get new sample
-      local input = dataset.data[t]
+      local input = dataset.data[t]:double()
       local target = dataset.labels[t]
 
       -- test sample
@@ -429,6 +406,8 @@ while true do
    -- plot errors
    trainLogger:style{['% mean class accuracy (train set)'] = '-'}
    testLogger:style{['% mean class accuracy (test set)'] = '-'}
-   trainLogger:plot()
-   testLogger:plot()
+   if opt.plot then
+      trainLogger:plot()
+      testLogger:plot()
+   end
 end

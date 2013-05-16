@@ -1,6 +1,6 @@
 ----------------------------------------------------------------------
 -- This script shows how to train different models on the MNIST 
--- dataset, using multiple optimization techniques (SGD, ASGD, CG)
+-- dataset, using multiple optimization techniques (SGD, LBFGS)
 --
 -- This script demonstrates a classical example of training 
 -- well-known models (convnet, MLP, logistic regression)
@@ -20,43 +20,43 @@ require 'nn'
 require 'nnx'
 require 'optim'
 require 'image'
-require 'dataset'
+require 'dataset-mnist'
+require 'pl'
 
 ----------------------------------------------------------------------
 -- parse command-line options
 --
-dname,fname = sys.fpath()
-cmd = torch.CmdLine()
-cmd:text()
-cmd:text('MNIST Training')
-cmd:text()
-cmd:text('Options:')
-cmd:option('-save', fname:gsub('.lua',''), 'subdirectory to save/log experiments in')
-cmd:option('-network', '', 'reload pretrained network')
-cmd:option('-model', 'convnet', 'type of model to train: convnet | mlp | linear')
-cmd:option('-full', false, 'use full dataset (60,000 samples)')
-cmd:option('-visualize', false, 'visualize input data and weights during training')
-cmd:option('-seed', 1, 'fixed input seed for repeatable experiments')
-cmd:option('-optimization', 'SGD', 'optimization method: SGD | ASGD | CG | LBFGS')
-cmd:option('-learningRate', 1e-2, 'learning rate at t=0')
-cmd:option('-batchSize', 1, 'mini-batch size (1 = pure stochastic)')
-cmd:option('-weightDecay', 0, 'weight decay (SGD only)')
-cmd:option('-momentum', 0, 'momentum (SGD only)')
-cmd:option('-t0', 1, 'start averaging at t0 (ASGD only), in nb of epochs')
-cmd:option('-maxIter', 5, 'maximum nb of iterations for CG and LBFGS')
-cmd:option('-openmp', false, 'use OpenMP to //')
-cmd:option('-threads', 2, 'nb of threads to use with OpenMP')
-cmd:text()
-opt = cmd:parse(arg)
+local opt = lapp[[
+   -s,--save          (default "logs")      subdirectory to save logs
+   -n,--network       (default "")          reload pretrained network
+   -m,--model         (default "convnet")   type of model tor train: convnet | mlp | linear
+   -f,--full                                use the full dataset
+   -p,--plot                                plot while training
+   -o,--optimization  (default "SGD")       optimization: SGD | LBFGS 
+   -r,--learningRate  (default 0.05)        learning rate, for SGD only
+   -b,--batchSize     (default 10)          batch size
+   -m,--momentum      (default 0)           momentum, for SGD only
+   -i,--maxIter       (default 3)           maximum nb of iterations per batch, for LBFGS
+   --coefL1           (default 0)           L1 penalty on the weights
+   --coefL2           (default 0)           L2 penalty on the weights
+   -t,--threads       (default 4)           number of threads
+]]
 
 -- fix seed
-torch.manualSeed(opt.seed)
+torch.manualSeed(1)
 
--- openmp
-if opt.openmp then
-   require 'openmp'
-   openmp.setDefaultNumThreads(opt.threads)
-   print('<OpenMP> enabled with ' .. opt.threads .. ' threads')
+-- threads
+torch.setnumthreads(opt.threads)
+print('<torch> set nb of threads to ' .. torch.getnumthreads())
+
+-- use floats, for SGD
+if opt.optimization == 'SGD' then
+   torch.setdefaulttensortype('torch.FloatTensor')
+end
+
+-- batch size?
+if opt.optimization == 'LBFGS' and opt.batchSize < 100 then
+   error('LBFGS should not be used with small mini-batches; 1000 is a recommended')
 end
 
 ----------------------------------------------------------------------
@@ -77,20 +77,18 @@ if opt.network == '' then
       -- convolutional network 
       ------------------------------------------------------------
       -- stage 1 : mean suppresion -> filter bank -> squashing -> max pooling
-      model:add(nn.SpatialSubtractiveNormalization(1, image.gaussian1D(15)))
-      model:add(nn.SpatialConvolution(1, 16, 5, 5))
+      model:add(nn.SpatialConvolutionMM(1, 32, 5, 5))
       model:add(nn.Tanh())
-      model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
+      model:add(nn.SpatialMaxPooling(3, 3, 3, 3))
       -- stage 2 : mean suppresion -> filter bank -> squashing -> max pooling
-      model:add(nn.SpatialSubtractiveNormalization(16, image.gaussian1D(15)))
-      model:add(nn.SpatialConvolutionMap(nn.tables.random(16, 128, 4), 5, 5))
+      model:add(nn.SpatialConvolutionMM(32, 64, 5, 5))
       model:add(nn.Tanh())
       model:add(nn.SpatialMaxPooling(2, 2, 2, 2))
-      -- stage 3 : standard 2-layer neural network
-      model:add(nn.Reshape(128*5*5))
-      model:add(nn.Linear(128*5*5, 200))
+      -- stage 3 : standard 2-layer MLP:
+      model:add(nn.Reshape(64*2*2))
+      model:add(nn.Linear(64*2*2, 200))
       model:add(nn.Tanh())
-      model:add(nn.Linear(200,#classes))
+      model:add(nn.Linear(200, #classes))
       ------------------------------------------------------------
 
    elseif opt.model == 'mlp' then
@@ -118,8 +116,7 @@ if opt.network == '' then
    end
 else
    print('<trainer> reloading previously trained network')
-   model = nn.Sequential()
-   model:read(torch.DiskFile(opt.network))
+   model = torch.load(opt.network)
 end
 
 -- retrieve parameters and gradients
@@ -134,7 +131,6 @@ print(model)
 --
 model:add(nn.LogSoftMax())
 criterion = nn.ClassNLLCriterion()
---criterion = nn.DistKLDivCriterion()
 
 ----------------------------------------------------------------------
 -- get/create dataset
@@ -150,7 +146,7 @@ end
 
 -- create training set and normalize
 trainData = mnist.loadTrainSet(nbTrainingPatches, geometry)
-mean, std = trainData:normalizeGlobal()
+trainData:normalizeGlobal(mean, std)
 
 -- create test set and normalize
 testData = mnist.loadTestSet(nbTestingPatches, geometry)
@@ -167,33 +163,6 @@ confusion = optim.ConfusionMatrix(classes)
 trainLogger = optim.Logger(paths.concat(opt.save, 'train.log'))
 testLogger = optim.Logger(paths.concat(opt.save, 'test.log'))
 
--- display function
-function display(input)
-   iter = iter or 0
-   require 'image'
-   win_input = image.display{image=input, win=win_input, zoom=2, legend='input'}
-   if iter%10 == 0 then
-      if opt.model == 'convnet' then
-         win_w1 = image.display{image=model:get(2).weight, zoom=4, nrow=10,
-                                min=-1, max=1,
-                                win=win_w1, legend='stage 1: weights', padding=1}
-         win_w2 = image.display{image=model:get(6).weight, zoom=4, nrow=30,
-                                min=-1, max=1,
-                                win=win_w2, legend='stage 2: weights', padding=1}
-      elseif opt.model == 'mlp' then
-         local W1 = torch.Tensor(model:get(2).weight):resize(2048,1024)
-         win_w1 = image.display{image=W1, zoom=0.5,
-                                min=-1, max=1,
-                                win=win_w1, legend='W1 weights'}
-         local W2 = torch.Tensor(model:get(2).weight):resize(10,2048)
-         win_w2 = image.display{image=W2, zoom=0.5,
-                                min=-1, max=1,
-                                win=win_w2, legend='W2 weights'}
-      end
-   end
-   iter = iter + 1
-end
-
 -- training function
 function train(dataset)
    -- epoch tracker
@@ -206,91 +175,98 @@ function train(dataset)
    print('<trainer> on training set:')
    print("<trainer> online epoch # " .. epoch .. ' [batchSize = ' .. opt.batchSize .. ']')
    for t = 1,dataset:size(),opt.batchSize do
-      -- disp progress
-      xlua.progress(t, dataset:size())
-
       -- create mini batch
-      local inputs = {}
-      local targets = {}
+      local inputs = torch.Tensor(opt.batchSize,1,geometry[1],geometry[2])
+      local targets = torch.Tensor(opt.batchSize)
+      local k = 1
       for i = t,math.min(t+opt.batchSize-1,dataset:size()) do
          -- load new sample
          local sample = dataset[i]
          local input = sample[1]:clone()
          local _,target = sample[2]:clone():max(1)
          target = target:squeeze()
-         table.insert(inputs, input)
-         table.insert(targets, target)
+         inputs[k] = input
+         targets[k] = target
+         k = k + 1
       end
 
       -- create closure to evaluate f(X) and df/dX
       local feval = function(x)
-                       -- get new parameters
-                       if x ~= parameters then
-                          parameters:copy(x)
-                       end
+         -- just in case:
+         collectgarbage()
 
-                       -- reset gradients
-                       gradParameters:zero()
+         -- get new parameters
+         if x ~= parameters then
+            parameters:copy(x)
+         end
 
-                       -- f is the average of all criterions
-                       local f = 0
+         -- reset gradients
+         gradParameters:zero()
 
-                       -- evaluate function for complete mini batch
-                       for i = 1,#inputs do
-                          -- estimate f
-                          local output = model:forward(inputs[i])
-                          local err = criterion:forward(output, targets[i])
-                          f = f + err
+         -- evaluate function for complete mini batch
+         local outputs = model:forward(inputs)
+         local f = criterion:forward(outputs, targets)
 
-                          -- estimate df/dW
-                          local df_do = criterion:backward(output, targets[i])
-                          model:backward(inputs[i], df_do)
+         -- estimate df/dW
+         local df_do = criterion:backward(outputs, targets)
+         model:backward(inputs, df_do)
 
-                          -- update confusion
-                          confusion:add(output, targets[i])
+         -- penalties (L1 and L2):
+         if opt.coefL1 ~= 0 or opt.coefL2 ~= 0 then
+            -- locals:
+            local norm,sign= torch.norm,torch.sign
 
-                          -- visualize?
-                          if opt.visualize then
-                             display(inputs[i])
-                          end
-                       end
+            -- Loss:
+            f = f + opt.coefL1 * norm(parameters,1)
+            f = f + opt.coefL2 * norm(parameters,2)^2/2
 
-                       -- normalize gradients and f(X)
-                       gradParameters:div(#inputs)
-                       f = f/#inputs
+            -- Gradients:
+            gradParameters:add( sign(parameters):mul(opt.coefL1) + parameters:clone():mul(opt.coefL2) )
+         end
 
-                       -- return f and df/dX
-                       return f,gradParameters
-                    end
+         -- update confusion
+         for i = 1,opt.batchSize do
+            confusion:add(outputs[i], targets[i])
+         end
+
+         -- return f and df/dX
+         return f,gradParameters
+      end
 
       -- optimize on current mini-batch
-      if opt.optimization == 'CG' then
-         config = config or {maxIter = opt.maxIter}
-         optim.cg(feval, parameters, config)
+      if opt.optimization == 'LBFGS' then
 
-      elseif opt.optimization == 'LBFGS' then
-         config = config or {learningRate = opt.learningRate,
-                             maxIter = opt.maxIter,
-                             nCorrection = 10}
-         optim.lbfgs(feval, parameters, config)
+         -- Perform LBFGS step:
+         lbfgsState = lbfgsState or {
+            maxIter = opt.maxIter,
+            lineSearch = optim.lswolfe
+         }
+         optim.lbfgs(feval, parameters, lbfgsState)
+       
+         -- disp report:
+         print('LBFGS step')
+         print(' - progress in batch: ' .. t .. '/' .. dataset:size())
+         print(' - nb of iterations: ' .. lbfgsState.nIter)
+         print(' - nb of function evalutions: ' .. lbfgsState.funcEval)
 
       elseif opt.optimization == 'SGD' then
-         config = config or {learningRate = opt.learningRate,
-                             weightDecay = opt.weightDecay,
-                             momentum = opt.momentum,
-                             learningRateDecay = 5e-7}
-         optim.sgd(feval, parameters, config)
 
-      elseif opt.optimization == 'ASGD' then
-         config = config or {eta0 = opt.learningRate,
-                             t0 = nbTrainingPatches * opt.t0}
-         _,_,average = optim.asgd(feval, parameters, config)
+         -- Perform SGD step:
+         sgdState = sgdState or {
+            learningRate = opt.learningRate,
+            momentum = opt.momentum,
+            learningRateDecay = 5e-7
+         }
+         optim.sgd(feval, parameters, sgdState)
+      
+         -- disp progress
+         xlua.progress(t, dataset:size())
 
       else
          error('unknown optimization method')
       end
    end
-
+   
    -- time taken
    time = sys.clock() - time
    time = time / dataset:size()
@@ -308,7 +284,7 @@ function train(dataset)
       os.execute('mv ' .. filename .. ' ' .. filename .. '.old')
    end
    print('<trainer> saving network to '..filename)
-   torch.save(filename, model)
+   -- torch.save(filename, model)
 
    -- next epoch
    epoch = epoch + 1
@@ -319,26 +295,34 @@ function test(dataset)
    -- local vars
    local time = sys.clock()
 
-   -- averaged param use?
-   if average then
-      cachedparams = parameters:clone()
-      parameters:copy(average)
-   end
-
    -- test over given dataset
    print('<trainer> on testing Set:')
-   for t = 1,dataset:size() do
+   for t = 1,dataset:size(),opt.batchSize do
       -- disp progress
       xlua.progress(t, dataset:size())
 
-      -- get new sample
-      local sample = dataset[t]
-      local input = sample[1]
-      local _,target = sample[2]:max(1)
-      target = target:squeeze()
+      -- create mini batch
+      local inputs = torch.Tensor(opt.batchSize,1,geometry[1],geometry[2])
+      local targets = torch.Tensor(opt.batchSize)
+      local k = 1
+      for i = t,math.min(t+opt.batchSize-1,dataset:size()) do
+         -- load new sample
+         local sample = dataset[i]
+         local input = sample[1]:clone()
+         local _,target = sample[2]:clone():max(1)
+         target = target:squeeze()
+         inputs[k] = input
+         targets[k] = target
+         k = k + 1
+      end
 
-      -- test sample
-      confusion:add(model:forward(input), target)
+      -- test samples
+      local preds = model:forward(inputs)
+
+      -- confusion:
+      for i = 1,opt.batchSize do
+         confusion:add(preds[i], targets[i])
+      end
    end
 
    -- timing
@@ -350,12 +334,6 @@ function test(dataset)
    print(confusion)
    testLogger:add{['% mean class accuracy (test set)'] = confusion.totalValid * 100}
    confusion:zero()
-
-   -- averaged param use?
-   if average then
-      -- restore parameters
-      parameters:copy(cachedparams)
-   end
 end
 
 ----------------------------------------------------------------------
@@ -367,8 +345,10 @@ while true do
    test(testData)
 
    -- plot errors
-   trainLogger:style{['% mean class accuracy (train set)'] = '-'}
-   testLogger:style{['% mean class accuracy (test set)'] = '-'}
-   trainLogger:plot()
-   testLogger:plot()
+   if opt.plot then
+      trainLogger:style{['% mean class accuracy (train set)'] = '-'}
+      testLogger:style{['% mean class accuracy (test set)'] = '-'}
+      trainLogger:plot()
+      testLogger:plot()
+   end
 end
