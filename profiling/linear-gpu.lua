@@ -23,7 +23,7 @@ ops = (ninputs*nhiddens + nhiddens*noutputs) * 2 * bs * 3
 n:float()
 i = i:float()
 
-N=5
+N=10
 
 -- sys.tic()
 -- for t = 1,N do
