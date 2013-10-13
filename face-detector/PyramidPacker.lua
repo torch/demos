@@ -168,7 +168,7 @@ function PyramidPacker:forward(input)
    for i = 1,#self.scales do
       local temp = self.output:narrow(3,self.coordinates[i][1],self.coordinates[i][5])
       temp = temp:narrow(2,self.coordinates[i][2],self.coordinates[i][6])
-      image.scale(temp, input, 'bilinear')
+      image.scale(input, temp, 'bilinear')
    end
 
    return self.output, self.coordinates
