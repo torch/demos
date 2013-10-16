@@ -7,7 +7,7 @@
 require 'torch'   -- torch
 require 'image'   -- to visualize the dataset
 require 'nn'      -- provides all sorts of trainable modules/layers
-require 'Dropout' -- Hinton dropout technique
+--require 'Dropout' -- Hinton dropout technique
 
 if opt.type == 'cuda' then
    nn.SpatialConvolutionMM = nn.SpatialConvolution
@@ -16,11 +16,11 @@ end
 ----------------------------------------------------------------------
 print '==> define parameters'
 
--- 10-class problem
-local noutputs = 10
+-- 2-class problem: faces!
+local noutputs = 2
 
--- input dimensions
-local nfeats = 3
+-- input dimensions: faces!
+local nfeats = 1
 local width = 32
 local height = 32
 
@@ -30,7 +30,7 @@ local filtsize = 5
 local poolsize = 2
 
 -- dropout?
-local dropout = nn.Dropout(opt.dropout)
+--local dropout = nn.Dropout(opt.dropout)
 
 
 ----------------------------------------------------------------------
@@ -54,7 +54,7 @@ model:add(nn.Linear(nstates[2]*filtsize*filtsize, nstates[3]))
 model:add(nn.Threshold())
 
 -- stage 4: linear (classifier)
-model:add(dropout)
+--model:add(dropout)
 model:add(nn.Linear(nstates[3], noutputs))
 
 -- stage 5 : log probabilities
@@ -83,6 +83,6 @@ end
 return {
    model = model,
    loss = loss,
-   dropout = dropout
+   --dropout = dropout
 }
 

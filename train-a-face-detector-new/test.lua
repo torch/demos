@@ -16,19 +16,19 @@ print '==> defining some tools'
 local t = require 'model'
 local model = t.model
 local loss = t.loss
-local dropout = t.dropout
+--local dropout = t.dropout
 
 -- classes
-local classes = {'1','2','3','4','5','6','7','8','9','0'}
+local classes = {'face','backg'}
 
 -- This matrix records the current confusion across classes
-local confusion = optim.ConfusionMatrix(classes)
+local confusion = optim.ConfusionMatrix(classes) -- faces: yes, no
 
 -- Logger:
 local testLogger = optim.Logger(paths.concat(opt.save, 'test.log'))
 
 -- Batch test:
-local inputs = torch.Tensor(opt.batchSize,3,32,32)
+local inputs = torch.Tensor(opt.batchSize,1,32,32) --faces data
 local targets = torch.Tensor(opt.batchSize)
 if opt.type == 'cuda' then 
    inputs = inputs:cuda()
@@ -44,7 +44,7 @@ function test(testData)
    local time = sys.clock()
 
    -- dropout -> off
-   dropout.p = 0
+   --dropout.p = 0
 
    -- test over test data
    print('==> testing on test set:')
@@ -91,7 +91,7 @@ function test(testData)
    confusion:zero()
    
    -- dropout -> on
-   dropout.p = opt.dropout
+   --dropout.p = opt.dropout
 end
 
 -- Export:

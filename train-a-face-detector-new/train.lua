@@ -28,7 +28,7 @@ local loss = t.loss
 print '==> defining some tools'
 
 -- classes
-local classes = {'1','2','3','4','5','6','7','8','9','0'}
+local classes = {'face','backg'} -- faces: yes, no
 
 -- This matrix records the current confusion across classes
 local confusion = optim.ConfusionMatrix(classes)
@@ -57,7 +57,7 @@ local optimState = {
 ----------------------------------------------------------------------
 print '==> allocating minibatch memory'
 
-local x = torch.Tensor(opt.batchSize,3,32,32)
+local x = torch.Tensor(opt.batchSize,1,32,32) --faces data
 local yt = torch.Tensor(opt.batchSize)
 if opt.type == 'cuda' then 
    x = x:cuda()
@@ -146,7 +146,7 @@ local function train(trainData)
    local filename = paths.concat(opt.save, 'model.net')
    os.execute('mkdir -p ' .. sys.dirname(filename))
    print('==> saving model to '..filename)
-   -- torch.save(filename, model)
+   torch.save(filename, model)
 
    -- next epoch
    confusion:zero()
