@@ -18,6 +18,7 @@ require 'qtuiloader'
 require 'inline'
 require 'camera'
 require 'nnx'
+require 'image'
 
 -- parse args
 op = xlua.OptionParser('%prog [options]')
@@ -25,7 +26,7 @@ op:option{'-c', '--camera', action='store', dest='camidx',
           help='camera index: /dev/videoIDX', default=0}
 op:option{'-n', '--network', action='store', dest='network', 
           help='path to existing [trained] network',
-          default='face.net'}
+          default='model.net'}
 opt,args = op:parse()
 
 torch.setdefaulttensortype('torch.FloatTensor')
@@ -47,7 +48,9 @@ parse = inline.load [[
       for (y=0; y<tensor->size[0]; y++) {
          for (x=0; x<tensor->size[1]; x++) {
             float val = THFloatTensor_get2d(tensor, y, x);
+            //printf("%f - %f ", val, threshold);
             if (val > threshold) {
+               
                // entry = {}
                lua_newtable(L);
                int entry = lua_gettop(L);
@@ -75,23 +78,15 @@ parse = inline.load [[
 -- load pre-trained network from disk
 --network = nn.Sequential()
 network = torch.load(opt.network):float()
-network.modules[11] = nil
 
-classifier1 = nn.Sequential()
-classifier1:add(network.modules[7]):clone()
-classifier1:add(network.modules[8]):clone()
-classifier1:add(network.modules[9]):clone()
-classifier1:add(network.modules[10]):clone()
-network.modules[7] = nil
-network.modules[8] = nil
-network.modules[9] = nil
-network.modules[10] = nil
+-- replace classifier (2nd module) by SpatialClassifier
+
+classifier1 = network.modules[2]
 classifier = nn.SpatialClassifier(classifier1)
-network.modules[7] = classifier
+network.modules[2] = classifier
 
 network_fov = 32
 network_sub = 4
-
 
 -- setup camera
 camera = image.Camera(opt.camidx)
@@ -124,22 +119,20 @@ function process()
 
    -- (2) transform it into Y space
    frameY = image.rgb2y(frame)
-
    -- (3) create multiscale pyramid
    pyramid, coordinates = packer:forward(frameY)
-
    -- (4) run pre-trained network on it
    multiscale = network:forward(pyramid)
-
    -- (5) unpack pyramid
    distributions = unpacker:forward(multiscale, coordinates)
-
    -- (6) parse distributions to extract blob centroids
-   threshold = widget.verticalSlider.value/100
+   --threshold = widget.verticalSlider.value/100
+   threshold = 0.55
    rawresults = {}
    for i,distribution in ipairs(distributions) do
       local smoothed = image.convolve(distribution[1]:add(1):mul(0.5), gaussian)
       parse(smoothed, threshold, rawresults, scales[i])
+      --print(distribution[1]:max(), distribution[1]:min())
    end
 
    -- (7) clean up results
