@@ -149,8 +149,6 @@ function PyramidPacker:__init(network, scales)
 end
 
 function PyramidPacker:forward(input)
-   self.dim_width = 32
-   self.dim_height = 32
    self.step_height = 4
    self.step_width = 4
    if ((input:size(3) ~= self.dim_width) or (input:size(2) ~= self.dim_height)) then
@@ -161,7 +159,6 @@ function PyramidPacker:forward(input)
                          scales = self.scales,
                          step_width = self.step_width, step_height = self.step_height})
    end
-
    if(input:size(1) ~= dim_z) then self.dimz = input:size(1) end
    self.output:resize(self.dimz, self.max_height, self.max_width):zero()
    -- using the coordinates table fill the pack with different scales
