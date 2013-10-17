@@ -126,7 +126,6 @@ local function getGlobalSizes(args)
       step_width = step_width * sizes_tbl[i].dw
       step_height = step_height * sizes_tbl[i].dh
    end
-
    return step_width, step_height, ker_width, ker_height
 end
 
@@ -139,7 +138,7 @@ function PyramidPacker:__init(network, scales)
    self.dimz = 1
    if network then
       -- infer params from given net
-      self.step_width, self.step_height = getGlobalSizes({sizes_tbl=getSizesTbl(network)})
+      self.step_width, self.step_height = getGlobalSizes({sizes_tbl=getSizesTbl(network.modules[1])})
    else
       self.step_width = 1
       self.step_height = 1
@@ -150,7 +149,10 @@ function PyramidPacker:__init(network, scales)
 end
 
 function PyramidPacker:forward(input)
-
+   self.dim_width = 32
+   self.dim_height = 32
+   self.step_height = 4
+   self.step_width = 4
    if ((input:size(3) ~= self.dim_width) or (input:size(2) ~= self.dim_height)) then
       self.dim_height = input:size(2)
       self.dim_width = input:size(3)
@@ -162,13 +164,12 @@ function PyramidPacker:forward(input)
 
    if(input:size(1) ~= dim_z) then self.dimz = input:size(1) end
    self.output:resize(self.dimz, self.max_height, self.max_width):zero()
-
    -- using the coordinates table fill the pack with different scales
    -- if the pack and coordinates already exist for the same input size we go directly to here
    for i = 1,#self.scales do
       local temp = self.output:narrow(3,self.coordinates[i][1],self.coordinates[i][5])
       temp = temp:narrow(2,self.coordinates[i][2],self.coordinates[i][6])
-      image.scale(input, temp, 'bilinear')
+      image.scale(temp, input, 'bilinear')
    end
 
    return self.output, self.coordinates
