@@ -34,7 +34,7 @@ op:option{'-s', '--save', action='store', dest='save',
 op:option{'-l', '--load', action='store', dest='network',
           help='reload pretrained network'}
 op:option{'-d', '--dataset', action='store', dest='dataset', 
-          default='../datasets/faces_cut_yuv_32x32/',
+          default='../../datasets/faces_cut_yuv_32x32/',
           help='path to MNIST root dir'}
 op:option{'-w', '--www', action='store', dest='www', 
           default='http://data.neuflow.org/data/faces_cut_yuv_32x32.tar.gz',
@@ -64,7 +64,7 @@ if not opt.network then
    model:add(nn.Threshold())
   
    model:add(nn.SpatialConvolutionMap(nn.tables.random(8, 64, 4), 7, 7))
-   model:add(nn.Treshold())
+   model:add(nn.Threshold())
    
    model:add(nn.Reshape(64))
    model:add(nn.Linear(64,2))
