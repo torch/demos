@@ -1,5 +1,5 @@
 ----------------------------------------------------------------------
--- Create model and loss to optimize.
+-- Create CNN and loss to optimize.
 --
 -- Clement Farabet
 ----------------------------------------------------------------------
@@ -34,44 +34,60 @@ local poolsize = 2
 
 
 ----------------------------------------------------------------------
-print '==> construct model'
+print '==> construct CNN'
 
-local model = nn.Sequential()
+local CNN = nn.Sequential()
 
 -- stage 1: conv+max
-model:add(nn.SpatialConvolutionMM(nfeats, nstates[1], filtsize, filtsize))
-model:add(nn.Threshold())
-model:add(nn.SpatialMaxPooling(poolsize,poolsize,poolsize,poolsize))
+CNN:add(nn.SpatialConvolutionMM(nfeats, nstates[1], filtsize, filtsize))
+CNN:add(nn.Threshold())
+CNN:add(nn.SpatialMaxPooling(poolsize,poolsize,poolsize,poolsize))
 
 -- stage 2: conv+max
-model:add(nn.SpatialConvolutionMM(nstates[1], nstates[2], filtsize, filtsize))
-model:add(nn.Threshold())
-model:add(nn.SpatialMaxPooling(poolsize,poolsize,poolsize,poolsize))
+CNN:add(nn.SpatialConvolutionMM(nstates[1], nstates[2], filtsize, filtsize))
+CNN:add(nn.Threshold())
+CNN:add(nn.SpatialMaxPooling(poolsize,poolsize,poolsize,poolsize))
 
+local classifier = nn.Sequential()
 -- stage 3: linear
-model:add(nn.Reshape(nstates[2]*filtsize*filtsize))
-model:add(nn.Linear(nstates[2]*filtsize*filtsize, nstates[3]))
-model:add(nn.Threshold())
+classifier:add(nn.Reshape(nstates[2]*filtsize*filtsize))
+classifier:add(nn.Linear(nstates[2]*filtsize*filtsize, nstates[3]))
+classifier:add(nn.Threshold())
 
 -- stage 4: linear (classifier)
---model:add(dropout)
-model:add(nn.Linear(nstates[3], noutputs))
+--CNN:add(dropout)
+classifier:add(nn.Linear(nstates[3], noutputs))
 
 -- stage 5 : log probabilities
-model:add(nn.LogSoftMax())
+classifier:add(nn.LogSoftMax())
 
--- Loss: NLL
-loss = nn.ClassNLLCriterion()
-
--- adjust all biases for threshold activation units
-for _,layer in ipairs(model.modules) do
+for _,layer in ipairs(CNN.modules) do
    if layer.bias then
-      layer.bias:add(.1)
+      layer.bias:fill(.2)
+      if i == #CNN.modules-1 then
+         layer.bias:zero()
+      end
+   end
+end
+for _,layer in ipairs(classifier.modules) do
+   if layer.bias then
+      layer.bias:fill(.2)
+      if i == #classifier.modules-1 then
+         layer.bias:zero()
+      end
    end
 end
 
+
+model = nn.Sequential()
+model:add(CNN)
+model:add(classifier)
+-- Loss: NLL
+loss = nn.ClassNLLCriterion()
+
+
 ----------------------------------------------------------------------
-print '==> here is the model:'
+print '==> here is the CNN:'
 print(model)
 
 if opt.type == 'cuda' then
