@@ -15,7 +15,7 @@ opt = lapp[[
    -r,--learningRate       (default 1e-3)         learning rate
    -d,--learningRateDecay  (default 1e-7)        learning rate decay (in # samples)
    -w,--weightDecay        (default 1e-5)        L2 penalty on the weights
-   -m,--momentum           (default 0.5)         momentum
+   -m,--momentum           (default 0.1)         momentum
    -d,--dropout            (default 0.5)         dropout amount
    -b,--batchSize          (default 128)         batch size
    -t,--threads            (default 8)           number of threads
