@@ -80,11 +80,10 @@ parse = inline.load [[
 network = torch.load(opt.network):float()
 
 -- replace classifier (2nd module) by SpatialClassifier
-
+foveanet = network.modules[1]
 classifier1 = network.modules[2]
 classifier = nn.SpatialClassifier(classifier1)
 network.modules[2] = classifier
-
 network_fov = 32
 network_sub = 4
 
@@ -119,20 +118,34 @@ function process()
 
    -- (2) transform it into Y space
    frameY = image.rgb2y(frame)
+   mean = frameY:mean()
+   std = frameY:std()
+   frameY:add(-mean)
+   --frameY:div(std)
+
+   local neighborhood = image.gaussian1D(5)
+
+   -- Define our local normalization operator (It is an actual nn module, 
+   -- which could be inserted into a trainable model):
+  
+   local normalization = nn.SpatialContrastiveNormalization(1, neighborhood, 1):float()
+   --frameY = normalization:forward(frameY)
    -- (3) create multiscale pyramid
+
    pyramid, coordinates = packer:forward(frameY)
    -- (4) run pre-trained network on it
    multiscale = network:forward(pyramid)
    -- (5) unpack pyramid
    distributions = unpacker:forward(multiscale, coordinates)
+
    -- (6) parse distributions to extract blob centroids
-   --threshold = widget.verticalSlider.value/100
-   threshold = 0.55
+   threshold = widget.verticalSlider.value/100
+
    rawresults = {}
    for i,distribution in ipairs(distributions) do
-      local smoothed = image.convolve(distribution[1]:add(1):mul(0.5), gaussian)
+      distribution = nn.SpatialClassifier(nn.SoftMax()):forward(distribution)
+      local smoothed = image.convolve(distribution[1], gaussian)
       parse(smoothed, threshold, rawresults, scales[i])
-      --print(distribution[1]:max(), distribution[1]:min())
    end
 
    -- (7) clean up results
@@ -152,7 +165,7 @@ function display()
    win:gbegin()
    win:showpage()
    -- (1) display input image + pyramid
-   image.display{image=frame, win=win, saturation=false, min=0, max=1}
+   image.display{image=frame, win=win, saturation=false, min=0, max=1} 
 
    -- (2) overlay bounding boxes for each detection
    for i,detect in ipairs(detections) do
