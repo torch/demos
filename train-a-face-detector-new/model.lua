@@ -25,13 +25,9 @@ local width = 32
 local height = 32
 
 -- hidden units, filter sizes (for ConvNet only):
-local nstates = {8,16,32}
-local filtsize = 5
-local poolsize = 2
-
--- dropout?
---local dropout = nn.Dropout(opt.dropout)
-
+local nstates = {16,32}
+local filtsize = {5, 7}
+local poolsize = 4
 
 ----------------------------------------------------------------------
 print '==> construct CNN'
@@ -39,26 +35,20 @@ print '==> construct CNN'
 local CNN = nn.Sequential()
 
 -- stage 1: conv+max
-CNN:add(nn.SpatialConvolutionMM(nfeats, nstates[1], filtsize, filtsize))
+CNN:add(nn.SpatialConvolutionMM(nfeats, nstates[1], filtsize[1], filtsize[1]))
 CNN:add(nn.Threshold())
 CNN:add(nn.SpatialMaxPooling(poolsize,poolsize,poolsize,poolsize))
 
 -- stage 2: conv+max
-CNN:add(nn.SpatialConvolutionMM(nstates[1], nstates[2], filtsize, filtsize))
+CNN:add(nn.SpatialConvolutionMM(nstates[1], nstates[2], filtsize[2], filtsize[2]))
 CNN:add(nn.Threshold())
-CNN:add(nn.SpatialMaxPooling(poolsize,poolsize,poolsize,poolsize))
 
 local classifier = nn.Sequential()
 -- stage 3: linear
-classifier:add(nn.Reshape(nstates[2]*filtsize*filtsize))
-classifier:add(nn.Linear(nstates[2]*filtsize*filtsize, nstates[3]))
-classifier:add(nn.Threshold())
+classifier:add(nn.Reshape(nstates[2]))
+classifier:add(nn.Linear(nstates[2], 2))
 
--- stage 4: linear (classifier)
---CNN:add(dropout)
-classifier:add(nn.Linear(nstates[3], noutputs))
-
--- stage 5 : log probabilities
+-- stage 4 : log probabilities
 classifier:add(nn.LogSoftMax())
 
 for _,layer in ipairs(CNN.modules) do
@@ -69,19 +59,11 @@ for _,layer in ipairs(CNN.modules) do
       end
    end
 end
-for _,layer in ipairs(classifier.modules) do
-   if layer.bias then
-      layer.bias:fill(.2)
-      if i == #classifier.modules-1 then
-         layer.bias:zero()
-      end
-   end
-end
 
-
-model = nn.Sequential()
+local model = nn.Sequential()
 model:add(CNN)
 model:add(classifier)
+
 -- Loss: NLL
 loss = nn.ClassNLLCriterion()
 
@@ -99,6 +81,5 @@ end
 return {
    model = model,
    loss = loss,
-   --dropout = dropout
 }
 
