@@ -76,12 +76,12 @@ parse = inline.load [[
 ]]
 
 -- load pre-trained network from disk
---network = nn.Sequential()
 network = torch.load(opt.network):float()
 
 -- replace classifier (2nd module) by SpatialClassifier
 foveanet = network.modules[1]
 classifier1 = network.modules[2]
+classifier1.modules[3] = nil
 classifier = nn.SpatialClassifier(classifier1)
 network.modules[2] = classifier
 network_fov = 32
@@ -91,7 +91,7 @@ network_sub = 4
 camera = image.Camera(opt.camidx)
 
 -- process input at multiple scales
-scales = {0.3, 0.24, 0.192, 0.15, 0.12, 0.1}
+scales = {0.3, 0.24, 0.192, 0.15, 0.12, 0.1} 
 
 -- use a pyramid packer/unpacker
 require 'PyramidPacker'
@@ -114,38 +114,27 @@ p = xlua.Profiler()
 -- process function
 function process()
    -- (1) grab frame
-   frame = camera:forward()
+   frame = camera:forward()   --image.lena()
 
    -- (2) transform it into Y space
    frameY = image.rgb2y(frame)
    mean = frameY:mean()
    std = frameY:std()
    frameY:add(-mean)
-   --frameY:div(std)
+   frameY:div(std)
 
-   local neighborhood = image.gaussian1D(5)
-
-   -- Define our local normalization operator (It is an actual nn module, 
-   -- which could be inserted into a trainable model):
-  
-   local normalization = nn.SpatialContrastiveNormalization(1, neighborhood, 1):float()
-   --frameY = normalization:forward(frameY)
-   -- (3) create multiscale pyramid
-
+    -- (3) create multiscale pyramid
    pyramid, coordinates = packer:forward(frameY)
    -- (4) run pre-trained network on it
    multiscale = network:forward(pyramid)
    -- (5) unpack pyramid
    distributions = unpacker:forward(multiscale, coordinates)
-
    -- (6) parse distributions to extract blob centroids
    threshold = widget.verticalSlider.value/100
 
    rawresults = {}
    for i,distribution in ipairs(distributions) do
-      distribution = nn.SpatialClassifier(nn.SoftMax()):forward(distribution)
-      local smoothed = image.convolve(distribution[1], gaussian)
-      parse(smoothed, threshold, rawresults, scales[i])
+      parse(distribution[1], threshold, rawresults, scales[i])
    end
 
    -- (7) clean up results
