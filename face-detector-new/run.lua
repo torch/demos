@@ -4,18 +4,16 @@
 -- CNN face detector, based on convolutional network nets
 --
 -- original: Clement Farabet
--- E. Culurciello
+-- E. Culurciello, A. Dundar
 -- Mon Oct 14 14:58:50 EDT 2013
 --
 ------------------------------------------------------------
-
 
 require 'xlua'
 require 'torch'
 require 'qt'
 require 'qtwidget'
 require 'qtuiloader'
-require 'inline'
 require 'camera'
 require 'nnx'
 require 'image'
@@ -26,54 +24,29 @@ op:option{'-c', '--camera', action='store', dest='camidx',
           help='camera index: /dev/videoIDX', default=0}
 op:option{'-n', '--network', action='store', dest='network', 
           help='path to existing [trained] network',
-          default='model.net'}
+          default='face.net'}
 opt,args = op:parse()
 
 torch.setdefaulttensortype('torch.FloatTensor')
 
 torch.setnumthreads(8)
 
--- blob parser
-parse = inline.load [[
-      // get args
-      const void* id = luaT_checktypename2id(L, "torch.FloatTensor");
-      THFloatTensor *tensor = luaT_checkudata(L, 1, id);
-      float threshold = lua_tonumber(L, 2);
-      int table_blobs = 3;
-      int idx = lua_objlen(L, 3) + 1;
-      float scale = lua_tonumber(L, 4);
-
-      // loop over pixels
-      int x,y;
-      for (y=0; y<tensor->size[0]; y++) {
-         for (x=0; x<tensor->size[1]; x++) {
-            float val = THFloatTensor_get2d(tensor, y, x);
-            //printf("%f - %f ", val, threshold);
-            if (val > threshold) {
-               
-               // entry = {}
-               lua_newtable(L);
-               int entry = lua_gettop(L);
-
-               // entry[1] = x
-               lua_pushnumber(L, x);
-               lua_rawseti(L, entry, 1);
-
-               // entry[2] = y
-               lua_pushnumber(L, y);
-               lua_rawseti(L, entry, 2);
-
-               // entry[3] = scale
-               lua_pushnumber(L, scale);
-               lua_rawseti(L, entry, 3);
-
-               // blobs[idx] = entry; idx = idx + 1
-               lua_rawseti(L, table_blobs, idx++);
-            }
-         }
-      }
-      return 0;
-]]
+-- blob parser:
+function parse(tin, threshold, blobs, scale)
+  --loop over pixels
+  for y=1, tin:size(1) do
+     for x=1, tin:size(2) do
+        local val = tin[y][x]
+        if (val > threshold) then               
+          entry = {}
+          entry[1] = x
+          entry[2] = y
+          entry[3] = scale
+          table.insert(blobs,entry)
+      end
+    end
+  end
+end
 
 -- load pre-trained network from disk
 network = torch.load(opt.network):float()
@@ -88,7 +61,7 @@ network_fov = 32
 network_sub = 4
 
 -- setup camera
-camera = image.Camera(opt.camidx)
+--camera = image.Camera(opt.camidx)
 
 -- process input at multiple scales
 scales = {0.3, 0.24, 0.192, 0.15, 0.12, 0.1} 
@@ -105,21 +78,18 @@ if not win or not widget then
    win = qt.QtLuaPainter(widget.frame) 
 end
 
--- a gaussian for smoothing the distributions
-gaussian = image.gaussian(3,0.15)
-
 -- profiler
 p = xlua.Profiler()
 
 -- process function
 function process()
    -- (1) grab frame
-   frame = camera:forward()   --image.lena()
+   frame = image.lena()--camera:forward()
 
    -- (2) transform it into Y space
-   frameY = image.rgb2y(frame)
-   mean = frameY:mean()
-   std = frameY:std()
+   frameY = frame[2]:reshape(1,512,512) -- just green component
+   mean = frame:mean()
+   std = frame:std()
    frameY:add(-mean)
    frameY:div(std)
 
