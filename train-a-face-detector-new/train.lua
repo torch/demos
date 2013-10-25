@@ -25,6 +25,26 @@ local fwmodel = t.model
 local loss = t.loss
 
 ----------------------------------------------------------------------
+-- Save light network tools:
+function nilling(module)
+   module.gradBias   = nil
+   if module.finput then module.finput = torch.Tensor() end
+   module.gradWeight = nil
+   module.output     = torch.Tensor()
+   module.fgradInput = nil
+   module.gradInput  = nil
+end
+
+function netLighter(network)
+   nilling(network)
+   if network.modules then
+      for _,a in ipairs(network.modules) do
+         netLighter(a)
+      end
+   end
+end
+
+----------------------------------------------------------------------
 print '==> defining some tools'
 
 -- classes
@@ -146,7 +166,9 @@ local function train(trainData)
    local filename = paths.concat(opt.save, 'model.net')
    os.execute('mkdir -p ' .. sys.dirname(filename))
    print('==> saving model to '..filename)
-   torch.save(filename, model)
+   model1 = model:clone()
+   netLighter(model1)
+   torch.save(filename, model1)
 
    -- next epoch
    confusion:zero()
