@@ -9,27 +9,25 @@
 --
 ------------------------------------------------------------
 
-require 'xlua'
-require 'torch'
+require 'pl'
 require 'qt'
 require 'qtwidget'
 require 'qtuiloader'
-require 'camera'
+--require 'camera'
 require 'nnx'
 require 'image'
 
--- parse args
-op = xlua.OptionParser('%prog [options]')
-op:option{'-c', '--camera', action='store', dest='camidx',
-          help='camera index: /dev/videoIDX', default=0}
-op:option{'-n', '--network', action='store', dest='network', 
-          help='path to existing [trained] network',
-          default='face.net'}
-opt,args = op:parse()
+print '==> processing options'
+
+opt = lapp[[
+   -c, --camidx   (default 0)       camera index: /dev/videoIDX
+   -n, --network  (default 'face.net')    path to network
+   -x, --runnnx   (default true)    run on hardware nn_X 
+   -t, --threads  (default 8)       number of threads
+]]
 
 torch.setdefaulttensortype('torch.FloatTensor')
-
-torch.setnumthreads(8)
+torch.setnumthreads(opt.threads)
 
 -- blob parser:
 function parse(tin, threshold, blobs, scale)
@@ -51,14 +49,24 @@ end
 -- load pre-trained network from disk
 network = torch.load(opt.network):float()
 
--- replace classifier (2nd module) by SpatialClassifier
-foveanet = network.modules[1]
-classifier1 = network.modules[2]
-classifier1.modules[3] = nil
+classifier1 = nn.Sequential()
+classifier1:add(network.modules[6]:clone())
+classifier1:add(network.modules[7]:clone())
 classifier = nn.SpatialClassifier(classifier1)
-network.modules[2] = classifier
+network.modules[6] = nn.SpatialClassifier(classifier1)
+network.modules[7]=nil
 network_fov = 32
 network_sub = 4
+
+-- remove SpatialCconvolutionMM:
+m1 = network.modules[1]:clone()
+network.modules[1] = nn.SpatialConvolution(1,8,5,5)
+network.modules[1].weight = m1.weight:reshape(8,1,5,5)
+network.modules[1].bias = m1.bias
+m1 = network.modules[4]:clone()
+network.modules[4] = nn.SpatialConvolution(8,64,7,7)
+network.modules[4].weight = m1.weight:reshape(64,8,7,7)
+network.modules[4].bias = m1.bias
 
 -- setup camera
 --camera = image.Camera(opt.camidx)
@@ -88,8 +96,8 @@ function process()
 
    -- (2) transform it into Y space
    frameY = frame[2]:reshape(1,512,512) -- just green component
-   mean = frame:mean()
-   std = frame:std()
+   mean = frameY:mean()
+   std = frameY:std()
    frameY:add(-mean)
    frameY:div(std)
 
@@ -100,7 +108,7 @@ function process()
    -- (5) unpack pyramid
    distributions = unpacker:forward(multiscale, coordinates)
    -- (6) parse distributions to extract blob centroids
-   threshold = widget.verticalSlider.value/100
+   threshold = 0.9--widget.verticalSlider.value/100
 
    rawresults = {}
    for i,distribution in ipairs(distributions) do
@@ -129,6 +137,7 @@ function display()
    -- (2) overlay bounding boxes for each detection
    for i,detect in ipairs(detections) do
       win:setcolor(1,0,0)
+      print(detect.x, detect.y, detect.w, detect.h)
       win:rectangle(detect.x, detect.y, detect.w, detect.h)
       win:stroke()
       win:setfont(qt.QFont{serif=false,italic=false,size=16})

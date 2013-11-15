@@ -2,6 +2,12 @@
 ------------------------------------------------------------
 -- a simple convnet saliency demo
 -- takes output of convnet 1st layer and displays it
+-- uses SDL graphic library
+-- uses face detector net
+-- 
+-- E. Culurciello, 2013
+-- 
+------------------------------------------------------------
 
 require 'camera'
 require 'nnx'

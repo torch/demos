@@ -138,7 +138,7 @@ function PyramidPacker:__init(network, scales)
    self.dimz = 1
    if network then
       -- infer params from given net
-      self.step_width, self.step_height = getGlobalSizes({sizes_tbl=getSizesTbl(network.modules[1])})
+      self.step_width, self.step_height = getGlobalSizes({sizes_tbl=getSizesTbl(network)})--.modules[1])})
    else
       self.step_width = 1
       self.step_height = 1
