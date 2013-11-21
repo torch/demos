@@ -4,8 +4,6 @@
 -- takes output of convnet 1st, 2nd layers and displays it
 -- uses Qt graphics
 -- uses roadnet network for better "objectness"
--- 
--- TODO: ADD motion channel!
 --
 -- E. Culurciello, 2013
 -- 
@@ -93,7 +91,7 @@ network.modules[4].bias = m1.bias
 
 -- process function
 function process()
-   img2=img2:copy(img1)
+   img2 = img2:copy(img1)
    --get frame:
    if opt.video ~= '' then
       img1 = image.scale(image.crop(video:forward(), 1200, 500, 1800, 1000),iW,iH)
@@ -103,17 +101,18 @@ function process()
    -- process:
    nout = network:forward(img1) -- pass RGB
    out = image.scale(nout, iW, iH)
-   frame:mul(0):add(out):mul(0.5) -- :add(-torch.min(frame)):div(torch.max(frame)):mul(0.2) -- reset, then normalize
-   --colorop =  (img1[2]-img1[1]) + (img1[2]-img1[3]) -- color opponency
-   --colorop:mul(0.5)--:add(-torch.min(colorop)):div(torch.max(colorop)):mul(0.5) -- normalize
-   --tmpdiff = (img1[2]-img2[2]) -- temp diff
-   --tmpdiff:add(-torch.min(tmpdiff)):div(torch.max(tmpdiff)):mul(0.6) -- normalize
-   --frame:add(colorop)--:add(tmpdiff):add(colorop) -- add temp diff, color opp
+   frame:mul(0):add(out):add(-out:mean()):div(out:std())--:mul(0.7) -- reset, then normalize
+   --colorop =  (img1-img1[1]) + (img1-img1[3]) -- color opponency
+   --colorop:mul(0.5)--:add(-colorop:mean()):div(colorop:max()):mul(0.5) -- normalize
+   tmpdiff = (img1-img2):sum(1) -- temp diff
+   tmpdiff:add(-tmpdiff:mean()):div(tmpdiff:std()):mul(0.6)
+   --print('frame, tmpdiff MAX,MIN: ', frame:max(), frame:min(), tmpdiff:max(), tmpdiff:min())
+   frame:add(tmpdiff) -- add temp diff, color opp
 end   
 
 -- setup GUI (external UI file)
 if not win or not widget then
-   win = qtwidget.newwindow(opt.width*opt.zoom, opt.height*opt.zoom*2 + 80, -- 20 for class display
+   win = qtwidget.newwindow(opt.width*opt.zoom, opt.height*opt.zoom*2,
    'E-Lab Attention Net demo')
    font = qt.QFont{serif=false, italic=false, size=12}
    win:setfont(font)
@@ -121,12 +120,18 @@ end
 
 -- display function
 function display()
-   image.display{image=frame, win=win, zoom=opt.zoom}
+  -- display original frame:
+   image.display{image=img1, win=win, zoom=opt.zoom}--, min = -1, max = 1}
+   -- display saliency:
+   image.display{image=frame, win=win, y=img1:size(2)*opt.zoom, zoom=opt.zoom}--, min = -1, max = 1}
 end
 
 -- display loop:
-while true do
-      process()
-      display()
+while win:valid() do
+  sys.tic()
+  process()
+  t=sys.toc()
+  print(string.format("Frame/s: %.2f", 1/t))
+  display()
 end
 
