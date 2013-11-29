@@ -222,6 +222,7 @@ end
 
 -- are we using the hessian?
 if params.hessian then
+   nn.hessian.enable()
    module:initDiagHessianParameters()
 end
 
