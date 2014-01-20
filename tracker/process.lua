@@ -39,16 +39,9 @@ end
 print(' ... encoder global downsampling ratio = ' .. encoder_dw)
 print('')
 
--- run on neuFlow
-if options.neuflow then
-   encoder_full  = require 'compile-neuflow'
-   encoder_patch = encoderm:clone()
-   profiler      = encoder_full.profiler
-else
-   encoder_full  = encoderm:clone()
-   encoder_patch = encoderm:clone()
-   profiler      = xlua.Profiler()
-end
+encoder_full  = encoderm:clone()
+encoder_patch = encoderm:clone()
+profiler      = xlua.Profiler()
 
 function GetMax(a)
 	x,xi = torch.max(a,1)
@@ -100,9 +93,9 @@ local function process()
    ------------------------------------------------------------
    -- (2) encode a full scene
    ------------------------------------------------------------
-   profiler:start('neuflow transfer & process')
+   profiler:start('process')
    denseFeatures = encoder_full:forward(state.procFrame)
-   profiler:lap('neuflow transfer & process')
+   profiler:lap('process')
 
    ------------------------------------------------------------
    -- (3) generate a confidence map
