@@ -62,8 +62,6 @@ op:option{'-b', '--box', action='store', dest='box',
           help='box (training) size', default=128}
 op:option{'-d', '--downsampling', action='store', dest='downs',
           help='downsampling ratio(-1 to downsample as much as possible)',default=2}
-op:option{'-nf', '--neuflow', action='store_true', dest='neuflow',
-          help='compute convnet using neuflow', default=false}
 op:option{'-f', '--file', action='store', dest='file',
           help='file to sync memory to', default='memory'}
 op:option{'-th','--threshold', action='store', dest='threshold',
