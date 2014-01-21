@@ -10,9 +10,9 @@ In addition to the usual (torch, nnx, etc.) this demo requires the
 following modules to be installed via luarocks:
 
 ``` sh
-neuflow
-inline
 image
+torchffi
+ffmpeg
 ```
 
 ## Demonstration
@@ -20,6 +20,5 @@ image
 For the demonstration, use the following commands:
 
 ``` sh
-$ torch run.lua        # run on computer
-$ torch run.lua -nf    # run on neuFlow
+$ torch run.lua
 ```
