@@ -72,11 +72,22 @@ function RBFsimilarity(probMapOut, vectorMapIn, memory)
       Std[i] = proto.std
    end
 
-   probMapOut:zero()--resize(vectorMapIn:size(2), vectorMapIn:size(3)):zero()
-   --int RBF(float *input, int ichannels, int iheight, int iwidth, 
-   --    float *output, int numProto, float *code, float *weight, float *std) 
-   fastdist.RBF(torch.data(vectorMapIn), vectorMapIn:size(1), vectorMapIn:size(2), vectorMapIn:size(3), 
-      torch.data(probMapOut), Weight:size(1), torch.data(Vector), torch.data(Weight), torch.data(Std))
+   probMapOut:zero()
+
+   local metric = 'exponential'
+   if metric == 'RBF' then
+      fastdist.RBF(torch.data(vectorMapIn), vectorMapIn:size(1), vectorMapIn:size(2),
+                   vectorMapIn:size(3), torch.data(probMapOut), Weight:size(1),
+                   torch.data(Vector), torch.data(Weight), torch.data(Std))
+   elseif metric == 'SMR' then
+      fastdist.SMR(torch.data(vectorMapIn), vectorMapIn:size(1), vectorMapIn:size(2),
+                   vectorMapIn:size(3), torch.data(probMapOut), Weight:size(1),
+                   torch.data(Vector), torch.data(Weight), 0.2)
+   elseif metric == 'exponential' then
+      fastdist.exponential(torch.data(vectorMapIn), vectorMapIn:size(1), vectorMapIn:size(2),
+                   vectorMapIn:size(3), torch.data(probMapOut), Weight:size(1),
+                   torch.data(Vector), torch.data(Weight), torch.data(Std))
+   end
 end
 
 -- grab camera frames, and process them
