@@ -259,6 +259,8 @@ for i = 1,epochs do
 
 end
 
+-- don't run L-BFGS
+if false then
 
 ----------------------------------------------------------------------
 -- 4.b. Train the model (Using L-BFGS)
@@ -341,7 +343,7 @@ _,fs = optim.lbfgs(feval,x,lbfgs_params)
 
 print('history of L-BFGS evaluations:')
 print(fs)
-
+end
 
 ----------------------------------------------------------------------
 -- 5. Test the trained model.
@@ -506,6 +508,7 @@ function indexString(p1, p2, p3)
 end
 
 -- print table rows and accumulate accuracy
+local nErrors = 0  -- count number of errors vs. text
 for female = 0,1 do
    for age = torch.min(ages),torch.max(ages) do
       -- calculate the actual probabilities in the training data
@@ -528,5 +531,11 @@ for female = 0,1 do
 		       indexString(textProb1,textProb2,textProb3),
 		       indexString(ourProb1,ourProb2,ourProb3))
 	   )
+      local textBest = indexString(textProb1, textProb2, textProb3)
+      local ourBest = indexString(ourProb1, ourProb2, ourProb3)
+      if textBest ~= ourBest then
+         nErrors = nErrors + 1
+      end
    end
 end
+print('nError vs. text', nErrors)
