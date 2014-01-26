@@ -7,6 +7,7 @@
 require 'nn'
 require 'optim'
 
+torch.manualSeed(123)
 
 ----------------------------------------------------------------------
 -- 1. Create the training data
@@ -208,6 +209,8 @@ end
 sgd_params = {
    learningRate = 1e-3,
    learningRateDecay = 1e-4,
+   learningRate = 1e-4,
+   learningRateDecay = 1e-2,
    weightDecay = 0,
    momentum = 0
 }
@@ -218,7 +221,8 @@ sgd_params = {
 -- but should typically be determinined using cross-validation (i.e.
 -- using multiple folds of training/test subsets).
 
-epochs = 1e2  -- number of times to cycle over our training data
+epochs = 2e2  -- number of times to cycle over our training data
+epochs = 10000
 
 print('')
 print('============================================================')
@@ -253,9 +257,7 @@ for i = 1,epochs do
 
    -- report average error on epoch
    current_loss = current_loss / (#dataset_inputs)[1]
-   print('epoch = ' .. i .. 
-	 ' of ' .. epochs .. 
-	 ' current loss = ' .. current_loss)
+   print(string.format('epoch %5d of %d average loss %f', i, epochs, current_loss))
 
 end
 
@@ -455,7 +457,7 @@ function actualProbabilities(age, female)
    end
 end
 
-
+if true then
 print(' ')
 print('summary of data')
 summarizeData()
@@ -483,7 +485,7 @@ print(string.format(lineFormat,
 		    'female', 'age', 
 		    choices, choices, choices, 
 		    'a', 't', 'o'))
-
+end
 -- print each row in the table
 
 function formatFemale(female)
@@ -509,6 +511,7 @@ end
 
 -- print table rows and accumulate accuracy
 local nErrors = 0  -- count number of errors vs. text
+local nTests = 0
 for female = 0,1 do
    for age = torch.min(ages),torch.max(ages) do
       -- calculate the actual probabilities in the training data
@@ -520,6 +523,7 @@ for female = 0,1 do
       --print("main", age, female)
       local ourBrand, ourProb1, ourProb2, ourProb3 = 
 	 predictOur(age, female)
+	 if false then
       print(
 	 string.format(lineFormat,
 		       formatFemale(female), 
@@ -531,11 +535,13 @@ for female = 0,1 do
 		       indexString(textProb1,textProb2,textProb3),
 		       indexString(ourProb1,ourProb2,ourProb3))
 	   )
+	  end
       local textBest = indexString(textProb1, textProb2, textProb3)
       local ourBest = indexString(ourProb1, ourProb2, ourProb3)
       if textBest ~= ourBest then
          nErrors = nErrors + 1
       end
+      nTests = nTests + 1
    end
 end
-print('nError vs. text', nErrors)
+print('nError vs. text', nErrors, 'of', nTests)
