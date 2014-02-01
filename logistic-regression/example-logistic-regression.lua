@@ -1,4 +1,4 @@
-----------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- example-logistic-regression.lua
 --
 -- Logistic regression and multinomial logistic regression
@@ -7,9 +7,10 @@
 require 'nn'
 require 'optim'
 
+-- By setting the random number seed, we get the same results on every run.
 torch.manualSeed(123)
 
-----------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- 1. Create the training data
 
 print('')
@@ -42,43 +43,77 @@ require 'csv'
 -- Reading CSV files can be tricky. This code uses the csv package for this:
 loaded = csv.load('example-logistic-regression.csv')
 
--- Convert the CSV table into dense tensors. The tensor form has the
--- advantage that it stores its elements continguously (which leads to
--- better performance) and a tensor allows one to select columns and rows
--- easily, using slicing methods.
+-- We'll end up with lots of data, so lets organize all the data into one
+-- table.
+data = {}
 
--- first convert each variable list to a tensor:
-brands = torch.Tensor(loaded.brand)
-females = torch.Tensor(loaded.female)
-ages = torch.Tensor(loaded.age)
+-- We'll create these fields in the data table:
+-- data.raw will hold the data from the CSV file and various related attributes.
+-- data.train will hold the training data and various related attributes
+-- data.test  will hold the test data and various related attributes
 
--- copy all the input variables into a single tensor:
-dataset_inputs = torch.Tensor( (#brands)[1],2 )
-dataset_inputs[{ {},1 }] = females
-dataset_inputs[{ {},2 }] = ages
+-- Convert the CSV table into dense tensors. The tensor form has the advantage
+-- that it stores its elements continguously (which leads to better
+-- performance) and a tensor allows one to select columns and rows easily,
+-- using slicing methods.
 
--- the outputs are just the brands
-dataset_outputs = brands
+-- First convert each variable list to a tensor and save in an all-purpose data
+-- table.
+data.raw = {}
+data.raw.age = torch.Tensor(loaded.age)
+data.raw.brand = torch.Tensor(loaded.brand)
+data.raw.isFemale = torch.Tensor(loaded.female)
 
--- To implement the model, we need to know how many categories there are.
-numberOfBrands = torch.max(dataset_outputs) - torch.min(dataset_outputs) + 1
+-- We don't need the loaded data any more. By setting it to nil, the garbage
+-- collector will reclaim its storage.
 
--- summarize the data
-function summarizeData()
-   function p(name,value) 
-      print(string.format('%20s %f', name, value) )
-   end
-   p('number of brands', numberOfBrands)
-   p('min brand', torch.min(brands))
-   p('max brand', torch.max(brands))
-   
-   p('min female', torch.min(females))
-   p('max female', torch.max(females))
-   
-   p('min age', torch.min(ages))
-   p('max age', torch.max(ages))
+loaded = nil
+
+-- Let's check that we have the same number of samples for each feature.
+
+data.raw.nSamples = data.raw.age:size(1)
+assert(data.raw.brand:size(1) == data.raw.nSamples)
+assert(data.raw.isFemale:size(1) == data.raw.nSamples)
+
+
+-- As we debug, we'll want to print the data table in a compact fashion.
+
+require 'printTable'  -- We've put functions that you may find useful in separate files
+
+local function printData()
+   printTable('data', data)
 end
-summarizeData()
+
+-- summarize the raw data
+
+require 'summarizeData'
+summarizeData(data)
+
+-- The model will use the age and isFemale features to predict brand. The
+-- implementation of the model will require the age and isFemale features to be
+-- in a tensor, which we call the input in this code. The input tensor is 2D,
+-- with one row for each training sample. The predicted feature is called the
+-- target, which is held as a 1D tensor.
+
+-- Define the column numbers used for the features in the input 2D tensor.
+data.cAge = 1       -- the age feature is always the first element of the input vector
+data.cIsFemale = 2  -- the isFemale feature is always the second element of the input vector
+
+local function buildInput(age, isFemale)
+   local nSamples = age:size(1)
+   local input = torch.Tensor(nSamples, 2)
+   for sampleIndex = 1, nSamples do
+      input[sampleIndex][data.cAge] = age[sampleIndex]
+      input[sampleIndex][data.cIsFemale] = isFemale[sampleIndex]
+   end
+   return input
+end
+
+-- Buid the training data.
+
+data.train = {}
+data.train.input = buildInput(data.raw.age, data.raw.isFemale)
+data.train.target = data.raw.brand
 
 
 ----------------------------------------------------------------------
@@ -86,16 +121,16 @@ summarizeData()
 
 -- The model is a multinomial logistic regression. 
 
--- It will consist of two layers that operate sequentially:
+-- It will consist of two layers which operate sequentially:
 --  - 1: a linear model
 --  - 2: a soft max layer
 
--- The linear model supposes that the un-normalized probability of choosing
--- a specific brand is proportional to the product of unknown weights and 
--- the observed variables plus a bias:
+-- The linear model supposes that the un-normalized probability of choosing a
+-- specific brand is proportional to the product of unknown weights and the
+-- observed variables plus a bias:
 --   Prob(brand = b) = bias + weight1 * female * weight2 * age
--- There are two inputs (female and age) and three outputs (one for each
--- value that brand can take on)
+-- There are two inputs (female and age) and three outputs (one for each value
+-- that brand can take on)
 
 linLayer = nn.Linear(2,3)
 
@@ -120,20 +155,17 @@ model:add(softMaxLayer)
 ----------------------------------------------------------------------
 -- 3. Define a loss function, to be minimized.
 
--- In that example, we minimize the cross entropy between
--- the predictions of our linear model and the groundtruth available
--- in the dataset.
+-- In that example, we minimize the cross entropy between the predictions of
+-- our linear model and the groundtruth available in the dataset.
 
 -- Torch provides many common criterions to train neural networks.
 
--- The ClassNLLCriterion expects to be fed the log probabilities in a
--- tensor. Hence, the use of the LogSoftMax layer in the model instead
--- of SoftMax.
+-- The ClassNLLCriterion expects to be fed the log probabilities in a tensor.
+-- Hence, the use of the LogSoftMax layer in the model instead of SoftMax.
 
--- Minimizing the cross-entropy is equivalent to maximizing the 
--- maximum a-posteriori (MAP) prediction, which is equivalent to 
--- minimizing the negative log-likelihoood (NLL), hence the use of
--- the NLL loss.
+-- Minimizing the cross-entropy is equivalent to maximizing the maximum
+-- a-posteriori (MAP) prediction, which is equivalent to minimizing the
+-- negative log-likelihoood (NLL), hence the use of the NLL loss.
 
 criterion = nn.ClassNLLCriterion()
 
@@ -141,22 +173,22 @@ criterion = nn.ClassNLLCriterion()
 ----------------------------------------------------------------------
 -- 4.a. Train the model (Using SGD)
 
--- To minimize the loss defined above, using the linear model defined
--- in 'model', we follow a stochastic gradient descent procedure (SGD).
+-- To minimize the loss defined above, using the linear model defined in
+-- 'model', we follow a stochastic gradient descent procedure (SGD).
 
 -- SGD is a good optimization algorithm when the amount of training data
 -- is large, and estimating the gradient of the loss function over the 
 -- entire training set is too costly.
 
 -- Given an arbitrarily complex model, we can retrieve its trainable
--- parameters, and the gradients of our loss function wrt these 
+-- parameters, and the gradients of our loss function with respect to these
 -- parameters by doing so:
 
 x, dl_dx = model:getParameters()
 
--- The above statement does not create a copy of the parameters in the 
--- model! Instead it create in x and dl_dx a view of the model's weights
--- and derivative wrt the weights. The view is implemented so that when
+-- The above statement does not create a copy of the parameters in the model!
+-- Instead it creates in x and dl_dx a view of the model's weights and
+-- derivative with respect to the weights. The view is implemented so that when
 -- the weights and their derivatives changes, so do the x and dl_dx. The
 -- implementation is efficient in that the underlying storage is shared.
 
@@ -174,17 +206,17 @@ x, dl_dx = model:getParameters()
 feval = function(x_new)
    -- set x to x_new, if differnt
    -- (in this simple example, x_new will typically always point to x,
-   -- so the copy is really useless)
+   -- so the copy is never made)
    if x ~= x_new then
       x:copy(x_new)
    end
 
    -- select a new training sample
    _nidx_ = (_nidx_ or 0) + 1
-   if _nidx_ > (#dataset_inputs)[1] then _nidx_ = 1 end
+   if _nidx_ > data.raw.nSamples then _nidx_ = 1 end
 
-   local inputs = dataset_inputs[_nidx_]
-   local target = dataset_outputs[_nidx_]
+   local inputs = data.train.input[_nidx_]
+   local target = data.train.target[_nidx_]
 
    -- reset gradients (gradients are always accumulated, to accomodate 
    -- batch methods)
@@ -198,7 +230,10 @@ feval = function(x_new)
    return loss_x, dl_dx
 end
 
--- Given the function above, we can now easily train the model using SGD.
+-- Given the function above, we can now easily train the model using the
+-- implementation of stochastic gradient descent in the optim package that
+-- comes with torch.
+--
 -- For that, we need to define four key parameters:
 --   + a learning rate: the size of the step taken at each stochastic 
 --     estimate of the gradient
@@ -209,33 +244,31 @@ end
 sgd_params = {
    learningRate = 1e-3,
    learningRateDecay = 1e-4,
-   learningRate = 1e-4,
-   learningRateDecay = 1e-2,
    weightDecay = 0,
    momentum = 0
 }
 
--- We're now good to go... all we have left to do is run over the dataset
--- for a certain number of iterations, and perform a stochastic update 
--- at each iteration. The number of iterations is found empirically here,
--- but should typically be determinined using cross-validation (i.e.
--- using multiple folds of training/test subsets).
+-- We're now good to go... all we have left to do is run over the dataset for a
+-- certain number of iterations, and perform a stochastic update at each
+-- iteration. The number of iterations is found empirically here, but should
+-- typically be determinined using cross-validation (i.e.  using multiple folds
+-- of training/test subsets).
 
 epochs = 2e2  -- number of times to cycle over our training data
-epochs = 10000
 
 print('')
 print('============================================================')
 print('Training with SGD')
 print('')
 
-for i = 1,epochs do
+for i = 1, epochs do
 
    -- this variable is used to estimate the average loss
    current_loss = 0
 
    -- an epoch is a full loop over our training data
-   for i = 1,(#dataset_inputs)[1] do
+   local nSamples = data.raw.nSamples
+   for i = 1, nSamples do
 
       -- optim contains several optimization algorithms. 
       -- All of these algorithms assume the same parameters:
@@ -256,36 +289,33 @@ for i = 1,epochs do
    end
 
    -- report average error on epoch
-   current_loss = current_loss / (#dataset_inputs)[1]
-   print(string.format('epoch %5d of %d average loss %f', i, epochs, current_loss))
+   current_loss = current_loss / nSamples
+   print(string.format('epoch %5d of %d average loss %f', 
+                       i, epochs, current_loss))
 
 end
-
--- don't run L-BFGS
-if false then
 
 ----------------------------------------------------------------------
 -- 4.b. Train the model (Using L-BFGS)
 
--- now that we know how to train the model using simple SGD, we can
--- use more complex optimization heuristics. In the following, we
--- use a second-order method: L-BFGS, which typically yields
--- more accurate results (for linear models), but can be significantly
--- slower. For very large datasets, SGD is typically much faster
--- to converge, and L-FBGS can be used to refine the results.
+-- Now that we know how to train the model using simple SGD, we can use more
+-- complex optimization heuristics. In the following, we use a second-order
+-- method: L-BFGS, which typically yields more accurate results (for linear
+-- models), but can be significantly slower. For very large datasets, SGD is
+-- typically much faster to converge initially and then slows up as it nears a
+-- solution. So a common strategy is to start training with SGD and then switch
+-- to L-FBGS can be used to refine the results.
 
--- we start again, and reset the trained parameter vector:
+-- We start again, and reset the trained parameter vector:
 
 model:reset()
 
--- next we re-define the closure that evaluates f and df/dx, so that
+-- Next we re-define the closure that evaluates f and df/dx, so that
 -- it estimates the true f, and true (exact) df/dx, over the entire
 -- dataset. This is a full batch approach.
 
 feval = function(x_new)
    -- set x to x_new, if differnt
-   -- (in this simple example, x_new will typically always point to x,
-   -- so the copy is really useless)
    if x ~= x_new then
       x:copy(x_new)
    end
@@ -296,13 +326,14 @@ feval = function(x_new)
 
    -- and batch over the whole training dataset:
    local loss_x = 0
-   for i = 1,(#dataset_inputs)[1] do
+   local nSamples = data.raw.nSamples
+   for i = 1, nSamples do
       -- select a new training sample
       _nidx_ = (_nidx_ or 0) + 1
-      if _nidx_ > (#dataset_inputs)[1] then _nidx_ = 1 end
+      if _nidx_ > nSamples then _nidx_ = 1 end
 
-      local inputs = dataset_inputs[_nidx_]
-      local target = dataset_outputs[_nidx_]
+      local inputs = data.train.input[_nidx_]
+      local target = data.train.target[_nidx_]
 
       -- evaluate the loss function and its derivative wrt x, for that sample
       loss_x = loss_x + criterion:forward(model:forward(inputs), target)
@@ -310,19 +341,19 @@ feval = function(x_new)
    end
 
    -- normalize with batch size
-   loss_x = loss_x / (#dataset_inputs)[1]
-   dl_dx = dl_dx:div( (#dataset_inputs)[1] )
+   loss_x = loss_x / nSamples
+   dl_dx = dl_dx:div( nSamples )
 
    -- return loss(x) and dloss/dx
    return loss_x, dl_dx
 end
 
 -- L-BFGS parameters are different than SGD:
---   + a line search: we provide a line search, which aims at
+--   + a line search: we use a line search, which aims at
 --                    finding the point that minimizes the loss locally
 --   + max nb of iterations: the maximum number of iterations for the batch,
 --                           which is equivalent to the number of epochs
---                           on the given batch. In that example, it's simple
+--                           on the given batch. In this example, it's simple
 --                           because the batch is the full dataset, but in
 --                           some cases, the batch can be a small subset
 --                           of the full dataset, in which case maxIter
@@ -344,204 +375,193 @@ _,fs = optim.lbfgs(feval,x,lbfgs_params)
 -- fs contains all the evaluations of f, during optimization
 
 print('history of L-BFGS evaluations:')
-print(fs)
+for i = 1, #fs do
+   print(i, fs[i])
 end
 
 ----------------------------------------------------------------------
--- 5. Test the trained model.
+-- 5. Refactor the code
+--
+-- The two training schemes, one for SGD and one for L-BFGS, work, but there is
+-- redundant code and the code is not packaged in a way that would let one move
+-- it easily to another program without copying and splicing. Some of the code,
+-- like the model:reset() call is tricky.  Let's fix that.
 
-print('')
-print('============================================================')
-print('Testing the model')
-print('')
+-- The first thing to fix is to encapsulate the definition of logistic
+-- regression into a single function that returns the model and criterion. In
+-- this example, the criterion is not regularized, but in your real-world
+-- applications, you will often want to regularize the model.
 
--- Now that the model is trained, one can test it by evaluating it
--- on new samples.
+require 'logregModelCriterion'
 
--- The model constructed and trained above computes the probabilities
--- of each class given the input values.
+-- Packaging the fitting procedures as external functions is also desirable.
+-- The fitting procedure returns a trained model that depends on the training
+-- data (the inputs and targets) and number of classes, the algorithm (in this
+-- case SGD or L-BFGS), the stopping criteria for the algorithm (we only used
+-- the number of epochs in this example, but other criteria are possible and
+-- often used), and how the training data are sampled. The fitting procedure
+-- results in a fitted model (which has the parameters set) and some additional
+-- information about the fitting procedure.
 
--- We want to compare our model's results with those from the text.
--- The input variables have narrow ranges, so we just compare all possible
--- input variables in the training data.
+require 'logregFit'
 
--- Determine actual frequency of the each female-age pair in the 
--- training data
-
--- return index of largest value
-function maxIndex(a,b,c)
-   if a >=b and a >= c then return 1 
-   elseif b >= a and b >= c then return 2
-   else return 3 end
-end
-
--- return predicted brand and probabilities of each brand
--- for the model in the text
-
--- The R code in the text computes the probabilities of choosing
--- brands 2 and 3 relative to the probability of choosing brand 1:
---   Prob(brand=2)/prob(brand=1) = exp(-11.77 + 0.52*female + 0.37*age)
---   Prob(brand=3)/prob(brand=1) = exp(-22.72 + 0.47*female + 0.69*age)
-function predictText(age, female)
-   --   1: calculate the "logit's"
-   --      The coefficients come from the text.
-   --      If you download the R script and run it, you may see slightly
-   --      different results.
-   local logit1 = 0
-   local logit2 = -11.774655 + 0.523814 * female + 0.368206 * age
-   local logit3 = -22.721396 + 0.465941 * female + 0.685908 * age
-
-   --   2: calculate the unnormalized probabilities
-   local uprob1 = math.exp(logit1)
-   local uprob2 = math.exp(logit2)
-   local uprob3 = math.exp(logit3)
-
-   --   3: normalize the probabilities
-   local z = uprob1 + uprob2 + uprob3
-   local prob1 = (1/z) * uprob1
-   local prob2 = (1/z) * uprob2
-   local prob3 = (1/z) * uprob3
-
-   return maxIndex(prob1, prob2, prob3), prob1, prob2, prob3
-end
-
--- return predicted brand and the probabilities of each brand
--- for our model
-function predictOur(age, female)
-   local input = torch.Tensor(2)
-   input[1] = female  -- must be in same order as when the model was trained!
-   input[2] = age
-   local logProbs = model:forward(input)  
-   --print('predictOur', age, female, input)
-   local probs = torch.exp(logProbs)
-   --print('logProbs', logProbs)
-   --print('probs', probs[1], probs[2], probs[3] )
-   local prob1, prob2, prob3 = probs[1], probs[2], probs[3]
-   return maxIndex(prob1, prob2, prob3), prob1, prob2, prob3
-end
       
-counts = {}
+---------------------------------------------------------------------
+-- 6. Scaling the data
+--
+-- We have one more detail to take care of. The input variables for the model
+-- are the indicator variable for if the subject was female and the age of the
+-- subject. The range of the is-female variable is [0, 1] with an average of
+-- 0.5. The range of the age variable is [24, 38] with an average of about 31.
+-- The difference in magnitude will make the fitting procedure for SGD
+-- difficult: along one axis of the objective function, a very small step size
+-- will be needed and a larger step size will be usable along the other axis.
+-- We must run SGD with the smaller of these step sizes or SGD will not
+-- converge. Using a very small step size will cause very slow convergence
+-- along the axis that would permit a large step size.
+--
+-- You may have noticed that we didn't show how accurate the SGD model was in
+-- predicting the brand based on age and is_female. That's because its terrible
+-- using the sgd_params we set. 
+--
+-- The fix is to transform all the input variables so that they are on a
+-- similar scale. One way to do that is to determine the mean of each variable
+-- and its standard deviation. The variable x is then replaced by (x - mean) /
+-- standard_deviation.
+--
+-- By the way, you should always put the training features of your model on
+-- a similar scale. 
+--
+-- We'll need to keep track of the mean and standard deviation in order to make
+-- predictions with new data. This function takes care of that and carries out
+-- the standardization transformation.
 
-function makeKey(age, brand, female)
-   -- return a string containing the values
+require 'standardize'
 
-   -- Note that returning a table will not work, because each
-   -- table is unique.
+-- Let's scale the training data. The unscaled data are in data.raw. We need to
+-- save the means and standard deviations for use when we are testing.
 
-   -- Because Lua interns the strings, a string with a given sequence
-   -- of characters is stored only once.
-   return string.format('%2d%1d%1f', age, brand, female)
+local ageScaled, mean, stdv = standardize(data.raw.age)
+data.train.ageScaled = ageScaled
+data.train.ageMean = mean
+data.train.ageStandardDeviation = stdv
+
+-- You don't need to scale the isFemale feature, because its either 0 or 1.  We
+-- scale it for consistency in the code.
+
+local isFemaleScaled, mean, stdv = standardize(data.raw.isFemale)
+data.train.isFemaleScaled = isFemaleScaled
+data.train.isFemaleMean = mean
+data.train.isFemaleStandardDeviation = stdv
+
+data.train.inputScaled = 
+   buildInput(data.train.ageScaled, data.train.isFemaleScaled)
+
+
+
+-------------------------------------------------------------------------
+-- 7. Training the models on the scaled data
+--
+-- We train first using SGD and then using L-BFGS. 
+
+local nClasses = 3
+
+-- Fit using SGD and one sample at a time in order of the training data.  It
+-- would be better to randomize the order of the training data, because the
+-- training samples may be ordered in a way this is disadvantageous to the
+-- training procedure. For example, the training samples may be ordered so that
+-- similar samples are grouped together. If you are interested in randomizing
+-- the training order, you would modify the code in the module logregFitSgd.
+
+sgd_params = {
+   learningRate = 1e-3,
+   learningRateDecay = 1e-4,
+   weightDecay = 0,
+   momentum = 0
+}
+
+sgd_stopping_criteria = {max_epochs = 200}
+
+modelFittedSgd, sgdFittingInfo = 
+   logregFit('SGD', sgd_params, 'sequential-1', sgd_stopping_criteria, 
+             data.train.inputScaled, data.train.target, nClasses)
+
+assert(sgdFittingInfo.reason_stopped == 'max_epochs') 
+
+-- Ffit using L-BFGS, approximating the Hessian using all the training vectors.
+-- Thus the algorithm is BFGS. This works here because there are a few
+-- variables.  If you have more variables, you will want to fit L-BFGS using a
+-- mini batch. Some recommend a mini-batch of about 1,000 samples.
+
+local epochs = 200
+lbfgs_params = {
+   lineSearch = optim.lswolfe,
+   maxIter = epochs,
+   verbose = true
+}
+
+lbfgs_stopping_criteria = {}
+
+modelFittedLbfgs, LbfgsFittingInfo = 
+   logregFit('L-BFGS', lbfgs_params, 'entire-batch', lbfgs_stopping_criteria, 
+             data.train.inputScaled, data.train.target, nClasses)
+
+assert(LbfgsFittingInfo.reason_stopped == 'lbfgsParams')
+
+-- print the losses at each step of the L-BFGS fitting
+local losses = LbfgsFittingInfo.losses
+for i = 1, #losses do
+   print('lbfgs step ' .. i .. ' loss ' .. losses[i])
 end
 
-for i = 1,(#brands)[1] do
-   local brand = brands[i]
-   local female = females[i]
-   local age = ages[i]
-   local key = makeKey (age, brand, female)
-   counts[key] = (counts[key] or 0) + 1
+-------------------------------------------------------------------------
+-- 8. Test the trained models.
+--
+-- The testing code is in a separate module, so as to not clutter the logic
+-- flow.  Function test_model takes a fitted model and all the data including
+-- test data and returns the error rate on the test data. As a side effect, the
+-- testing code prints a continency matrix and compares the results on the test
+-- data with the results from the text.
+
+require 'testModel'
+
+-- We generate one test example for each possible value of age and isFemale.
+--
+-- Because we have standardized the training data, we need to standardize the
+-- test data as well. To do that we pass in the means and standard deviations
+-- from the standardization.
+
+local function makeExample(age, isFemale)
+   local input = torch.Tensor(2)
+   input[data.cAge] = standardize(torch.Tensor{age}, 
+                                  data.train.ageMean, 
+                                  data.train.ageStandardDeviation)
+   input[data.cIsFemale] = standardize(torch.Tensor{isFemale}, 
+                                       data.train.isFemaleMean, 
+                                       data.train.isFemaleStandardDeviation)
+   return input
 end
 
--- return probability of each brand conditioned on age and female
-function actualProbabilities(age, female)
-   function countOf(age, brand, female)
-      return counts[makeKey(age, brand, female)] or 0
+local nTestExamples = data.raw.nAge * data.raw.nIsFemale
+local nFeatures = 2
+local inputs = torch.Tensor(nTestExamples, nFeatures)
+
+local nextInputIndex = 0
+for age = data.raw.ageMin, data.raw.ageMax do
+   for isFemale = data.raw.isFemaleMin, data.raw.isFemaleMax do
+      nextInputIndex = nextInputIndex + 1
+      inputs[nextInputIndex] = makeExample(age, isFemale)
    end
-   local count1 = countOf(age, 1, female)
-   local count2 = countOf(age, 2, female)
-   local count3 = countOf(age, 3, female)
-   local sumCounts = count1 + count2 + count3
-   if sumCounts == 0 then
-      return 0, 0, 0
-   else
-      return count1/sumCounts, count2/sumCounts, count3/sumCounts
-   end
 end
+data.test = {}
+data.test.input = inputs
 
-if true then
-print(' ')
-print('summary of data')
-summarizeData()
+-- Determine the accuracy of our models vs. the model from the text.
 
-print(' ')
-print('training variables')
-for k,v in pairs(sgd_params) do
-   print(string.format('%20s %f', k, v))
-end
-print(string.format('%20s %f', 'epochs', epochs))
+errorRateSgd = testModel(modelFittedSgd, data, 'SGD', sgd_params)
+assert(errorRateSgd == 0)
 
-print(' ')
-print('current loss', current_loss)
+errorRateLbfgs = testModel(modelFittedLbfgs, data, 'L-BFGS', lbfgs_params)
+assert(errorRateLbfgs == 0)
 
--- print the headers 
-print(' ')
-lineFormat = '%-6s %-3s| %-17s | %-17s | %-17s | %-1s %-1s %-1s'
-print(
-   string.format(lineFormat,
-		 '', '', 
-		 'actual probs', 'text probs', 'our probs', 
-		 'best', '', ''))
-choices = 'brnd1 brnd2 brnd3'
-print(string.format(lineFormat,
-		    'female', 'age', 
-		    choices, choices, choices, 
-		    'a', 't', 'o'))
-end
--- print each row in the table
-
-function formatFemale(female)
-   return string.format('%1d', female)
-end
-
-function formatAge(age)
-   return string.format('%2d', age)
-end
-
-function formatProbs(p1, p2, p3)
-   return string.format('%5.3f %5.3f %5.3f', p1, p2, p3)
-end
-
-function indexString(p1, p2, p3)
-   -- return index of highest probability or '-' if nearly all zeroes
-   if p1 < 0.001 and p2 < 0.001 and p3 < 0.001 then
-      return '-'
-   else 
-      return string.format('%1d', maxIndex(p1, p2, p3))
-   end
-end
-
--- print table rows and accumulate accuracy
-local nErrors = 0  -- count number of errors vs. text
-local nTests = 0
-for female = 0,1 do
-   for age = torch.min(ages),torch.max(ages) do
-      -- calculate the actual probabilities in the training data
-      local actual1, actual2, actual3 = actualProbabilities(age, female)
-      -- calculate the prediction and probabilities using the model in the text
-      local textBrand, textProb1, textProb2, textProb3 = 
-	 predictText(age, female)
-      -- calculate the probabilities using the model we just trained
-      --print("main", age, female)
-      local ourBrand, ourProb1, ourProb2, ourProb3 = 
-	 predictOur(age, female)
-	 if false then
-      print(
-	 string.format(lineFormat,
-		       formatFemale(female), 
-		       formatAge(age),
-		       formatProbs(actual1, actual2, actual3),
-		       formatProbs(textProb1, textProb2, textProb3),
-		       formatProbs(ourProb1, ourProb2, ourProb3),
-		       indexString(actual1,actual2,actual3),
-		       indexString(textProb1,textProb2,textProb3),
-		       indexString(ourProb1,ourProb2,ourProb3))
-	   )
-	  end
-      local textBest = indexString(textProb1, textProb2, textProb3)
-      local ourBest = indexString(ourProb1, ourProb2, ourProb3)
-      if textBest ~= ourBest then
-         nErrors = nErrors + 1
-      end
-      nTests = nTests + 1
-   end
-end
-print('nError vs. text', nErrors, 'of', nTests)
+print('done') 
