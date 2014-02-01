@@ -12,7 +12,7 @@ function printTable(tableName, tableValue)
 
    -- print if fieldValue is not a Tensor nor a table
    local function printOther(fieldName, fieldValue)
-      print(string.format('%-30s = %s', fieldName, tostring(fieldValue)))
+      print(string.format('%-35s = %s', fieldName, tostring(fieldValue)))
    end
    
    -- print if fieldValue is a userdata

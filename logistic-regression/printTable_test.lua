@@ -18,6 +18,11 @@ data[function(a,b) end] = 'function of two args'
 data['a string as key'] = 'a string as value'
 data[torch.Tensor{1,2}] = 'key is tensor with elements 1 and 2'
 
+data.subtable = {}
+data.subtable.a = 'string a'
+data.subtable.onetwothree = 123
+data.xxx = 'xxx'
+
 printTable('data', data)
 
 print('ok printTable')
