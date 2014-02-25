@@ -31,16 +31,21 @@ print '==> downloading dataset'
 -- mattorch package allows 1-to-1 conversion between Torch and Matlab
 -- files.
 
-local www = 'http://data.neuflow.org/data/'
-local train_dir = '../../datasets/faces_cut_yuv_32x32/'
-local tar = 'faces_cut_yuv_32x32.tar.gz'
 
--- file from: http://data.neuflow.org/data/faces_cut_yuv_32x32.tar.gz
-if not paths.dirp(train_dir) then
-   os.execute('mkdir -p ' .. train_dir)
+-- local www = 'http://data.neuflow.org/data/'
+local www = 'https://engineering.purdue.edu/elab/files/'
+--local train_dir = '../../datasets/faces_cut_yuv_32x32/'
+local train_dir = '.' -- se to current directory (move to where you like!)
+-- local tar = 'faces_cut_yuv_32x32.tar.gz'
+local tar = 'face-dataset.zip'
+
+
+--load from 'https://engineering.purdue.edu/elab/files/face-dataset.zip'
+if not paths.dirp('face-dataset') then
+   --os.execute('mkdir -p ' .. train_dir)
    os.execute('cd ' .. train_dir)
    os.execute('wget ' .. www .. tar)
-   os.execute('tar xvf ' .. tar)
+   os.execute('unzip ' .. tar)
 end
 
 if opt.patches ~= 'all' then
@@ -51,85 +56,54 @@ end
 print '==> loading dataset'
 
 -- We load the dataset from disk
-torch.setdefaulttensortype('torch.DoubleTensor')
+-- data bg: from 0 to 28033; face: from 28034 to 41266
+imagesAll = torch.Tensor(41267,3,32,32)
+labelsAll = torch.Tensor(41267)
 
--- Faces:
-dataFace = nn.DataSet{dataSetFolder=train_dir..'face', 
-                      cacheFile=train_dir..'face',
-                      nbSamplesRequired=opt.patches,
-                      channels=1}
-dataFace:shuffle()
+-- load backgrounds:
+for f=0,28033 do
+  imagesAll[f+1] = image.load('face-dataset/bg/bg_'..f..'.png') 
+  labelsAll[f+1] = 1 -- 1 = background
+end
+-- load faces:
+for f=28034,41266 do
+  imagesAll[f+1] = image.load('face-dataset/face/face_'..f..'.png') 
+  labelsAll[f+1] = 2 -- 2 = face
+end
 
--- Backgrounds:
-dataBG = nn.DataSet{dataSetFolder=train_dir..'bg',
-                    cacheFile=train_dir..'bg',
-                    nbSamplesRequired=opt.patches,
-                    channels=1}
-dataBGext = nn.DataSet{dataSetFolder=train_dir..'bg-false-pos-interior-scene',
-                       cacheFile=train_dir..'bg-false-pos-interior-scene',
-                       nbSamplesRequired=opt.patches,
-                       channels=1}
-dataBG:appendDataSet(dataBGext)
-dataBG:shuffle()
+-- shuffle dataset: get shuffled indices in this variable:
+labelsShuffle = torch.randperm((#labelsAll)[1])
 
--- pop subset for testing
-testFace = dataFace:popSubset{ratio=opt.ratio}
-testBg = dataBG:popSubset{ratio=opt.ratio}
+portionTrain = 0.8 -- 80% is train data, rest is test data
+trsize = torch.floor(labelsShuffle:size(1)*portionTrain)
+tesize = labelsShuffle:size(1) - trsize
 
--- training set
-trainData = nn.DataList()
-trainData:appendDataSet(dataFace,'Faces')
-trainData:appendDataSet(dataBG,'Background')
-
--- testing set
-testData = nn.DataList()
-testData:appendDataSet(testFace,'Faces')
-testData:appendDataSet(testBg,'Background')
-
-
-torch.setdefaulttensortype('torch.FloatTensor')
-
-----------------------------------------------------------------------
--- convert to new format  and training scripts:
-
--- training/test size
-local trsize = trainData:size()
-local tesize = testData:size()
-
-trainData2 = {
+-- create train set:
+trainData = {
    data = torch.Tensor(trsize, 1, 32, 32),
    labels = torch.Tensor(trsize),
    size = function() return trsize end
 }
-
-testData2 = {
+--create test set:
+testData = {
       data = torch.Tensor(tesize, 1, 32, 32),
       labels = torch.Tensor(tesize),
       size = function() return tesize end
    }
 
 for i=1,trsize do
-   trainData2.data[i] = trainData[i][1]:clone()
-   if trainData[i][2][1] == 1 then
-      trainData2.labels[i] = torch.Tensor({1})
-    else 
-      trainData2.labels[i] = torch.Tensor({2})
-    end
+   trainData.data[i] = imagesAll[labelsShuffle[i]][1]:clone()
+   trainData.labels[i] = labelsAll[labelsShuffle[i]]
 end
-for i=1,tesize do
-   testData2.data[i] = testData[i][1]:clone()
-  if testData[i][2][1] == 1 then
-      testData2.labels[i] = torch.Tensor({1})
-   else
-      testData2.labels[i] = torch.Tensor({2})
-   end
+for i=trsize+1,tesize+trsize do
+   testData.data[i-trsize] = imagesAll[labelsShuffle[i]][1]:clone()
+   testData.labels[i-trsize] = labelsAll[labelsShuffle[i]]
 end
 
--- relocate pointers:
-trainData = nil
-testData = nil
-trainData = trainData2
-testData = testData2
+-- remove from memory temp image files:
+imagesAll = nil
+labelsAll = nil
+
 
 ----------------------------------------------------------------------
 print '==> preprocessing data'
