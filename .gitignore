@@ -2,6 +2,8 @@
 *.o
 *.so
 *.a
+*.log
+*.net
 
 # Ignore all scratch dir.
 scratch/
