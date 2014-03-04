@@ -13,16 +13,15 @@ require 'pl'
 require 'qt'
 require 'qtwidget'
 require 'qtuiloader'
---require 'camera'
-require 'nnx'
+require 'camera'
 require 'image'
+require 'nnx'
 
 print '==> processing options'
 
 opt = lapp[[
    -c, --camidx   (default 0)       camera index: /dev/videoIDX
    -n, --network  (default 'face.net')    path to network
-   -x, --runnnx   (default true)    run on hardware nn_X 
    -t, --threads  (default 8)       number of threads
 ]]
 
@@ -47,29 +46,20 @@ function parse(tin, threshold, blobs, scale)
 end
 
 -- load pre-trained network from disk
-network = torch.load(opt.network):float()
+network1 = torch.load(opt.network):float() --load a network split in two: network and classifier
+network = network1.modules[1] -- split network
 
-classifier1 = nn.Sequential()
-classifier1:add(network.modules[6]:clone())
-classifier1:add(network.modules[7]:clone())
-classifier = nn.SpatialClassifier(classifier1)
+network1.modules[2].modules[3] = nil -- remove logsoftmax 
+classifier1 = network1.modules[2] -- split and reconstruct classifier
+
 network.modules[6] = nn.SpatialClassifier(classifier1)
-network.modules[7]=nil
 network_fov = 32
 network_sub = 4
 
--- remove SpatialCconvolutionMM:
-m1 = network.modules[1]:clone()
-network.modules[1] = nn.SpatialConvolution(1,8,5,5)
-network.modules[1].weight = m1.weight:reshape(8,1,5,5)
-network.modules[1].bias = m1.bias
-m1 = network.modules[4]:clone()
-network.modules[4] = nn.SpatialConvolution(8,64,7,7)
-network.modules[4].weight = m1.weight:reshape(64,8,7,7)
-network.modules[4].bias = m1.bias
+print(network) -- print final network 
 
 -- setup camera
---camera = image.Camera(opt.camidx)
+camera = image.Camera(opt.camidx)
 
 -- process input at multiple scales
 scales = {0.3, 0.24, 0.192, 0.15, 0.12, 0.1} 
@@ -92,14 +82,12 @@ p = xlua.Profiler()
 -- process function
 function process()
    -- (1) grab frame
-   frame = image.lena()--camera:forward()
+   frame = camera:forward()
 
-   -- (2) transform it into Y space
-   frameY = frame[2]:reshape(1,512,512) -- just green component
-   mean = frameY:mean()
-   std = frameY:std()
-   frameY:add(-mean)
-   frameY:div(std)
+   -- (2) transform it into Y space and global normalize:
+   frameY = image.rgb2y(frame)
+   frameY:add(-frameY:mean())
+   frameY:div(frameY:std()) 
 
     -- (3) create multiscale pyramid
    pyramid, coordinates = packer:forward(frameY)
@@ -108,7 +96,7 @@ function process()
    -- (5) unpack pyramid
    distributions = unpacker:forward(multiscale, coordinates)
    -- (6) parse distributions to extract blob centroids
-   threshold = 0.9--widget.verticalSlider.value/100
+   threshold = widget.verticalSlider.value/100
 
    rawresults = {}
    for i,distribution in ipairs(distributions) do
@@ -132,12 +120,11 @@ function display()
    win:gbegin()
    win:showpage()
    -- (1) display input image + pyramid
-   image.display{image=frame, win=win, saturation=false, min=0, max=1} 
+   image.display{image=frame, win=win} 
 
    -- (2) overlay bounding boxes for each detection
    for i,detect in ipairs(detections) do
       win:setcolor(1,0,0)
-      print(detect.x, detect.y, detect.w, detect.h)
       win:rectangle(detect.x, detect.y, detect.w, detect.h)
       win:stroke()
       win:setfont(qt.QFont{serif=false,italic=false,size=16})
@@ -163,8 +150,8 @@ qt.connect(timer,
               p:lap('display')
               timer:start()
               p:lap('full loop')
-              p:printAll()
+              --p:printAll()
            end)
-widget.windowTitle = 'Face Detector'
+widget.windowTitle = 'e-Lab Face Detector'
 widget:show()
 timer:start()

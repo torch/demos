@@ -63,12 +63,12 @@ labelsAll = torch.Tensor(41267)
 -- load backgrounds:
 for f=0,28033 do
   imagesAll[f+1] = image.load('face-dataset/bg/bg_'..f..'.png') 
-  labelsAll[f+1] = 1 -- 1 = background
+  labelsAll[f+1] = 2 -- 2 = background
 end
 -- load faces:
 for f=28034,41266 do
   imagesAll[f+1] = image.load('face-dataset/face/face_'..f..'.png') 
-  labelsAll[f+1] = 2 -- 2 = face
+  labelsAll[f+1] = 1 -- 1 = face
 end
 
 -- shuffle dataset: get shuffled indices in this variable:
