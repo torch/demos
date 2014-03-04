@@ -1,6 +1,6 @@
 #!/usr/bin/env torch
 ------------------------------------------------------------
--- 
+--
 -- CNN face detector, based on convolutional network nets
 --
 -- original: Clement Farabet
@@ -20,9 +20,10 @@ require 'nnx'
 print '==> processing options'
 
 opt = lapp[[
-   -c, --camidx   (default 0)       camera index: /dev/videoIDX
-   -n, --network  (default 'face.net')    path to network
-   -t, --threads  (default 8)       number of threads
+   -c, --camidx   (default 0)          camera index: /dev/videoIDX
+   -n, --network  (default 'face.net') path to network
+   -t, --threads  (default 8)          number of threads
+       --HD                            high resolution camera
 ]]
 
 torch.setdefaulttensortype('torch.FloatTensor')
@@ -34,7 +35,7 @@ function parse(tin, threshold, blobs, scale)
   for y=1, tin:size(1) do
      for x=1, tin:size(2) do
         local val = tin[y][x]
-        if (val > threshold) then               
+        if (val > threshold) then
           entry = {}
           entry[1] = x
           entry[2] = y
@@ -49,20 +50,27 @@ end
 network1 = torch.load(opt.network):float() --load a network split in two: network and classifier
 network = network1.modules[1] -- split network
 
-network1.modules[2].modules[3] = nil -- remove logsoftmax 
+network1.modules[2].modules[3] = nil -- remove logsoftmax
 classifier1 = network1.modules[2] -- split and reconstruct classifier
 
 network.modules[6] = nn.SpatialClassifier(classifier1)
 network_fov = 32
 network_sub = 4
 
-print(network) -- print final network 
+print(network) -- print final network
 
 -- setup camera
-camera = image.Camera(opt.camidx)
+local GUI
+if opt.HD then
+   camera = image.Camera(opt.camidx,1080,720)
+   GUI = 'HDg.ui'
+else
+   camera = image.Camera(opt.camidx)
+   GUI = 'g.ui'
+end
 
 -- process input at multiple scales
-scales = {0.3, 0.24, 0.192, 0.15, 0.12, 0.1} 
+scales = {0.3, 0.24, 0.192, 0.15, 0.12, 0.1}
 
 -- use a pyramid packer/unpacker
 require 'PyramidPacker'
@@ -71,9 +79,9 @@ packer = nn.PyramidPacker(network, scales)
 unpacker = nn.PyramidUnPacker(network)
 
 -- setup GUI (external UI file)
-if not win or not widget then 
-   widget = qtuiloader.load('g.ui')
-   win = qt.QtLuaPainter(widget.frame) 
+if not win or not widget then
+   widget = qtuiloader.load(GUI)
+   win = qt.QtLuaPainter(widget.frame)
 end
 
 -- profiler
@@ -87,7 +95,7 @@ function process()
    -- (2) transform it into Y space and global normalize:
    frameY = image.rgb2y(frame)
    frameY:add(-frameY:mean())
-   frameY:div(frameY:std()) 
+   frameY:div(frameY:std())
 
     -- (3) create multiscale pyramid
    pyramid, coordinates = packer:forward(frameY)
@@ -120,7 +128,7 @@ function display()
    win:gbegin()
    win:showpage()
    -- (1) display input image + pyramid
-   image.display{image=frame, win=win} 
+   image.display{image=frame, win=win}
 
    -- (2) overlay bounding boxes for each detection
    for i,detect in ipairs(detections) do
