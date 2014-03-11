@@ -57,8 +57,11 @@ print '==> loading dataset'
 
 -- We load the dataset from disk
 -- data bg: from 0 to 28033; face: from 28034 to 41266
-imagesAll = torch.Tensor(41267,3,32,32)
-labelsAll = torch.Tensor(41267)
+local imagesAll = torch.Tensor(41267,3,32,32)
+local labelsAll = torch.Tensor(41267)
+
+-- classes: GLOBAL var!
+classes = {'face','backg'}
 
 -- load backgrounds:
 for f=0,28033 do
@@ -72,11 +75,11 @@ for f=28034,41266 do
 end
 
 -- shuffle dataset: get shuffled indices in this variable:
-labelsShuffle = torch.randperm((#labelsAll)[1])
+local labelsShuffle = torch.randperm((#labelsAll)[1])
 
-portionTrain = 0.8 -- 80% is train data, rest is test data
-trsize = torch.floor(labelsShuffle:size(1)*portionTrain)
-tesize = labelsShuffle:size(1) - trsize
+local portionTrain = 0.8 -- 80% is train data, rest is test data
+local trsize = torch.floor(labelsShuffle:size(1)*portionTrain)
+local tesize = labelsShuffle:size(1) - trsize
 
 -- create train set:
 trainData = {
@@ -220,6 +223,7 @@ return {
    trainData = trainData,
    testData = testData,
    mean = mean,
-   std = std
+   std = std,
+   classes = classes
 }
 

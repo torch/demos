@@ -47,9 +47,6 @@ end
 ----------------------------------------------------------------------
 print '==> defining some tools'
 
--- classes
-local classes = {'face','backg'} -- faces: yes, no
-
 -- This matrix records the current confusion across classes
 local confusion = optim.ConfusionMatrix(classes)
 
@@ -76,8 +73,9 @@ local optimState = {
 
 ----------------------------------------------------------------------
 print '==> allocating minibatch memory'
-
-local x = torch.Tensor(opt.batchSize,1,32,32) --faces data
+print(trainData:size())
+local x = torch.Tensor(opt.batchSize,trainData.data:size(2), 
+         trainData.data:size(3), trainData.data:size(4)) --faces data
 local yt = torch.Tensor(opt.batchSize)
 if opt.type == 'cuda' then 
    x = x:cuda()
