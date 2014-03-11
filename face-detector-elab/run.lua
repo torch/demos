@@ -4,8 +4,8 @@
 -- CNN face detector, based on convolutional network nets
 --
 -- original: Clement Farabet
--- E. Culurciello, A. Dundar
--- Mon Oct 14 14:58:50 EDT 2013
+-- E. Culurciello, A. Dundar, A. Canziani
+-- Tue Mar 11 10:52:58 EDT 2014
 --
 ------------------------------------------------------------
 
@@ -90,7 +90,7 @@ p = xlua.Profiler()
 -- process function
 function process()
    -- (1) grab frame
-   frame = camera:forward()
+   frame = camera:forward()[2]
 
    -- (2) transform it into Y space and global normalize:
    frameY = image.rgb2y(frame)
