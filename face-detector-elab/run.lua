@@ -62,7 +62,7 @@ print(network) -- print final network
 -- setup camera
 local GUI
 if opt.HD then
-   camera = image.Camera(opt.camidx,1080,720)
+   camera = image.Camera(opt.camidx,640,360)
    GUI = 'HDg.ui'
 else
    camera = image.Camera(opt.camidx)

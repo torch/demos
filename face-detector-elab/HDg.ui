@@ -88,14 +88,14 @@
     <widget class="QFrame" name="frame">
      <property name="minimumSize">
       <size>
-       <width>1080</width>
-       <height>720</height>
+       <width>640</width>
+       <height>360</height>
       </size>
      </property>
      <property name="maximumSize">
       <size>
-       <width>1080</width>
-       <height>720</height>
+       <width>640</width>
+       <height>360</height>
       </size>
      </property>
      <property name="palette">
