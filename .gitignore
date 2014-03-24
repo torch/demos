@@ -4,6 +4,7 @@
 *.a
 *.log
 *.net
+.*DS_Store
 
 # Ignore all scratch dir.
 scratch/

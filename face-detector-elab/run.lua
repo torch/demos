@@ -16,6 +16,8 @@ require 'qtuiloader'
 require 'camera'
 require 'image'
 require 'nnx'
+require 'torchffi'
+local ffi = require('ffi')
 
 print '==> processing options'
 
@@ -29,12 +31,12 @@ opt = lapp[[
 torch.setdefaulttensortype('torch.FloatTensor')
 torch.setnumthreads(opt.threads)
 
--- blob parser:
-function parse(tin, threshold, blobs, scale)
+-- blob parser in FFI (almost as fast as pure C!):
+function parseFFI(tin, iH, iW, threshold, blobs, scale)
   --loop over pixels
-  for y=1, tin:size(1) do
-     for x=1, tin:size(2) do
-        local val = tin[y][x]
+  for y=0, iH-1 do
+     for x=0, iW-1 do
+        local val = tin[iW*y+x]
         if (val > threshold) then
           entry = {}
           entry[1] = x
@@ -90,7 +92,7 @@ p = xlua.Profiler()
 -- process function
 function process()
    -- (1) grab frame
-   frame = camera:forward()[2]
+   frame = camera:forward()
 
    -- (2) transform it into Y space and global normalize:
    frameY = image.rgb2y(frame)
@@ -108,7 +110,8 @@ function process()
 
    rawresults = {}
    for i,distribution in ipairs(distributions) do
-      parse(distribution[1], threshold, rawresults, scales[i])
+      local pdist = torch.data(distribution[1])
+      parseFFI(pdist, distribution[1]:size(1), distribution[1]:size(2), threshold, rawresults, scales[i])
    end
 
    -- (7) clean up results
