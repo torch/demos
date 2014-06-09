@@ -14,7 +14,7 @@ if opt.type == 'cuda' then
 end
 
 ----------------------------------------------------------------------
-print '==> define parameters'
+print(sys.COLORS.red ..  '==> define parameters')
 
 -- 2-class problem: faces!
 local noutputs = 2
@@ -30,7 +30,7 @@ local filtsize = {5, 7}
 local poolsize = 4
 
 ----------------------------------------------------------------------
-print '==> construct CNN'
+print(sys.COLORS.red ..  '==> construct CNN')
 
 local CNN = nn.Sequential()
 
@@ -69,7 +69,7 @@ loss = nn.ClassNLLCriterion()
 
 
 ----------------------------------------------------------------------
-print '==> here is the CNN:'
+print(sys.COLORS.red ..  '==> here is the CNN:')
 print(model)
 
 if opt.type == 'cuda' then

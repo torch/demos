@@ -10,7 +10,7 @@ require 'xlua'    -- xlua provides useful tools, like progress bars
 require 'optim'   -- an optimization package, for online and batch methods
 
 ----------------------------------------------------------------------
-print '==> defining some tools'
+print(sys.COLORS.red .. '==> defining some tools')
 
 -- model:
 local t = require 'model'
@@ -33,7 +33,7 @@ if opt.type == 'cuda' then
 end
 
 ----------------------------------------------------------------------
-print '==> defining test procedure'
+print(sys.COLORS.red .. '==> defining test procedure')
 
 -- test function
 function test(testData)

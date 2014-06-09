@@ -22,7 +22,7 @@ local opt = opt or {
 }
 
 ----------------------------------------------------------------------
-print '==> downloading dataset'
+print(sys.COLORS.red ..  '==> downloading dataset')
 
 -- Here we download dataset files. 
 
@@ -53,7 +53,7 @@ if opt.patches ~= 'all' then
 end
 
 ----------------------------------------------------------------------
-print '==> loading dataset'
+print(sys.COLORS.red ..  '==> loading dataset')
 
 -- We load the dataset from disk
 -- data bg: from 0 to 28033; face: from 28034 to 41266
@@ -109,7 +109,7 @@ labelsAll = nil
 
 
 ----------------------------------------------------------------------
-print '==> preprocessing data'
+print(sys.COLORS.red ..  '==> preprocessing data')
 
 -- Preprocessing requires a floating point representation (the original
 -- data is stored on bytes). Types can be easily converted in Torch, 
@@ -149,7 +149,7 @@ local channels = {'y'}--,'u','v'}
 -- per channel. These values are important, as they are part of
 -- the trainable parameters. At test time, test data will be normalized
 -- using these values.
-print '==> preprocessing data: normalize each feature (channel) globally'
+print(sys.COLORS.red ..  '==> preprocessing data: normalize each feature (channel) globally')
 local mean = {}
 local std = {}
 for i,channel in ipairs(channels) do
@@ -188,7 +188,7 @@ end
 -- end
 
 ----------------------------------------------------------------------
-print '==> verify statistics'
+print(sys.COLORS.red ..  '==> verify statistics')
 
 -- It's always good practice to verify that data is properly
 -- normalized.
@@ -208,7 +208,7 @@ for i,channel in ipairs(channels) do
 end
 
 ----------------------------------------------------------------------
-print '==> visualizing data'
+print(sys.COLORS.red ..  '==> visualizing data')
 
 -- Visualization is quite easy, using image.display(). Check out:
 -- help(image.display), for more info about options.

@@ -45,7 +45,7 @@ function netLighter(network)
 end
 
 ----------------------------------------------------------------------
-print '==> defining some tools'
+print(sys.COLORS.red ..  '==> defining some tools')
 
 -- This matrix records the current confusion across classes
 local confusion = optim.ConfusionMatrix(classes)
@@ -54,7 +54,7 @@ local confusion = optim.ConfusionMatrix(classes)
 local trainLogger = optim.Logger(paths.concat(opt.save, 'train.log'))
 
 ----------------------------------------------------------------------
-print '==> flattening model parameters'
+print(sys.COLORS.red ..  '==> flattening model parameters')
 
 -- Retrieve parameters and gradients:
 -- this extracts and flattens all the trainable parameters of the mode
@@ -62,7 +62,7 @@ print '==> flattening model parameters'
 local w,dE_dw = model:getParameters()
 
 ----------------------------------------------------------------------
-print '==> configuring optimizer'
+print(sys.COLORS.red ..  '==> configuring optimizer')
 
 local optimState = {
    learningRate = opt.learningRate,
@@ -72,8 +72,7 @@ local optimState = {
 }
 
 ----------------------------------------------------------------------
-print '==> allocating minibatch memory'
-print(trainData:size())
+print(sys.COLORS.red ..  '==> allocating minibatch memory')
 local x = torch.Tensor(opt.batchSize,trainData.data:size(2), 
          trainData.data:size(3), trainData.data:size(4)) --faces data
 local yt = torch.Tensor(opt.batchSize)
@@ -83,7 +82,7 @@ if opt.type == 'cuda' then
 end
 
 ----------------------------------------------------------------------
-print '==> defining training procedure'
+print(sys.COLORS.red ..  '==> defining training procedure')
 
 local epoch
 
@@ -99,7 +98,7 @@ local function train(trainData)
    local shuffle = torch.randperm(trainData:size())
 
    -- do one epoch
-   print(sys.COLORS.magenta .. '==> doing epoch on training data:') 
+   print(sys.COLORS.green .. '==> doing epoch on training data:') 
    print("==> online epoch # " .. epoch .. ' [batchSize = ' .. opt.batchSize .. ']')
    for t = 1,trainData:size(),opt.batchSize do
       -- disp progress
