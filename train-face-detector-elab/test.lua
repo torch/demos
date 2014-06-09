@@ -41,7 +41,7 @@ function test(testData)
    local time = sys.clock()
 
    -- test over test data
-   print('==> testing on test set:')
+   print(sys.COLORS.red .. '==> testing on test set:')
    for t = 1,testData:size(),opt.batchSize do
       -- disp progress
       xlua.progress(t, testData:size())

@@ -7,9 +7,13 @@
 ----------------------------------------------------------------------
 
 require 'pl'
+require 'trepl'
+require 'torch'   -- torch
+require 'image'   -- to visualize the dataset
+require 'nn'      -- provides all sorts of trainable modules/layers
 
 ----------------------------------------------------------------------
-print '==> processing options'
+print(sys.COLORS.red ..  '==> processing options')
 
 opt = lapp[[
    -r,--learningRate       (default 1e-3)         learning rate
@@ -33,21 +37,21 @@ torch.setdefaulttensortype('torch.FloatTensor')
 
 -- type:
 if opt.type == 'cuda' then
-   print('==> switching to CUDA')
+   print(sys.COLORS.red ..  '==> switching to CUDA')
    require 'cunn'
    cutorch.setDevice(opt.devid)
-   print('==> using GPU #' .. cutorch.getDevice())
+   print(sys.COLORS.red ..  '==> using GPU #' .. cutorch.getDevice())
 end
 
 ----------------------------------------------------------------------
-print '==> load modules'
+print(sys.COLORS.red ..  '==> load modules')
 
 local data  = require 'data'
 local train = require 'train'
 local test  = require 'test'
 
 ----------------------------------------------------------------------
-print '==> training!'
+print(sys.COLORS.red .. '==> training!')
 
 while true do
    train(data.trainData)

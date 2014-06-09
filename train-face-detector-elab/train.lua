@@ -99,7 +99,7 @@ local function train(trainData)
    local shuffle = torch.randperm(trainData:size())
 
    -- do one epoch
-   print('==> doing epoch on training data:')
+   print(sys.COLORS.magenta .. '==> doing epoch on training data:') 
    print("==> online epoch # " .. epoch .. ' [batchSize = ' .. opt.batchSize .. ']')
    for t = 1,trainData:size(),opt.batchSize do
       -- disp progress

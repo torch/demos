@@ -16,8 +16,6 @@ require 'qtuiloader'
 require 'camera'
 require 'image'
 require 'nnx'
-require 'torchffi'
-local ffi = require('ffi')
 
 print '==> processing options'
 
