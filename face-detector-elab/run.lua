@@ -20,22 +20,37 @@ require 'nnx'
 print '==> processing options'
 
 opt = lapp[[
-   -c, --camidx   (default 0)          camera index: /dev/videoIDX
-   -n, --network  (default 'face.net') path to network
-   -t, --threads  (default 8)          number of threads
-       --HD                            high resolution camera
+   -c, --camidx   (default 0)             camera index: /dev/videoIDX
+   -n, --network  (default 'model.net')   path to networkimage.
+   -t, --threads  (default 8)             number of threads
+       --HD       (default true)          high resolution camera
 ]]
 
 torch.setdefaulttensortype('torch.FloatTensor')
 torch.setnumthreads(opt.threads)
 
 -- blob parser in FFI (almost as fast as pure C!):
-function parseFFI(tin, iH, iW, threshold, blobs, scale)
+-- does not work anymore after some Torch changes.... need fix!@
+function parseFFI(pin, iH, iW, threshold, blobs, scale)
   --loop over pixels
   for y=0, iH-1 do
      for x=0, iW-1 do
-        local val = tin[iW*y+x]
-        if (val > threshold) then
+        if (pin[iW*y+x] > threshold) then
+          entry = {}
+          entry[1] = x
+          entry[2] = y
+          entry[3] = scale
+          table.insert(blobs,entry)
+      end
+    end
+  end
+end
+
+function parse(tin, threshold, blobs, scale)
+  --loop over pixels
+  for y=1, tin:size(1) do
+     for x=1, tin:size(2) do
+        if (tin[y][x] > threshold) then               
           entry = {}
           entry[1] = x
           entry[2] = y
@@ -47,9 +62,8 @@ function parseFFI(tin, iH, iW, threshold, blobs, scale)
 end
 
 -- load pre-trained network from disk
-network1 = torch.load(opt.network):float() --load a network split in two: network and classifier
+network1 = torch.load(opt.network) --load a network split in two: network and classifier
 network = network1.modules[1] -- split network
-
 network1.modules[2].modules[3] = nil -- remove logsoftmax
 classifier1 = network1.modules[2] -- split and reconstruct classifier
 
@@ -57,7 +71,7 @@ network.modules[6] = nn.SpatialClassifier(classifier1)
 network_fov = 32
 network_sub = 4
 
-print(network) -- print final network
+print('Neural Network used: \n', network) -- print final network
 
 -- setup camera
 local GUI
@@ -87,29 +101,47 @@ end
 -- profiler
 p = xlua.Profiler()
 
+
+local neighborhood = image.gaussian1D(5)
+-- Define our local normalization operator (It is an actual nn module, 
+-- which could be inserted into a trainable model):
+local normalization = nn.SpatialContrastiveNormalization(1, neighborhood, 1):float()
+
 -- process function
 function process()
    -- (1) grab frame
    frame = camera:forward()
 
    -- (2) transform it into Y space and global normalize:
-   frameY = image.rgb2y(frame)
-   frameY:add(-frameY:mean())
-   frameY:div(frameY:std())
-
+   frameY = image.rgb2y(frame)   
+   -- global normalization:
+   local fmean = frameY:mean()
+   local fstd = frameY:std()
+   frameY:add(-fmean)
+   frameY:div(fstd)
+   
     -- (3) create multiscale pyramid
    pyramid, coordinates = packer:forward(frameY)
+
+   -- local contrast normalization:
+   pyramid = normalization:forward(pyramid)
+
+
    -- (4) run pre-trained network on it
    multiscale = network:forward(pyramid)
    -- (5) unpack pyramid
    distributions = unpacker:forward(multiscale, coordinates)
    -- (6) parse distributions to extract blob centroids
-   threshold = widget.verticalSlider.value/100
+   threshold = widget.verticalSlider.value/100-0.5
+  
 
    rawresults = {}
+   -- for i,distribution in ipairs(distributions) do
+   --    local pdist = torch.data(distribution[1])
+   --    parseFFI(pdist, distribution[1]:size(1), distribution[1]:size(2), threshold, rawresults, scales[i])
+   -- end
    for i,distribution in ipairs(distributions) do
-      local pdist = torch.data(distribution[1])
-      parseFFI(pdist, distribution[1]:size(1), distribution[1]:size(2), threshold, rawresults, scales[i])
+      parse(distribution[1], threshold, rawresults, scales[i])
    end
 
    -- (7) clean up results
@@ -130,7 +162,6 @@ function display()
    win:showpage()
    -- (1) display input image + pyramid
    image.display{image=frame, win=win}
-
    -- (2) overlay bounding boxes for each detection
    for i,detect in ipairs(detections) do
       win:setcolor(1,0,0)
