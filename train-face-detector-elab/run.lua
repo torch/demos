@@ -16,7 +16,7 @@ require 'nn'      -- provides all sorts of trainable modules/layers
 print(sys.COLORS.red ..  '==> processing options')
 
 opt = lapp[[
-   -r,--learningRate       (default 1e-3)         learning rate
+   -r,--learningRate       (default 1e-3)        learning rate
    -d,--learningRateDecay  (default 1e-7)        learning rate decay (in # samples)
    -w,--weightDecay        (default 1e-5)        L2 penalty on the weights
    -m,--momentum           (default 0.1)         momentum
@@ -28,6 +28,7 @@ opt = lapp[[
    -s,--size               (default small)       dataset: small or full or extra
    -o,--save               (default results)     save directory
       --patches            (default all)         percentage of samples to use for testing'
+      --visualize          (default true)        visualize dataset
 ]]
 
 -- nb of threads and fixed seed (for repeatable experiments)

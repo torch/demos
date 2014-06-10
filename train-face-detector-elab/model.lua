@@ -25,7 +25,7 @@ local width = 32
 local height = 32
 
 -- hidden units, filter sizes (for ConvNet only):
-local nstates = {8,64}
+local nstates = {16,32}
 local filtsize = {5, 7}
 local poolsize = 4
 

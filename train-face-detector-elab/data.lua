@@ -104,12 +104,13 @@ for i=trsize+1,tesize+trsize do
 end
 
 -- remove from memory temp image files:
-imagesAll = nil
-labelsAll = nil
+-- imagesAll = nil
+-- labelsAll = nil
 
 
 ----------------------------------------------------------------------
 print(sys.COLORS.red ..  '==> preprocessing data')
+-- faces and bg are already YUV here, no need to convert!
 
 -- Preprocessing requires a floating point representation (the original
 -- data is stored on bytes). Types can be easily converted in Torch, 
@@ -167,25 +168,25 @@ for i,channel in ipairs(channels) do
    testData.data[{ {},i,{},{} }]:div(std[i])
 end
 
--- -- Local normalization
--- print '==> preprocessing data: normalize all three channels locally'
+-- Local normalization
+-- print(sys.COLORS.red ..  '==> preprocessing data: normalize all three channels locally')
 
 -- -- Define the normalization neighborhood:
--- local neighborhood = image.gaussian1D(11)
+local neighborhood = image.gaussian1D(5) -- 5 for face detector training
 
--- -- Define our local normalization operator (It is an actual nn module, 
--- -- which could be inserted into a trainable model):
--- local normalization = nn.SpatialContrastiveNormalization(1, neighborhood, 1):float()
+-- Define our local normalization operator (It is an actual nn module, 
+-- which could be inserted into a trainable model):
+local normalization = nn.SpatialContrastiveNormalization(1, neighborhood, 1):float()
 
--- -- Normalize all channels locally:
--- for c in ipairs(channels) do
---    for i = 1,trainData:size() do
---       trainData.data[{ i,{c},{},{} }] = normalization:forward(trainData.data[{ i,{c},{},{} }])
---    end
---    for i = 1,testData:size() do
---       testData.data[{ i,{c},{},{} }] = normalization:forward(testData.data[{ i,{c},{},{} }])
---    end
--- end
+-- Normalize all channels locally:
+for c in ipairs(channels) do
+   for i = 1,trainData:size() do
+      trainData.data[{ i,{c},{},{} }] = normalization:forward(trainData.data[{ i,{c},{},{} }])
+   end
+   for i = 1,testData:size() do
+      testData.data[{ i,{c},{},{} }] = normalization:forward(testData.data[{ i,{c},{},{} }])
+   end
+end
 
 ----------------------------------------------------------------------
 print(sys.COLORS.red ..  '==> verify statistics')
@@ -216,6 +217,8 @@ print(sys.COLORS.red ..  '==> visualizing data')
 if opt.visualize then
    local first256Samples_y = trainData.data[{ {1,256},1 }]
    image.display{image=first256Samples_y, nrow=16, legend='Some training examples: Y channel'}
+   local first256Samples_y = testData.data[{ {1,256},1 }]
+   image.display{image=first256Samples_y, nrow=16, legend='Some testing examples: Y channel'}
 end
 
 -- Exports

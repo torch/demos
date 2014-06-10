@@ -157,7 +157,7 @@
         <number>5</number>
        </property>
        <property name="value">
-        <number>90</number>
+        <number>50</number>
        </property>
        <property name="orientation">
         <enum>Qt::Vertical</enum>
