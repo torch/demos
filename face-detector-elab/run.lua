@@ -136,13 +136,13 @@ function process()
   
 
    rawresults = {}
-   -- for i,distribution in ipairs(distributions) do
-   --    local pdist = torch.data(distribution[1])
-   --    parseFFI(pdist, distribution[1]:size(1), distribution[1]:size(2), threshold, rawresults, scales[i])
-   -- end
    for i,distribution in ipairs(distributions) do
-      parse(distribution[1], threshold, rawresults, scales[i])
+      local pdist = torch.data(distribution[1]:contiguous())
+      parseFFI(pdist, distribution[1]:size(1), distribution[1]:size(2), threshold, rawresults, scales[i])
    end
+   -- for i,distribution in ipairs(distributions) do
+   --    parse(distribution[1], threshold, rawresults, scales[i])
+   -- end
 
    -- (7) clean up results
    detections = {}
