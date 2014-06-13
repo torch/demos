@@ -29,17 +29,17 @@ testData.data = testData.data:float()
 --     as a result, each color component has 0-mean and 1-norm across the dataset.
 
 -- Convert all images to YUV
-print '==> preprocessing data: colorspace RGB -> YUV:'
-for i = 1,trSize do
-   trainData.data[i] = image.rgb2yuv(trainData.data[i])
-end
-for i = 1,teSize do
-   testData.data[i] = image.rgb2yuv(testData.data[i])
-end
+-- print '==> preprocessing data: colorspace RGB -> YUV:'
+-- for i = 1,trSize do
+--    trainData.data[i] = image.rgb2yuv(trainData.data[i])
+-- end
+-- for i = 1,teSize do
+--    testData.data[i] = image.rgb2yuv(testData.data[i])
+-- end
 
 -- Name channels for convenience
-local channels = {'y','u','v'}
---channels = {'r','g','b'}
+--local channels = {'y','u','v'}
+local channels = {'r','g','b'}
 
 -- Normalize each channel, and store mean/std
 -- per channel. These values are important, as they are part of
@@ -70,7 +70,7 @@ end
 print '==> preprocessing data: local contrast normalization:'
 
 -- Define the normalization neighborhood:
-local neighborhood = image.gaussian1D(7)
+local neighborhood = image.gaussian1D(5)
 
 -- Define our local normalization operator (It is an actual nn module, 
 -- which could be inserted into a trainable model):
@@ -118,18 +118,9 @@ print '==> visualizing data:'
 
 if opt.visualize then
    -- Showing some training exaples
-   local first128Samples_y = trainData.data[{ {1,128},1 }]
-   local first128Samples_u = trainData.data[{ {1,128},2 }]
-   local first128Samples_v = trainData.data[{ {1,128},3 }]
-   image.display{image=first128Samples_y, nrow=16, legend='Some training examples: ' ..channels[1].. ' channel'}
-   image.display{image=first128Samples_u, nrow=16, legend='Some training examples: ' ..channels[2].. ' channel'}
-   image.display{image=first128Samples_v, nrow=16, legend='Some training examples: ' ..channels[3].. ' channel'}
-
+   local first128Samples = trainData.data[{ {1,128} }]
+   image.display{image=first128Samples, nrow=16, legend='Some training examples'}
    -- Showing some testing exaples
-   local first128Samples_y = testData.data[{ {1,128},1 }]
-   local first128Samples_u = testData.data[{ {1,128},2 }]
-   local first128Samples_v = testData.data[{ {1,128},3 }]
-   image.display{image=first128Samples_y, nrow=16, legend='Some testing examples: ' ..channels[1].. ' channel'}
-   image.display{image=first128Samples_u, nrow=16, legend='Some testing examples: ' ..channels[2].. ' channel'}
-   image.display{image=first128Samples_v, nrow=16, legend='Some testing examples: ' ..channels[3].. ' channel'}
+   local first128Samples = testData.data[{ {1,128} }]
+   image.display{image=first128Samples, nrow=16, legend='Some testing examples'}
 end
