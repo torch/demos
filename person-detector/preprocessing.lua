@@ -1,19 +1,10 @@
 ------------------------------------------------------------------------------
 -- Preprocessing to apply to each dataset
 ------------------------------------------------------------------------------
--- Alfredo Canziani May 2013
+-- Alfredo Canziani May 2013, E. Culurciello June 2014
 ------------------------------------------------------------------------------
 
-print '==> preprocessing data'
-
--- Preprocessing requires a floating point representation (the original
--- data is stored on bytes). Types can be easily converted in Torch, 
--- in general by doing: dst = src:type('torch.TypeTensor'), 
--- where Type=='Float','Double','Byte','Int',... Shortcuts are provided
--- for simplicity (float(),double(),cuda(),...):
-
-trainData.data = trainData.data:float()
-testData.data = testData.data:float()
+print(sys.COLORS.red ..  '==> preprocessing data')
 
 -- We now preprocess the data. Preprocessing is crucial
 -- when applying pretty much any kind of machine learning algorithm.
@@ -29,7 +20,7 @@ testData.data = testData.data:float()
 --     as a result, each color component has 0-mean and 1-norm across the dataset.
 
 -- Convert all images to YUV
--- print '==> preprocessing data: colorspace RGB -> YUV:'
+-- print(sys.COLORS.red ..  '==> preprocessing data: colorspace RGB -> YUV:')
 -- for i = 1,trSize do
 --    trainData.data[i] = image.rgb2yuv(trainData.data[i])
 -- end
@@ -45,7 +36,7 @@ local channels = {'r','g','b'}
 -- per channel. These values are important, as they are part of
 -- the trainable parameters. At test time, test data will be normalized
 -- using these values.
-print '==> preprocessing data: global normalization:'
+print(sys.COLORS.red ..  '==> preprocessing data: global normalization:')
 local mean = {}
 local std = {}
 for i,channel in ipairs(channels) do
@@ -67,7 +58,7 @@ end
 -- (note: the global normalization is useless, if this local normalization
 -- is applied on all channels... the global normalization code is kept just
 -- for the tutorial's purpose)
-print '==> preprocessing data: local contrast normalization:'
+print(sys.COLORS.red ..  '==> preprocessing data: local contrast normalization:')
 
 -- Define the normalization neighborhood:
 local neighborhood = image.gaussian1D(5)
@@ -78,12 +69,12 @@ local normalization = nn.SpatialContrastiveNormalization(1, neighborhood, 1e-3):
 
 -- Normalize all channels locally:
 for c=1,1 do-- in ipairs(channels) do
-   print '       Normalising the training dataset'
+   print('       Normalising the training dataset')
    for i = 1,trSize do
       trainData.data[{ i,{c},{},{} }] = normalization:forward(trainData.data[{ i,{c},{},{} }])
       xlua.progress(i,trSize)
    end
-   print '       Normalising the testing dataset'
+   print('       Normalising the testing dataset')
    for i = 1,teSize do
       testData.data[{ i,{c},{},{} }] = normalization:forward(testData.data[{ i,{c},{},{} }])
       xlua.progress(i,teSize)
@@ -91,7 +82,7 @@ for c=1,1 do-- in ipairs(channels) do
 end
 
 ----------------------------------------------------------------------
-print '==> verify statistics:'
+print(sys.COLORS.red ..  '==> verify statistics:')
 
 -- It's always good practice to verify that data is properly
 -- normalized.
@@ -111,7 +102,7 @@ for i,channel in ipairs(channels) do
 end
 
 ----------------------------------------------------------------------
-print '==> visualizing data:'
+print(sys.COLORS.red ..  '==> visualizing data:')
 
 -- Visualization is quite easy, using image.display(). Check out:
 -- help(image.display), for more info about options.

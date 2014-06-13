@@ -12,7 +12,7 @@ require 'ffmpeg'
 ----------------------------------------------------------------------
 -- parse command line arguments
 if not opt then
-   print '==> processing options'
+   print(sys.COLORS.red ..  '==> processing options')
    cmd = torch.CmdLine()
    cmd:text()
    cmd:text('INRIA Person Dataset Preprocessing')
@@ -28,25 +28,55 @@ end
 
 function ls(path) return sys.split(sys.ls(path),'\n') end -- alf ls() nice function!
 
+
+
+----------------------------------------------------------------------
+print(sys.COLORS.red ..  '==> downloading dataset')
+
+-- Here we download dataset files. 
+
+-- Note: files were converted from their original Matlab format
+-- to Torch's internal format using the mattorch package. The
+-- mattorch package allows 1-to-1 conversion between Torch and Matlab
+-- files.
+
+
+-- local www = 'http://data.neuflow.org/data/'
+local www = 'https://engineering.purdue.edu/elab/files/'
+local train_dir = '.' -- se to current directory (move to where you like!)
+local tar = 'INRIAPerson.zip'
+
+--load from 'https://engineering.purdue.edu/elab/files/INRIAPerson.zip'
+if not paths.dirp('INRIAPerson') then
+   --os.execute('mkdir -p ' .. train_dir)
+   os.execute('cd ' .. train_dir)
+   os.execute('wget ' .. www .. tar)
+   os.execute('unzip ' .. tar)
+end
+
+if opt.patches ~= 'all' then
+   opt.patches = math.floor(opt.patches/3)
+end
+
 ----------------------------------------------------------------------
 -- load or generate new dataset:
 
-if paths.filep('../../datasets/INRIAPerson/train.t7') 
-   and paths.filep('../../datasets/INRIAPerson/test.t7') then
+if paths.filep('train.t7') 
+   and paths.filep('test.t7') then
 
-   print '==> loading previously generated dataset:'
-   trainData = torch.load('../../datasets/INRIAPerson/train.t7')
-   testData = torch.load('../../datasets/INRIAPerson/test.t7')
+   print(sys.COLORS.red ..  '==> loading previously generated dataset:')
+   trainData = torch.load('train.t7')
+   testData = torch.load('test.t7')
 
    trSize = trainData.data:size(1)
    teSize = testData.data:size(1)
 
 else
 
-   print '==> creating a new dataset from raw files:'
+   print(sys.COLORS.red ..  '==> creating a new dataset from raw files:')
 
    -- video dataset to get background from:
-   local dspath = '../../datasets/bg.mp4'
+   local dspath = 'INRIAPerson/bg.m4v'
    local source = ffmpeg.Video{path=dspath, width=284/2, height=160/2, encoding='png', 
    		fps=30, lenght=100, delete=false, load=false}
 
@@ -67,10 +97,10 @@ else
    local labelPerson = 1 -- label for person and background:
    local labelBg = 2
 
-   local trainDir = '../../datasets/INRIAPerson/96X160H96/Train/pos/'
+   local trainDir = 'INRIAPerson/96X160H96/Train/pos/'
    local trainImaNumber = #ls(trainDir)
    trSize = (trainImaNumber-1)*2 -- twice because of bg data!
-   local testDir = '../../datasets/INRIAPerson/70X134H96/Test/pos/'
+   local testDir = 'INRIAPerson/70X134H96/Test/pos/'
    local testImaNumber = #ls(testDir)
    teSize = (testImaNumber-1)*2 -- twice because of bg data!
 
@@ -125,16 +155,16 @@ else
    image.display{image=testData.data[{{1,128}}], nrow=16, zoom=2, legend = 'Test Data'}
 
    --save created dataset:
-   torch.save('../../datasets/INRIAPerson/train.t7',trainData)
-   torch.save('../../datasets/INRIAPerson/test.t7',testData)
+   torch.save('train.t7',trainData)
+   torch.save('test.t7',testData)
 end
 
 -- Displaying the dataset architecture ---------------------------------------
-print('Training Data:')
+print(sys.COLORS.red ..  'Training Data:')
 print(trainData)
 print()
 
-print('Test Data:')
+print(sys.COLORS.red ..  'Test Data:')
 print(testData)
 print()
 

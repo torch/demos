@@ -4,6 +4,7 @@
 *.a
 *.log
 .DS_Store
+*.t7
 
 # Ignore all scratch dir.
 scratch/
@@ -17,7 +18,11 @@ datasets/
 # Ignore log folders
 log/
 
+results/
+
 
 train-face-detector-elab/face-dataset.zip
 train-face-detector-elab/face-dataset/*
-train-face-detector-elab/results/*
+
+person-detector/INRIAPerson.zip
+person-detector/INRIAPerson/*
