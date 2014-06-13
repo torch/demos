@@ -45,20 +45,20 @@ function parseFFI(pin, iH, iW, threshold, blobs, scale)
   end
 end
 
-function parse(tin, threshold, blobs, scale)
-  --loop over pixels
-  for y=1, tin:size(1) do
-     for x=1, tin:size(2) do
-        if (tin[y][x] > threshold) then               
-          entry = {}
-          entry[1] = x
-          entry[2] = y
-          entry[3] = scale
-          table.insert(blobs,entry)
-      end
-    end
-  end
-end
+-- function parse(tin, threshold, blobs, scale)
+--   --loop over pixels
+--   for y=1, tin:size(1) do
+--      for x=1, tin:size(2) do
+--         if (tin[y][x] > threshold) then               
+--           entry = {}
+--           entry[1] = x
+--           entry[2] = y
+--           entry[3] = scale
+--           table.insert(blobs,entry)
+--       end
+--     end
+--   end
+-- end
 
 -- load pre-trained network from disk
 network1 = torch.load(opt.network) --load a network split in two: network and classifier
@@ -128,14 +128,17 @@ function process()
    -- (5) unpack pyramid
    distributions = unpacker:forward(multiscale, coordinates)
    -- (6) parse distributions to extract blob centroids
-   threshold = widget.verticalSlider.value/100-0.5
+   threshold = widget.verticalSlider.value/100
+   print(threshold)
   
 
    rawresults = {}
+   -- function FFI:
    for i,distribution in ipairs(distributions) do
       local pdist = torch.data(distribution[1]:contiguous())
       parseFFI(pdist, distribution[1]:size(1), distribution[1]:size(2), threshold, rawresults, scales[i])
    end
+   -- function non FFI:
    -- for i,distribution in ipairs(distributions) do
    --    parse(distribution[1], threshold, rawresults, scales[i])
    -- end
