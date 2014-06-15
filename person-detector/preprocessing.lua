@@ -58,28 +58,28 @@ end
 -- (note: the global normalization is useless, if this local normalization
 -- is applied on all channels... the global normalization code is kept just
 -- for the tutorial's purpose)
-print(sys.COLORS.red ..  '==> preprocessing data: local contrast normalization:')
+-- print(sys.COLORS.red ..  '==> preprocessing data: local contrast normalization:')
 
--- Define the normalization neighborhood:
-local neighborhood = image.gaussian1D(5)
+-- -- Define the normalization neighborhood:
+-- local neighborhood = image.gaussian1D(5)
 
--- Define our local normalization operator (It is an actual nn module, 
--- which could be inserted into a trainable model):
-local normalization = nn.SpatialContrastiveNormalization(1, neighborhood, 1e-3):float()
+-- -- Define our local normalization operator (It is an actual nn module, 
+-- -- which could be inserted into a trainable model):
+-- local normalization = nn.SpatialContrastiveNormalization(1, neighborhood, 1e-3):float()
 
--- Normalize all channels locally:
-for c=1,1 do-- in ipairs(channels) do
-   print('       Normalising the training dataset')
-   for i = 1,trSize do
-      trainData.data[{ i,{c},{},{} }] = normalization:forward(trainData.data[{ i,{c},{},{} }])
-      xlua.progress(i,trSize)
-   end
-   print('       Normalising the testing dataset')
-   for i = 1,teSize do
-      testData.data[{ i,{c},{},{} }] = normalization:forward(testData.data[{ i,{c},{},{} }])
-      xlua.progress(i,teSize)
-   end
-end
+-- -- Normalize all channels locally:
+-- for c=1,1 do-- in ipairs(channels) do
+--    print('       Normalising the training dataset')
+--    for i = 1,trSize do
+--       trainData.data[{ i,{c},{},{} }] = normalization:forward(trainData.data[{ i,{c},{},{} }])
+--       xlua.progress(i,trSize)
+--    end
+--    print('       Normalising the testing dataset')
+--    for i = 1,teSize do
+--       testData.data[{ i,{c},{},{} }] = normalization:forward(testData.data[{ i,{c},{},{} }])
+--       xlua.progress(i,teSize)
+--    end
+-- end
 
 ----------------------------------------------------------------------
 print(sys.COLORS.red ..  '==> verify statistics:')

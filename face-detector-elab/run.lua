@@ -46,21 +46,6 @@ function parseFFI(pin, iH, iW, threshold, blobs, scale)
   end
 end
 
-function parse(tin, threshold, blobs, scale)
-  --loop over pixels
-  for y=1, tin:size(1) do
-     for x=1, tin:size(2) do
-        if (tin[y][x] > threshold) then               
-          entry = {}
-          entry[1] = x
-          entry[2] = y
-          entry[3] = scale
-          table.insert(blobs,entry)
-      end
-    end
-  end
-end
-
 -- load pre-trained network from disk
 network1 = torch.load(opt.network) --load a network split in two: network and classifier
 network = network1.modules[1] -- split network
@@ -101,12 +86,6 @@ end
 -- profiler
 p = xlua.Profiler()
 
-
-local neighborhood = image.gaussian1D(5)
--- Define our local normalization operator (It is an actual nn module, 
--- which could be inserted into a trainable model):
-local normalization = nn.SpatialContrastiveNormalization(1, neighborhood, 1):float()
-
 -- process function
 function process()
    -- (1) grab frame
@@ -123,10 +102,6 @@ function process()
     -- (3) create multiscale pyramid
    pyramid, coordinates = packer:forward(frameY)
 
-   -- local contrast normalization:
-   pyramid = normalization:forward(pyramid)
-
-
    -- (4) run pre-trained network on it
    multiscale = network:forward(pyramid)
    -- (5) unpack pyramid
@@ -140,9 +115,6 @@ function process()
       local pdist = torch.data(distribution[1]:contiguous())
       parseFFI(pdist, distribution[1]:size(1), distribution[1]:size(2), threshold, rawresults, scales[i])
    end
-   -- for i,distribution in ipairs(distributions) do
-   --    parse(distribution[1], threshold, rawresults, scales[i])
-   -- end
 
    -- (7) clean up results
    detections = {}
