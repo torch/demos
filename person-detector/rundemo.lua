@@ -15,6 +15,7 @@ require 'qtuiloader'
 require 'camera'
 require 'image'
 require 'nnx'
+require 'torchffi'
 
 print '==> processing options'
 
@@ -43,6 +44,29 @@ function parseFFI(pin, iH, iW, threshold, blobs, scale)
       end
     end
   end
+end
+
+function prune(detections)
+  local pruned = {}
+
+  local index = 1
+   for i,detect in ipairs(detections) do
+     local duplicate = 0
+     for j, prune in ipairs(pruned) do
+       -- if two detections left top corners are in close proximity discard one
+       -- 50 is a proximity threshold can be changed 
+       if (torch.abs(prune.x-detect.x)+torch.abs(prune.y-detect.y)<50) then
+        duplicate = 1
+       end
+     end
+
+     if duplicate == 0 then
+      pruned[index] = {x=detect.x, y=detect.y, w=detect.w, h=detect.h}
+      index = index+1
+     end 
+   end
+
+   return pruned
 end
 
 -- load pre-trained network from disk
@@ -125,6 +149,8 @@ function process()
       local h = network_fov/scale
       detections[i] = {x=x, y=y, w=w, h=h}
    end
+
+   detections = prune(detections)
 end
 
 -- display function
