@@ -168,25 +168,25 @@ for i,channel in ipairs(channels) do
    testData.data[{ {},i,{},{} }]:div(std[i])
 end
 
--- Local normalization
--- print(sys.COLORS.red ..  '==> preprocessing data: normalize all three channels locally')
+-- Local contrast normalization is needed in the face dataset as the dataset is already in this form:
+print(sys.COLORS.red ..  '==> preprocessing data: normalize all three channels locally')
 
--- -- Define the normalization neighborhood:
--- local neighborhood = image.gaussian1D(5) -- 5 for face detector training
+-- Define the normalization neighborhood:
+local neighborhood = image.gaussian1D(5) -- 5 for face detector training
 
--- -- Define our local normalization operator (It is an actual nn module, 
--- -- which could be inserted into a trainable model):
--- local normalization = nn.SpatialContrastiveNormalization(1, neighborhood, 1):float()
+-- Define our local normalization operator (It is an actual nn module, 
+-- which could be inserted into a trainable model):
+local normalization = nn.SpatialContrastiveNormalization(1, neighborhood, 1):float()
 
--- -- Normalize all channels locally:
--- for c in ipairs(channels) do
---    for i = 1,trainData:size() do
---       trainData.data[{ i,{c},{},{} }] = normalization:forward(trainData.data[{ i,{c},{},{} }])
---    end
---    for i = 1,testData:size() do
---       testData.data[{ i,{c},{},{} }] = normalization:forward(testData.data[{ i,{c},{},{} }])
---    end
--- end
+-- Normalize all channels locally:
+for c in ipairs(channels) do
+   for i = 1,trainData:size() do
+      trainData.data[{ i,{c},{},{} }] = normalization:forward(trainData.data[{ i,{c},{},{} }])
+   end
+   for i = 1,testData:size() do
+      testData.data[{ i,{c},{},{} }] = normalization:forward(testData.data[{ i,{c},{},{} }])
+   end
+end
 
 ----------------------------------------------------------------------
 print(sys.COLORS.red ..  '==> verify statistics')

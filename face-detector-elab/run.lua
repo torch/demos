@@ -16,7 +16,6 @@ require 'qtuiloader'
 require 'camera'
 require 'image'
 require 'nnx'
-require 'torchffi'
 
 print '==> processing options'
 
@@ -112,6 +111,12 @@ end
 -- profiler
 p = xlua.Profiler()
 
+-- Use local normalization:
+-- we need to do this step here as the face dataset is contrast normalized
+-- and so the demo needs to do it also:
+local neighborhood = image.gaussian1D(5)
+local normalization = nn.SpatialContrastiveNormalization(1, neighborhood, 1):float()
+
 -- process function
 function process()
    -- (1) grab frame
@@ -127,13 +132,15 @@ function process()
    
     -- (3) create multiscale pyramid
    pyramid, coordinates = packer:forward(frameY)
+   -- local contrast normalization:
+   pyramid = normalization:forward(pyramid)
 
    -- (4) run pre-trained network on it
    multiscale = network:forward(pyramid)
    -- (5) unpack pyramid
    distributions = unpacker:forward(multiscale, coordinates)
    -- (6) parse distributions to extract blob centroids
-   threshold = widget.verticalSlider.value/100-0.5
+   threshold = widget.verticalSlider.value/100 -1.5
   
 
    rawresults = {}
