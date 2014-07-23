@@ -16,7 +16,6 @@ require 'qtuiloader'
 require 'camera'
 require 'image'
 require 'nnx'
-
 print '==> processing options'
 
 opt = lapp[[
@@ -55,7 +54,7 @@ function prune(detections)
      local duplicate = 0
      for j, prune in ipairs(pruned) do
        -- if two detections left top corners are in close proximity discard one
-       -- 70 is a proximity threshold can be changed 
+       -- 70 is a proximity threshold can be changed
        if (torch.abs(prune.x-detect.x)+torch.abs(prune.y-detect.y)<70) then
         duplicate = 1
        end
@@ -64,14 +63,14 @@ function prune(detections)
      if duplicate == 0 then
       pruned[index] = {x=detect.x, y=detect.y, w=detect.w, h=detect.h}
       index = index+1
-     end 
+     end
    end
 
    return pruned
 end
 
 -- load pre-trained network from disk
-network1 = torch.load(opt.network) --load a network split in two: network and classifier
+network1 = torch.load(opt.network, 'ascii') --load a network split in two: network and classifier
 network = network1.modules[1] -- split network
 network1.modules[2].modules[3] = nil -- remove logsoftmax
 classifier1 = network1.modules[2] -- split and reconstruct classifier
@@ -123,13 +122,13 @@ function process()
    frame = camera:forward()
 
    -- (2) transform it into Y space and global normalize:
-   frameY = image.rgb2y(frame)   
+   frameY = image.rgb2y(frame)
    -- global normalization:
    local fmean = frameY:mean()
    local fstd = frameY:std()
    frameY:add(-fmean)
    frameY:div(fstd)
-   
+
     -- (3) create multiscale pyramid
    pyramid, coordinates = packer:forward(frameY)
    -- local contrast normalization:
@@ -141,7 +140,7 @@ function process()
    distributions = unpacker:forward(multiscale, coordinates)
    -- (6) parse distributions to extract blob centroids
    threshold = widget.verticalSlider.value/100 -1.5
-  
+
 
    rawresults = {}
    for i,distribution in ipairs(distributions) do
