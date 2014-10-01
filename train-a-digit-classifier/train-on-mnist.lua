@@ -22,6 +22,7 @@ require 'optim'
 require 'image'
 require 'dataset-mnist'
 require 'pl'
+require 'paths'
 
 ----------------------------------------------------------------------
 -- parse command-line options
@@ -280,7 +281,7 @@ function train(dataset)
    -- save/log current net
    local filename = paths.concat(opt.save, 'mnist.net')
    os.execute('mkdir -p ' .. sys.dirname(filename))
-   if sys.filep(filename) then
+   if paths.filep(filename) then
       os.execute('mv ' .. filename .. ' ' .. filename .. '.old')
    end
    print('<trainer> saving network to '..filename)
