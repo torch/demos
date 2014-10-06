@@ -26,9 +26,9 @@ print('')
 --  age: a positive integer
 
 -- The data are stored in a csv file 'example-logistic-regression.csv'
--- and read with the csv package (torch-pkg install csv)
+-- and read with the csvigo package (torch-pkg install csvigo)
 
-require 'csv'
+require 'csvigo'
 
 -- The data are in a comma separated values (CSV) file. The first record
 -- contains field names and subsequent records contain data. The fields and
@@ -38,8 +38,8 @@ require 'csv'
 -- - female: indicator for is-female: 1 if female, 0 otherwise; no quote chars
 -- - age: age of the person; no quote characters
 
--- Reading CSV files can be tricky. This code uses the csv package for this:
-loaded = csv.load('example-logistic-regression.csv')
+-- Reading CSV files can be tricky. This code uses the csvigo package for this:
+loaded = csvigo.load('example-logistic-regression.csv')
 
 -- Convert the CSV table into dense tensors. The tensor form has the
 -- advantage that it stores its elements continguously (which leads to
