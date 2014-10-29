@@ -36,7 +36,7 @@ op:option{'-d', '--dataset', action='store', dest='dataset',
           default='../datasets/faces_cut_yuv_32x32/',
           help='path to MNIST root dir'}
 op:option{'-w', '--www', action='store', dest='www', 
-          default='http://data.neuflow.org/data/faces_cut_yuv_32x32.tar.gz',
+          default='http://torch7.s3-website-us-east-1.amazonaws.com/data/faces_cut_yuv_32x32.tar.gz',
           help='path to retrieve dataset online (if not available locally)'}
 op:option{'-t', '--testset', action='store', dest='ratio', 
           help='percentage of samples to use for testing', default=0.2}

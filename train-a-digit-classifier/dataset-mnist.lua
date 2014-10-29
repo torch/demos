@@ -3,7 +3,7 @@ require 'paths'
 
 mnist = {}
 
-mnist.path_remote = 'http://data.neuflow.org/data/mnist-th7.tgz'
+mnist.path_remote = 'http://torch7.s3-website-us-east-1.amazonaws.com/data/mnist-th7.tgz'
 mnist.path_dataset = 'mnist-th7'
 mnist.path_trainset = paths.concat(mnist.path_dataset, 'train.th7')
 mnist.path_testset = paths.concat(mnist.path_dataset, 'test.th7')

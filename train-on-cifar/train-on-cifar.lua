@@ -139,7 +139,7 @@ end
 
 -- download dataset
 if not paths.dirp('cifar-10-batches-t7') then
-   local www = 'http://data.neuflow.org/data/cifar-10-torch.tar.gz'
+   local www = 'http://torch7.s3-website-us-east-1.amazonaws.com/data/cifar-10-torch.tar.gz'
    local tar = sys.basename(www)
    os.execute('wget ' .. www .. '; '.. 'tar xvf ' .. tar)
 end

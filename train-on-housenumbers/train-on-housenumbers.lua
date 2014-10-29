@@ -129,7 +129,7 @@ else
    tesize = 26032
 end
 
-www = 'http://data.neuflow.org/data/housenumbers/'
+www = 'http://torch7.s3-website-us-east-1.amazonaws.com/data/housenumbers/'
 train_file = 'train_32x32.t7'
 test_file = 'test_32x32.t7'
 extra_file = 'extra_32x32.t7'
