@@ -1,7 +1,5 @@
 require 'nnx'
 local ffi = require("ffi")
-require("torchffi")
---local lcpp = assert(require("lcpp"))
 
 ffi.cdef(io.open('fastdist.h', 'r'):read('*a'))
 --ffi.cdef('#include "fastdist.h"')
