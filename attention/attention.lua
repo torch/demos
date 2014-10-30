@@ -11,9 +11,8 @@ require 'qt'
 
 require 'qtwidget'
 require 'qtuiloader'
-xrequire('nnx',true)
-xrequire('camera',true)
-xrequire('inline',true)
+require 'nnx'
+require 'camera'
 
 -- parse args
 op = xlua.OptionParser('%prog [options]')
@@ -22,54 +21,41 @@ op:option{'-c', '--camera', action='store', dest='camidx',
           default=0}
 opt,args = op:parse()
 
-lowerthreshold = inline.load [[
-      // get args	lowerthreshold(tensor, x)
-      
-      const void* id = luaT_checktypename2id(L, "torch.DoubleTensor");
-      THDoubleTensor *tensor = luaT_checkudata(L, 1, id);
-      double threshold = lua_tonumber(L, 2);
-      
-      // loop over pixels
-      int x,y;
-      for (y=0; y<tensor->size[1]; y++) {
-         for (x=0; x<tensor->size[0]; x++) {
-         	double val = THDoubleTensor_get2d(tensor, x, y);
-            if (val < threshold) {              	 			     	              	
-            THDoubleTensor_set2d(tensor, x, y, 0);              
-            }
-            if (val >= threshold) { 						            	
-            THDoubleTensor_set2d(tensor, x, y, val-threshold);               
-            }
-         }
-      }
-            
-      return 0;
-]]
+function lowerthreshold (tensor, threshold)
+   local t = tensor:contiguous()
+   local data = torch.data(t);
+   local xdim = t:size(1)
+   local ydim = t:size(2)
+   for i=0,xdim do
+      for j=0,ydim do
+	 local val = data[xdim*i + ydim]
+	 if val < -threshold then 
+	    val = -threshold
+	 elseif  val > threshold then 
+	    val = threshold
+	 end
+      end
+   end
+   tensor:copy(t)
+end
 
-imagethreshold=inline.load[[
-	
-      const void* id = luaT_checktypename2id(L, "torch.DoubleTensor");
-      THDoubleTensor *tensor = luaT_checkudata(L, 1, id);
-      double threshold = lua_tonumber(L, 2);
-
-      // loop over pixels
-      int x,y;
-      for (y=0; y<tensor->size[1]; y++) {
-         for (x=0; x<tensor->size[0]; x++) {
-            double val = THDoubleTensor_get2d(tensor, x, y);
-            if (val < -threshold) {
-            	THDoubleTensor_set2d(tensor, x, y, -threshold);         	              
-            }
-            if (val > threshold) {
-            	THDoubleTensor_set2d(tensor, x, y, threshold);              
-            }            
-            if(-threshold<val<threshold){            	
-            THDoubleTensor_set2d(tensor, x, y, 0); 
-            }
-         }
-      }
-      return 0;
-]]
+function imagethreshold (tensor, threshold)
+   local t = tensor:contiguous()
+   local data = torch.data(t);
+   local xdim = t:size(1)
+   local ydim = t:size(2)
+   for i=0,xdim do
+      for j=0,ydim do
+	 local val = data[xdim*i + ydim]
+	 if val < threshold then 
+	    val = 0
+	 else
+	    val = val - threshold
+	 end
+      end
+   end
+   tensor:copy(t)
+end
 
 -- setup GUI (external UI file)
 widget = qtuiloader.load('attention.ui')
@@ -181,11 +167,13 @@ end
 local function getMaps(frame1, frame2, scaling)
 	local camFrame = torch.Tensor(frame1:size(1), frame1:size(2)*scaling, frame1:size(3)*scaling)
 		
-	image.scale(frame1, camFrame, 'simple')
+	image.scale(camFrame, frame1, 'simple')
 	frameY = image.rgb2y(camFrame)
+ 
 	
-	image.scale(frame2, camFrame, 'simple')
+	image.scale(camFrame, frame2, 'simple')
 	frameY2 = image.rgb2y(camFrame)
+
    	--get intensity map
    
 	R = camFrame:select(1,1)
@@ -193,7 +181,7 @@ local function getMaps(frame1, frame2, scaling)
 	B = camFrame:select(1,3)
 	
 	intensity=frameY2[1]
-	
+
 	--get BY map
 	Y = (R+G):mul(0.5)
 	BY = (B-Y):cdiv(intensity+1)
@@ -230,6 +218,8 @@ local function getMaps(frame1, frame2, scaling)
    	local diff = os.clock() - timeDisplay
    	timeDisplay = os.clock()
    	local fps = 1/diff
+
+
 	
 	return camFrame, intensity, BY, RG, edge, frameTD, fps
 	
@@ -247,8 +237,9 @@ local function createSalienceMap(frameTD, edge, RG, BY, intensity)
 	
 		-- back to 640 x 480
 	local temp = camFrameA[1]
+
 	local salience_big = torch.Tensor():resizeAs(temp)
-	image.scale(salience, salience_big, 'simple')
+	image.scale(salience_big, salience, 'simple')
 	return salience_big
 end
 	
@@ -315,6 +306,7 @@ local function displayer()
  	--get second frame
 
 	camFrameB = camera:forward()
+
 
    	win:gbegin()    	
    	win:showpage()
