@@ -10,7 +10,6 @@ require 'xlua'
 require 'torch'
 require 'qt'
 require 'qtwidget'
-require 'inline'
 require 'imgraph'
 require 'nnx'
 
