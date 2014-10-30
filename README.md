@@ -37,4 +37,4 @@ https://github.com/clementfarabet/torch-tutorials
 
 ## Credits
 
-These demos were slowly put together by: Clement Farabet & Roy Lowrance.
+These demos were slowly put together by: Clement Farabet & Roy Lowrance and e-lab
