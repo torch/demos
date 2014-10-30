@@ -16,7 +16,7 @@ require 'imgraph' -- to colorize outputs
 require 'segmtools' -- to display name of classes
 require 'nnx'
 require 'image'
---require 'camera'
+require 'camera'
 
 ----------------------------------------------------------------------
 print '==> processing options'
@@ -24,8 +24,8 @@ print '==> processing options'
 opt = lapp[[
   -t,   --threads       (default 3)          number of threads
   -v,   --video         (default '')         video (or image) file to process
-  -n,   --network       (default 'multinet-float-ascii.net') path to trained network
-  		  --networktype   (default 'cnn')      type of network ('cnn' or 'unsup')
+  -n,   --network       (default 'multinet-float.net') path to trained network
+        --networktype   (default 'cnn')      type of network ('cnn' or 'unsup')
   -s,   --save          (default '')         path to save output video
   -l,   --useffmpeglib  (default false)      help=use ffmpeglib module to read frames directly from video
   -k,   --seek          (default 0)          seek number of seconds
@@ -69,7 +69,7 @@ function init_cnn_net()
 
 	-- load pre-trained network and other data from disk
 	print(opt.network)
-	local netin = torch.load(opt.network, "ascii")
+	local netin = torch.load(opt.network)
 
 	-- replace classifier (2nd module) by SpatialClassifier
 	local network = netin.modules[1]
