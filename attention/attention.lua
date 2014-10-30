@@ -11,9 +11,8 @@ require 'qt'
 
 require 'qtwidget'
 require 'qtuiloader'
-xrequire('nnx',true)
-xrequire('camera',true)
-xrequire('inline',true)
+require 'nnx'
+require 'camera'
 
 -- parse args
 op = xlua.OptionParser('%prog [options]')
@@ -22,54 +21,41 @@ op:option{'-c', '--camera', action='store', dest='camidx',
           default=0}
 opt,args = op:parse()
 
-lowerthreshold = inline.load [[
-      // get args	lowerthreshold(tensor, x)
-      
-      const void* id = luaT_checktypename2id(L, "torch.DoubleTensor");
-      THDoubleTensor *tensor = luaT_checkudata(L, 1, id);
-      double threshold = lua_tonumber(L, 2);
-      
-      // loop over pixels
-      int x,y;
-      for (y=0; y<tensor->size[1]; y++) {
-         for (x=0; x<tensor->size[0]; x++) {
-         	double val = THDoubleTensor_get2d(tensor, x, y);
-            if (val < threshold) {              	 			     	              	
-            THDoubleTensor_set2d(tensor, x, y, 0);              
-            }
-            if (val >= threshold) { 						            	
-            THDoubleTensor_set2d(tensor, x, y, val-threshold);               
-            }
-         }
-      }
-            
-      return 0;
-]]
+function lowerthreshold (tensor, threshold)
+   local t = tensor:contiguous()
+   local data = torch.data(t);
+   local xdim = t:size(1)
+   local ydim = t:size(2)
+   for i=0,xdim do
+      for j=0,ydim do
+	 local val = data[xdim*i + ydim]
+	 if val < -threshold then 
+	    val = -threshold
+	 elseif  val > threshold then 
+	    val = threshold
+	 end
+      end
+   end
+   tensor:copy(t)
+end
 
-imagethreshold=inline.load[[
-	
-      const void* id = luaT_checktypename2id(L, "torch.DoubleTensor");
-      THDoubleTensor *tensor = luaT_checkudata(L, 1, id);
-      double threshold = lua_tonumber(L, 2);
-
-      // loop over pixels
-      int x,y;
-      for (y=0; y<tensor->size[1]; y++) {
-         for (x=0; x<tensor->size[0]; x++) {
-            double val = THDoubleTensor_get2d(tensor, x, y);
-            if (val < -threshold) {
-            	THDoubleTensor_set2d(tensor, x, y, -threshold);         	              
-            }
-            if (val > threshold) {
-            	THDoubleTensor_set2d(tensor, x, y, threshold);              
-            }            
-            if(-threshold<val<threshold){            	
-            THDoubleTensor_set2d(tensor, x, y, 0); 
-            }
-         }
-      }
-      return 0;
-]]
+function imagethreshold (tensor, threshold)
+   local t = tensor:contiguous()
+   local data = torch.data(t);
+   local xdim = t:size(1)
+   local ydim = t:size(2)
+   for i=0,xdim do
+      for j=0,ydim do
+	 local val = data[xdim*i + ydim]
+	 if val < threshold then 
+	    val = 0
+	 else
+	    val = val - threshold
+	 end
+      end
+   end
+   tensor:copy(t)
+end
 
 -- setup GUI (external UI file)
 widget = qtuiloader.load('attention.ui')
