@@ -24,11 +24,11 @@ opt,args = op:parse()
 function lowerthreshold (tensor, threshold)
    local t = tensor:contiguous()
    local data = torch.data(t);
-   local xdim = t:size(1)
-   local ydim = t:size(2)
-   for i=0,xdim do
-      for j=0,ydim do
-	 local val = data[xdim*i + ydim]
+   local ydim = t:size(1)
+   local xdim = t:size(2)
+   for i=0,ydim do
+      for j=0,xdim do
+	 local val = data[ydim*i + xdim]
 	 if val < -threshold then 
 	    val = -threshold
 	 elseif  val > threshold then 
@@ -42,11 +42,11 @@ end
 function imagethreshold (tensor, threshold)
    local t = tensor:contiguous()
    local data = torch.data(t);
-   local xdim = t:size(1)
-   local ydim = t:size(2)
-   for i=0,xdim do
-      for j=0,ydim do
-	 local val = data[xdim*i + ydim]
+   local ydim = t:size(1)
+   local xdim = t:size(2)
+   for i=0,ydim do
+      for j=0,xdim do
+	 local val = data[ydim*i + xdim]
 	 if val < threshold then 
 	    val = 0
 	 else
@@ -125,17 +125,17 @@ end
 ---------------------------------------------------------
 
 function remove(tensor, x, y)
-	local w = tensor:size(1)
-	local h = tensor:size(2)
+	local h = tensor:size(1)
+	local w = tensor:size(2)
 	for i=1,pointSize do
 		for j=1,pointSize do
-			local xx = x-pointSize/2+i
-			local yy = y-pointSize/2+j
+			local yy = y-pointSize/2+i
+			local xx = x-pointSize/2+j
 			if xx < 1 then xx = 1 end
 			if yy < 1 then yy = 1 end
 			if xx > w then xx = w end
 			if yy > h then yy = h end
-			tensor[xx][yy]=0
+			tensor[yy][xx]=0
 		end
 	end
 	return tensor
@@ -148,16 +148,16 @@ end
 -----------------------------------
 
 function return_section(input)
-	local x_range = (input:size(1))/pointSize
-	local y_range = (input:size(2))/pointSize
+	local y_range = (input:size(1))/pointSize
+	local x_range = (input:size(2))/pointSize
 
-	section_holder = torch.Tensor(x_range,y_range)
-	for i=1,x_range do
-		for j=1,y_range do
-			local start_x = (i-1)*pointSize+1
-			local start_y = (j-1)*pointSize+1
-			x, y = find_max_index(input:sub(start_x,start_x+pointSize-1,start_y,start_y+pointSize-1))					
-			section_holder[i][j] = input[x+start_x-1][y+start_y-1]
+	section_holder = torch.Tensor(y_range,x_range)
+	for i=1,y_range do
+		for j=1,x_range do
+			local start_y = (i-1)*pointSize+1
+			local start_x = (j-1)*pointSize+1
+			x, y = find_max_index(input:sub(start_y,start_y+pointSize-1,start_x,start_x+pointSize-1))					
+			section_holder[i][j] = input[y+start_y-1][x+start_x-1]
 		end
 	end
 	return section_holder
