@@ -1,25 +1,15 @@
---#!/usr/bin/env torch
-------------------------------------------------------------
--- Author: Aysegul Dundar
--- temporal difference simulator
-
-require 'xlua' 
-require 'os'
-require 'torch'
-require 'qt'
-
+#!/usr/local/bin/qlua
+--------------------------------------------------------------------------------
+-- Temporal difference simulator
+--------------------------------------------------------------------------------
+-- Original author: Aysegul Dundar
+-- Updated by: Alfredo Canziani
+--------------------------------------------------------------------------------
 
 require 'qtwidget'
 require 'qtuiloader'
-require 'nnx'
+require 'nn'
 require 'camera'
-
--- parse args
-op = xlua.OptionParser('%prog [options]')
-op:option{'-c', '--camera', action='store', dest='camidx',
-          help='if source=camera, you can specify the camera index: /dev/videoIDX', 
-          default=0}
-opt,args = op:parse()
 
 function lowerthreshold (tensor, threshold)
    local t = tensor:contiguous()
