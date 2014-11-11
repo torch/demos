@@ -11,14 +11,18 @@ following modules to be installed via luarocks:
 
 ``` sh
 image
-torchffi
 ffmpeg
 ```
 
 ## Demonstration
+Only for the first time run: 
 
-For the demonstration, use the following commands:
+```sh
+ ./compile.sh
+```
+
+For the demonstration:
 
 ``` sh
-$ torch run.lua
+qlua run.lua
 ```
