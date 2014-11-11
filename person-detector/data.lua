@@ -19,7 +19,7 @@ if not opt then
    cmd:text()
    cmd:text('Options:')
    --   cmd:option('-size', 'small', 'how many samples do we load: small | full | extra')
-   cmd:option('-visualize', true, 'visualize input data and weights during training')
+   cmd:option('-visualize', false, 'visualize input data and weights during training')
    cmd:text()
    opt = cmd:parse(arg or {})
 end
@@ -128,8 +128,9 @@ else
       trainData.labels[trShuffle[i+1]] = labelBg
    end
    -- display some examples:
-   image.display{image=trainData.data[{{1,128}}], nrow=16, zoom=2, legend = 'Train Data'}
-
+   if opt.visualize then
+       image.display{image=trainData.data[{{1,128}}], nrow=16, zoom=2, legend = 'Train Data'}
+   end
 
    testData = {
       data = torch.Tensor(teSize, ivch,desImaX,desImaY),
@@ -152,8 +153,9 @@ else
       testData.labels[i+1] = labelBg
    end
    -- display some examples:
-   image.display{image=testData.data[{{1,128}}], nrow=16, zoom=2, legend = 'Test Data'}
-
+   if opt.visualize then
+       image.display{image=testData.data[{{1,128}}], nrow=16, zoom=2, legend = 'Test Data'}
+   end
    --save created dataset:
    torch.save('train.t7',trainData)
    torch.save('test.t7',testData)

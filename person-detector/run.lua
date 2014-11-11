@@ -27,7 +27,7 @@ opt = lapp[[
    -s,--size               (default small)       dataset: small or full or extra
    -o,--save               (default results)     save directory
       --patches            (default all)         percentage of samples to use for testing'
-      --visualize          (default true)        visualize dataset
+      --visualize                                visualize dataset
 ]]
 
 -- nb of threads and fixed seed (for repeatable experiments)
