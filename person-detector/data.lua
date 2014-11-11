@@ -6,29 +6,11 @@
 ----------------------------------------------------------------------
 
 require 'image'   -- to visualize the dataset
-require 'nn'      -- provides a normalization operator
 require 'ffmpeg'
-
-----------------------------------------------------------------------
--- parse command line arguments
-if not opt then
-   print(sys.COLORS.red ..  '==> processing options')
-   cmd = torch.CmdLine()
-   cmd:text()
-   cmd:text('INRIA Person Dataset Preprocessing')
-   cmd:text()
-   cmd:text('Options:')
-   --   cmd:option('-size', 'small', 'how many samples do we load: small | full | extra')
-   cmd:option('-visualize', false, 'visualize input data and weights during training')
-   cmd:text()
-   opt = cmd:parse(arg or {})
-end
 
 ----------------------------------------------------------------------
 
 function ls(path) return sys.split(sys.ls(path),'\n') end -- alf ls() nice function!
-
-
 
 ----------------------------------------------------------------------
 print(sys.COLORS.red ..  '==> downloading dataset')
@@ -40,10 +22,8 @@ print(sys.COLORS.red ..  '==> downloading dataset')
 -- mattorch package allows 1-to-1 conversion between Torch and Matlab
 -- files.
 
-
--- local www = 'http://data.neuflow.org/data/'
 local www = 'https://engineering.purdue.edu/elab/files/'
-local train_dir = '.' -- se to current directory (move to where you like!)
+local train_dir = '.' -- set to current directory (move to where you like!)
 local tar = 'INRIAPerson.zip'
 
 --load from 'https://engineering.purdue.edu/elab/files/INRIAPerson.zip'

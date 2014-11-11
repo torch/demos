@@ -7,11 +7,6 @@
 require 'torch'   -- torch
 require 'image'   -- to visualize the dataset
 require 'nn'      -- provides all sorts of trainable modules/layers
---require 'Dropout' -- Hinton dropout technique
-
-if opt.type == 'cuda' then
-   nn.SpatialConvolutionMM = nn.SpatialConvolution
-end
 
 ----------------------------------------------------------------------
 print(sys.COLORS.red ..  '==> define parameters')
