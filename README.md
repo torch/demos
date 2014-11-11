@@ -33,7 +33,7 @@ or checking out [this page](http://htmlpreview.github.io/?https://github.com/tor
 
 ## Tutorials
 
-https://github.com/clementfarabet/torch-tutorials
+https://github.com/torch/tutorials
 
 ## Credits
 
