@@ -225,8 +225,7 @@ testData.data[{ {},3,{},{} }]:div(-std_v)
 confusion = optim.ConfusionMatrix(classes)
 
 -- log results to files
-trainLogger = optim.Logger(paths.concat(opt.save, 'train.log'))
-testLogger = optim.Logger(paths.concat(opt.save, 'test.log'))
+logger = optim.Logger(paths.concat(opt.save, 'accuracy.log'))
 
 -- display function
 function display(input)
@@ -357,7 +356,7 @@ function train(dataset)
 
    -- print confusion matrix
    print(confusion)
-   trainLogger:add{['% mean class accuracy (train set)'] = confusion.totalValid * 100}
+   local trainAccuracy = confusion.totalValid * 100
    confusion:zero()
 
    -- save/log current net
@@ -371,6 +370,8 @@ function train(dataset)
 
    -- next epoch
    epoch = epoch + 1
+
+   return trainAccuracy
 end
 
 -- test function
@@ -406,7 +407,7 @@ function test(dataset)
 
    -- print confusion matrix
    print(confusion)
-   testLogger:add{['% mean class accuracy (test set)'] = confusion.totalValid * 100}
+   local testAccuracy = confusion.totalValid * 100
    confusion:zero()
 
    -- averaged param use?
@@ -414,6 +415,8 @@ function test(dataset)
       -- restore parameters
       parameters:copy(cachedparams)
    end
+
+   return testAccuracy
 end
 
 ----------------------------------------------------------------------
@@ -421,12 +424,13 @@ end
 --
 while true do
    -- train/test
-   train(trainData)
-   test(testData)
+   trainAcc = train(trainData)
+   testAcc = test(testData)
+
+   -- update logger
+   logger:add{['% train accuracy'] = trainAcc, ['% test accuracy'] = testAcc}
 
    -- plot errors
-   trainLogger:style{['% mean class accuracy (train set)'] = '-'}
-   testLogger:style{['% mean class accuracy (test set)'] = '-'}
-   trainLogger:plot()
-   testLogger:plot()
+   logger:style{['% train accuracy'] = '-', ['% test accuracy'] = '-'}
+   logger:plot()
 end
