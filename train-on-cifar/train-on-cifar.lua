@@ -233,23 +233,29 @@ function display(input)
    iter = iter or 0
    require 'image'
    win_input = image.display{image=input, win=win_input, zoom=2, legend='input'}
-   if iter%10 == 0 then
+   if iter % 10 == 0 then
       if opt.model == 'convnet' then
-         win_w1 = image.display{image=model:get(2).weight, zoom=4, nrow=10,
-                                min=-1, max=1,
-                                win=win_w1, legend='stage 1: weights', padding=1}
-         win_w2 = image.display{image=model:get(6).weight, zoom=4, nrow=30,
-                                min=-1, max=1,
-                                win=win_w2, legend='stage 2: weights', padding=1}
+         win_w1 = image.display{
+            image=model:get(2).weight, zoom=4, nrow=10,
+            min=-1, max=1,
+            win=win_w1, legend='stage 1: weights', padding=1
+         }
+         win_w2 = image.display{
+            image=model:get(6).weight, zoom=4, nrow=30,
+            min=-1, max=1,
+            win=win_w2, legend='stage 2: weights', padding=1
+         }
       elseif opt.model == 'mlp' then
          local W1 = torch.Tensor(model:get(2).weight):resize(2048,1024)
-         win_w1 = image.display{image=W1, zoom=0.5,
-                                min=-1, max=1,
-                                win=win_w1, legend='W1 weights'}
+         win_w1 = image.display{
+            image=W1, zoom=0.5, min=-1, max=1,
+            win=win_w1, legend='W1 weights'
+         }
          local W2 = torch.Tensor(model:get(2).weight):resize(10,2048)
-         win_w2 = image.display{image=W2, zoom=0.5,
-                                min=-1, max=1,
-                                win=win_w2, legend='W2 weights'}
+         win_w2 = image.display{
+            image=W2, zoom=0.5, min=-1, max=1,
+            win=win_w2, legend='W2 weights'
+         }
       end
    end
    iter = iter + 1
@@ -284,45 +290,45 @@ function train(dataset)
 
       -- create closure to evaluate f(X) and df/dX
       local feval = function(x)
-                       -- get new parameters
-                       if x ~= parameters then
-                          parameters:copy(x)
-                       end
+         -- get new parameters
+         if x ~= parameters then
+            parameters:copy(x)
+         end
 
-                       -- reset gradients
-                       gradParameters:zero()
+         -- reset gradients
+         gradParameters:zero()
 
-                       -- f is the average of all criterions
-                       local f = 0
+         -- f is the average of all criterions
+         local f = 0
 
-                       -- evaluate function for complete mini batch
-                       for i = 1,#inputs do
-                          -- estimate f
-                          local output = model:forward(inputs[i])
-                          local err = criterion:forward(output, targets[i])
-                          f = f + err
+         -- evaluate function for complete mini batch
+         for i = 1,#inputs do
+            -- estimate f
+            local output = model:forward(inputs[i])
+            local err = criterion:forward(output, targets[i])
+            f = f + err
 
-                          -- estimate df/dW
-                          local df_do = criterion:backward(output, targets[i])
-                          model:backward(inputs[i], df_do)
+            -- estimate df/dW
+            local df_do = criterion:backward(output, targets[i])
+            model:backward(inputs[i], df_do)
 
-                          -- update confusion
-                          confusion:add(output, targets[i])
+            -- update confusion
+            confusion:add(output, targets[i])
 
-                          -- visualize?
-                          if opt.visualize then
-                             display(inputs[i])
-                          end
-                       end
+            -- visualize?
+            if opt.visualize then
+               display(inputs[i])
+            end
+         end
 
-                       -- normalize gradients and f(X)
-                       gradParameters:div(#inputs)
-                       f = f/#inputs
-                       trainError = trainError + f
+         -- normalize gradients and f(X)
+         gradParameters:div(#inputs)
+         f = f/#inputs
+         trainError = trainError + f
 
-                       -- return f and df/dX
-                       return f,gradParameters
-                    end
+         -- return f and df/dX
+         return f,gradParameters
+      end
 
       -- optimize on current mini-batch
       if opt.optimization == 'CG' then
