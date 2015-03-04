@@ -225,7 +225,8 @@ testData.data[{ {},3,{},{} }]:div(-std_v)
 confusion = optim.ConfusionMatrix(classes)
 
 -- log results to files
-logger = optim.Logger(paths.concat(opt.save, 'accuracy.log'))
+accLogger = optim.Logger(paths.concat(opt.save, 'accuracy.log'))
+errLogger = optim.Logger(paths.concat(opt.save, 'error.log'   ))
 
 -- display function
 function display(input)
@@ -261,6 +262,7 @@ function train(dataset)
 
    -- local vars
    local time = sys.clock()
+   local trainError = 0
 
    -- do one epoch
    print('<trainer> on training set:')
@@ -316,6 +318,7 @@ function train(dataset)
                        -- normalize gradients and f(X)
                        gradParameters:div(#inputs)
                        f = f/#inputs
+                       trainError = trainError + f
 
                        -- return f and df/dX
                        return f,gradParameters
@@ -349,6 +352,9 @@ function train(dataset)
       end
    end
 
+   -- train error
+   trainError = trainError / math.floor(dataset:size()/opt.batchSize)
+
    -- time taken
    time = sys.clock() - time
    time = time / dataset:size()
@@ -371,12 +377,13 @@ function train(dataset)
    -- next epoch
    epoch = epoch + 1
 
-   return trainAccuracy
+   return trainAccuracy, trainError
 end
 
 -- test function
 function test(dataset)
    -- local vars
+   local testError = 0
    local time = sys.clock()
 
    -- averaged param use?
@@ -398,12 +405,19 @@ function test(dataset)
       -- test sample
       local pred = model:forward(input)
       confusion:add(pred, target)
+
+      -- compute error
+      err = criterion:forward(pred, target)
+      testError = testError + err
    end
 
    -- timing
    time = sys.clock() - time
    time = time / dataset:size()
    print("<trainer> time to test 1 sample = " .. (time*1000) .. 'ms')
+
+   -- testing error estimation
+   testError = testError / dataset:size()
 
    -- print confusion matrix
    print(confusion)
@@ -416,7 +430,7 @@ function test(dataset)
       parameters:copy(cachedparams)
    end
 
-   return testAccuracy
+   return testAccuracy, testError
 end
 
 ----------------------------------------------------------------------
@@ -424,13 +438,16 @@ end
 --
 while true do
    -- train/test
-   trainAcc = train(trainData)
-   testAcc = test(testData)
+   trainAcc, trainErr = train(trainData)
+   testAcc,  testErr  = test (testData)
 
    -- update logger
-   logger:add{['% train accuracy'] = trainAcc, ['% test accuracy'] = testAcc}
+   accLogger:add{['% train accuracy'] = trainAcc, ['% test accuracy'] = testAcc}
+   errLogger:add{['% train error']    = trainErr, ['% test error']    = testErr}
 
-   -- plot errors
-   logger:style{['% train accuracy'] = '-', ['% test accuracy'] = '-'}
-   logger:plot()
+   -- plot logger
+   accLogger:style{['% train accuracy'] = '-', ['% test accuracy'] = '-'}
+   errLogger:style{['% train error']    = '-', ['% test error']    = '-'}
+   accLogger:plot()
+   errLogger:plot()
 end
