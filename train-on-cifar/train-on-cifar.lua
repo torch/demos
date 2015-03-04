@@ -2,9 +2,9 @@
 -- This script shows how to train different models on the CIFAR
 -- dataset, using multiple optimization techniques (SGD, ASGD, CG)
 --
--- This script demonstrates a classical example of training 
+-- This script demonstrates a classical example of training
 -- well-known models (convnet, MLP, logistic regression)
--- on a 10-class classification problem. 
+-- on a 10-class classification problem.
 --
 -- It illustrates several points:
 -- 1/ description of the model
@@ -15,9 +15,7 @@
 -- Clement Farabet
 ----------------------------------------------------------------------
 
-require 'torch'
 require 'nn'
-require 'nnx'
 require 'optim'
 require 'image'
 
