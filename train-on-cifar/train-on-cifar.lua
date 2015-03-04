@@ -2,9 +2,9 @@
 -- This script shows how to train different models on the CIFAR
 -- dataset, using multiple optimization techniques (SGD, ASGD, CG)
 --
--- This script demonstrates a classical example of training 
+-- This script demonstrates a classical example of training
 -- well-known models (convnet, MLP, logistic regression)
--- on a 10-class classification problem. 
+-- on a 10-class classification problem.
 --
 -- It illustrates several points:
 -- 1/ description of the model
@@ -15,9 +15,7 @@
 -- Clement Farabet
 ----------------------------------------------------------------------
 
-require 'torch'
 require 'nn'
-require 'nnx'
 require 'optim'
 require 'image'
 
@@ -227,31 +225,37 @@ testData.data[{ {},3,{},{} }]:div(-std_v)
 confusion = optim.ConfusionMatrix(classes)
 
 -- log results to files
-trainLogger = optim.Logger(paths.concat(opt.save, 'train.log'))
-testLogger = optim.Logger(paths.concat(opt.save, 'test.log'))
+accLogger = optim.Logger(paths.concat(opt.save, 'accuracy.log'))
+errLogger = optim.Logger(paths.concat(opt.save, 'error.log'   ))
 
 -- display function
 function display(input)
    iter = iter or 0
    require 'image'
    win_input = image.display{image=input, win=win_input, zoom=2, legend='input'}
-   if iter%10 == 0 then
+   if iter % 10 == 0 then
       if opt.model == 'convnet' then
-         win_w1 = image.display{image=model:get(2).weight, zoom=4, nrow=10,
-                                min=-1, max=1,
-                                win=win_w1, legend='stage 1: weights', padding=1}
-         win_w2 = image.display{image=model:get(6).weight, zoom=4, nrow=30,
-                                min=-1, max=1,
-                                win=win_w2, legend='stage 2: weights', padding=1}
+         win_w1 = image.display{
+            image=model:get(2).weight, zoom=4, nrow=10,
+            min=-1, max=1,
+            win=win_w1, legend='stage 1: weights', padding=1
+         }
+         win_w2 = image.display{
+            image=model:get(6).weight, zoom=4, nrow=30,
+            min=-1, max=1,
+            win=win_w2, legend='stage 2: weights', padding=1
+         }
       elseif opt.model == 'mlp' then
          local W1 = torch.Tensor(model:get(2).weight):resize(2048,1024)
-         win_w1 = image.display{image=W1, zoom=0.5,
-                                min=-1, max=1,
-                                win=win_w1, legend='W1 weights'}
+         win_w1 = image.display{
+            image=W1, zoom=0.5, min=-1, max=1,
+            win=win_w1, legend='W1 weights'
+         }
          local W2 = torch.Tensor(model:get(2).weight):resize(10,2048)
-         win_w2 = image.display{image=W2, zoom=0.5,
-                                min=-1, max=1,
-                                win=win_w2, legend='W2 weights'}
+         win_w2 = image.display{
+            image=W2, zoom=0.5, min=-1, max=1,
+            win=win_w2, legend='W2 weights'
+         }
       end
    end
    iter = iter + 1
@@ -264,6 +268,7 @@ function train(dataset)
 
    -- local vars
    local time = sys.clock()
+   local trainError = 0
 
    -- do one epoch
    print('<trainer> on training set:')
@@ -285,44 +290,45 @@ function train(dataset)
 
       -- create closure to evaluate f(X) and df/dX
       local feval = function(x)
-                       -- get new parameters
-                       if x ~= parameters then
-                          parameters:copy(x)
-                       end
+         -- get new parameters
+         if x ~= parameters then
+            parameters:copy(x)
+         end
 
-                       -- reset gradients
-                       gradParameters:zero()
+         -- reset gradients
+         gradParameters:zero()
 
-                       -- f is the average of all criterions
-                       local f = 0
+         -- f is the average of all criterions
+         local f = 0
 
-                       -- evaluate function for complete mini batch
-                       for i = 1,#inputs do
-                          -- estimate f
-                          local output = model:forward(inputs[i])
-                          local err = criterion:forward(output, targets[i])
-                          f = f + err
+         -- evaluate function for complete mini batch
+         for i = 1,#inputs do
+            -- estimate f
+            local output = model:forward(inputs[i])
+            local err = criterion:forward(output, targets[i])
+            f = f + err
 
-                          -- estimate df/dW
-                          local df_do = criterion:backward(output, targets[i])
-                          model:backward(inputs[i], df_do)
+            -- estimate df/dW
+            local df_do = criterion:backward(output, targets[i])
+            model:backward(inputs[i], df_do)
 
-                          -- update confusion
-                          confusion:add(output, targets[i])
+            -- update confusion
+            confusion:add(output, targets[i])
 
-                          -- visualize?
-                          if opt.visualize then
-                             display(inputs[i])
-                          end
-                       end
+            -- visualize?
+            if opt.visualize then
+               display(inputs[i])
+            end
+         end
 
-                       -- normalize gradients and f(X)
-                       gradParameters:div(#inputs)
-                       f = f/#inputs
+         -- normalize gradients and f(X)
+         gradParameters:div(#inputs)
+         f = f/#inputs
+         trainError = trainError + f
 
-                       -- return f and df/dX
-                       return f,gradParameters
-                    end
+         -- return f and df/dX
+         return f,gradParameters
+      end
 
       -- optimize on current mini-batch
       if opt.optimization == 'CG' then
@@ -352,6 +358,9 @@ function train(dataset)
       end
    end
 
+   -- train error
+   trainError = trainError / math.floor(dataset:size()/opt.batchSize)
+
    -- time taken
    time = sys.clock() - time
    time = time / dataset:size()
@@ -359,7 +368,7 @@ function train(dataset)
 
    -- print confusion matrix
    print(confusion)
-   trainLogger:add{['% mean class accuracy (train set)'] = confusion.totalValid * 100}
+   local trainAccuracy = confusion.totalValid * 100
    confusion:zero()
 
    -- save/log current net
@@ -373,11 +382,14 @@ function train(dataset)
 
    -- next epoch
    epoch = epoch + 1
+
+   return trainAccuracy, trainError
 end
 
 -- test function
 function test(dataset)
    -- local vars
+   local testError = 0
    local time = sys.clock()
 
    -- averaged param use?
@@ -399,6 +411,10 @@ function test(dataset)
       -- test sample
       local pred = model:forward(input)
       confusion:add(pred, target)
+
+      -- compute error
+      err = criterion:forward(pred, target)
+      testError = testError + err
    end
 
    -- timing
@@ -406,9 +422,12 @@ function test(dataset)
    time = time / dataset:size()
    print("<trainer> time to test 1 sample = " .. (time*1000) .. 'ms')
 
+   -- testing error estimation
+   testError = testError / dataset:size()
+
    -- print confusion matrix
    print(confusion)
-   testLogger:add{['% mean class accuracy (test set)'] = confusion.totalValid * 100}
+   local testAccuracy = confusion.totalValid * 100
    confusion:zero()
 
    -- averaged param use?
@@ -416,6 +435,8 @@ function test(dataset)
       -- restore parameters
       parameters:copy(cachedparams)
    end
+
+   return testAccuracy, testError
 end
 
 ----------------------------------------------------------------------
@@ -423,12 +444,16 @@ end
 --
 while true do
    -- train/test
-   train(trainData)
-   test(testData)
+   trainAcc, trainErr = train(trainData)
+   testAcc,  testErr  = test (testData)
 
-   -- plot errors
-   trainLogger:style{['% mean class accuracy (train set)'] = '-'}
-   testLogger:style{['% mean class accuracy (test set)'] = '-'}
-   trainLogger:plot()
-   testLogger:plot()
+   -- update logger
+   accLogger:add{['% train accuracy'] = trainAcc, ['% test accuracy'] = testAcc}
+   errLogger:add{['% train error']    = trainErr, ['% test error']    = testErr}
+
+   -- plot logger
+   accLogger:style{['% train accuracy'] = '-', ['% test accuracy'] = '-'}
+   errLogger:style{['% train error']    = '-', ['% test error']    = '-'}
+   accLogger:plot()
+   errLogger:plot()
 end
