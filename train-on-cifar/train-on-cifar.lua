@@ -179,6 +179,7 @@ testData.data = testData.data:reshape(tesize,3,32,32)
 --
 
 print '<trainer> preprocessing data (color space + normalization)'
+collectgarbage()
 
 -- preprocess trainSet
 normalization = nn.SpatialContrastiveNormalization(1, image.gaussian1D(7))
