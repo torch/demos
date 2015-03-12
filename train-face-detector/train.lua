@@ -31,7 +31,7 @@ function nilling(module)
    if module.finput then module.finput = torch.Tensor() end
    module.gradWeight = nil
    module.output     = torch.Tensor()
-   module.fgradInput = nil
+   if module.fgradInput then module.fgradInput = torch.Tensor() end
    module.gradInput  = nil
 end
 
