@@ -57,7 +57,7 @@ end
 
 -- batch size?
 if opt.optimization == 'LBFGS' and opt.batchSize < 100 then
-   error('LBFGS should not be used with small mini-batches; 1000 is a recommended')
+   error('LBFGS should not be used with small mini-batches; 1000 is recommended')
 end
 
 ----------------------------------------------------------------------
