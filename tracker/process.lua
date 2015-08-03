@@ -26,7 +26,6 @@ end
 print(' ... calibrating encoder so as to produce a single vector for a training patch of width ' .. boxw/downs .. ' and height ' .. boxh/downs)
 local res = encoder:forward(torch.Tensor(3,boxh/downs,boxw/downs))
 addpooler = nn.SpatialLPPooling(res:size(1),2,res:size(3),res:size(2),1,1)
-addpooler.modules[2].weight:div(res:size(3)*res:size(2))
 encoderm  = encoder:clone()
 encoderm:add(addpooler)
 print(' ... appending a ' .. res:size(3) .. 'x' .. res:size(2) .. ' L2-pooling')

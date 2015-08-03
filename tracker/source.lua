@@ -7,7 +7,7 @@ elseif options.source == 'video' then
    require 'ffmpeg'
    source = ffmpeg.Video{path=options.video, width=options.width,
                          height=options.height, fps=options.fps,
-                         length=options.length}
+                         length=options.length, delete=false}
 elseif options.source == 'dataset' then
    require 'ffmpeg'
    source = ffmpeg.Video{path=options.dspath, encoding=options.dsencoding,
