@@ -147,7 +147,7 @@ feval = function(x_new)
    local target = sample[{ {1} }]      -- this funny looking syntax allows
    local inputs = sample[{ {2,3} }]    -- slicing of arrays.
 
-   -- reset gradients (gradients are always accumulated, to accomodate 
+   -- reset gradients (gradients are always accumulated, to accommodate 
    -- batch methods)
    dl_dx:zero()
 
