@@ -48,7 +48,7 @@ require 'nn'
 -- of fertilizer and insecticide. See p 157 of the text.
 
 -- In this example, we want to be able to predict the amount of
--- corn produced, given the amount of fertilizer and intesticide used.
+-- corn produced, given the amount of fertilizer and insecticide used.
 -- In other words: fertilizer & insecticide are our two input variables,
 -- and corn is our target value.
 
