@@ -45,7 +45,7 @@ function mnist.loadDataset(fileName, maxLoad)
    dataset.labels = labels
 
    function dataset:normalize(mean_, std_)
-      local mean = mean or data:view(data:size(1), -1):mean(1)
+      local mean = mean_ or data:view(data:size(1), -1):mean(1)
       local std = std_ or data:view(data:size(1), -1):std(1, true)
       for i=1,data:size(1) do
          data[i]:add(-mean[1][i])
