@@ -237,12 +237,12 @@ function display(input)
    if iter % 10 == 0 then
       if opt.model == 'convnet' then
          win_w1 = image.display{
-            image=model:get(2).weight, zoom=4, nrow=10,
+            image=model:get(1).weight, zoom=4, nrow=10,
             min=-1, max=1,
             win=win_w1, legend='stage 1: weights', padding=1
          }
          win_w2 = image.display{
-            image=model:get(6).weight, zoom=4, nrow=30,
+            image=model:get(4).weight, zoom=4, nrow=30,
             min=-1, max=1,
             win=win_w2, legend='stage 2: weights', padding=1
          }
