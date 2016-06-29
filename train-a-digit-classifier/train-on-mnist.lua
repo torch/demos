@@ -1,10 +1,10 @@
 ----------------------------------------------------------------------
--- This script shows how to train different models on the MNIST 
+-- This script shows how to train different models on the MNIST
 -- dataset, using multiple optimization techniques (SGD, LBFGS)
 --
--- This script demonstrates a classical example of training 
+-- This script demonstrates a classical example of training
 -- well-known models (convnet, MLP, logistic regression)
--- on a 10-class classification problem. 
+-- on a 10-class classification problem.
 --
 -- It illustrates several points:
 -- 1/ description of the model
@@ -33,7 +33,7 @@ local opt = lapp[[
    -m,--model         (default "convnet")   type of model tor train: convnet | mlp | linear
    -f,--full                                use the full dataset
    -p,--plot                                plot while training
-   -o,--optimization  (default "SGD")       optimization: SGD | LBFGS 
+   -o,--optimization  (default "SGD")       optimization: SGD | LBFGS
    -r,--learningRate  (default 0.05)        learning rate, for SGD only
    -b,--batchSize     (default 10)          batch size
    -m,--momentum      (default 0)           momentum, for SGD only
@@ -75,7 +75,7 @@ if opt.network == '' then
 
    if opt.model == 'convnet' then
       ------------------------------------------------------------
-      -- convolutional network 
+      -- convolutional network
       ------------------------------------------------------------
       -- stage 1 : mean suppresion -> filter bank -> squashing -> max pooling
       model:add(nn.SpatialConvolutionMM(1, 32, 5, 5))
@@ -243,7 +243,7 @@ function train(dataset)
             lineSearch = optim.lswolfe
          }
          optim.lbfgs(feval, parameters, lbfgsState)
-       
+
          -- disp report:
          print('LBFGS step')
          print(' - progress in batch: ' .. t .. '/' .. dataset:size())
@@ -259,7 +259,7 @@ function train(dataset)
             learningRateDecay = 5e-7
          }
          optim.sgd(feval, parameters, sgdState)
-      
+
          -- disp progress
          xlua.progress(t, dataset:size())
 
@@ -267,7 +267,7 @@ function train(dataset)
          error('unknown optimization method')
       end
    end
-   
+
    -- time taken
    time = sys.clock() - time
    time = time / dataset:size()
