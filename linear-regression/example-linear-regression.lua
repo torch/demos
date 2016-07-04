@@ -7,10 +7,10 @@
 --
 
 -- note: to run this script, simply do:
--- torch script.lua
+-- th example-linear-regression.lua
 
 -- to run the script, and get an interactive shell once it terminates:
--- torch -i script.lua
+-- th -i example-linear-regression.lua
 
 -- we first require the necessary packages.
 -- note: optim is a 3rd-party package, and needs to be installed
@@ -21,6 +21,8 @@ require 'torch'
 require 'optim'
 require 'nn'
 
+-- We will write the loss to a text file and read from there to plot the loss as training proceeds
+logger = optim.Logger('loss_log.txt')
 
 ----------------------------------------------------------------------
 -- 1. Create the training data
@@ -209,9 +211,11 @@ for i = 1,1e4 do
    -- report average error on epoch
    current_loss = current_loss / (#data)[1]
    print('current loss = ' .. current_loss)
-
+   
+   logger:add{['training error'] = current_loss}
+   logger:style{['training error'] = '-'}
+   logger:plot()  
 end
-
 
 ----------------------------------------------------------------------
 -- 5. Test the trained model.
