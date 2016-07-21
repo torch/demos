@@ -1,9 +1,10 @@
 
 require 'sys'
-require 'cunn'
+require 'nnx'
+--require 'cunn'
 
-cutorch.setDevice(arg[1] or 1)
-print('DEVID = ' .. cutorch.getDevice())
+--cutorch.setDevice(arg[1] or 1)
+--print('DEVID = ' .. cutorch.getDevice())
 
 bs = 512
 ninputs = 4096
@@ -28,14 +29,13 @@ N=5
 -- pre-alloc states:
 n:forward(i)
 n:backward(i, n.output)
-cutorch.synchronize()
+--cutorch.synchronize()
 
 sys.tic()
 for t = 1,N do
    n:forward(i)
    n:backward(i, n.output)
 end
-cutorch.synchronize()
+--cutorch.synchronize()
 t = sys.toc()/N
 print('Fprop+Bprop+Acc - GFLOP/s:', ops/t/1e9)
-
