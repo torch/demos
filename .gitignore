@@ -17,6 +17,7 @@ datasets/
 
 # Ignore log folders
 log/
+logs/
 
 # Ignore emacs saved files
 *.*~
