@@ -8,6 +8,10 @@
 -- and then press 'y' or 'return' at each step, to keep going.
 
 -- little function to pause execution, and request user input
+----------------------------------------------------------------------
+
+require 'torch'
+
 function next()
    local answer = nil
    while answer ~= '' and answer ~= 'y' and answer ~= 'Y' and neverstall ~= true do
